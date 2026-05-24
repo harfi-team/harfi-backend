@@ -133,12 +133,12 @@ public static class ServiceExtensions
             // Enable JWT in Swagger UI
             c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
-                Name = "Authorization",
-                Type = SecuritySchemeType.ApiKey,
-                Scheme = "Bearer",
-                BearerFormat = "JWT",
+                Description = "Enter your token only — no need to type Bearer",
+                Name = "Bearer",
                 In = ParameterLocation.Header,
-                Description = "اكتب: Bearer {token}"
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer",
+                BearerFormat = "JWT"
             });
 
             c.AddSecurityRequirement(new OpenApiSecurityRequirement
