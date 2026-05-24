@@ -398,22 +398,25 @@ Harfi.DTOs/AI/
 
 ---
 
-## ⚠️ Migration Rules — اقرأ ده قبل أي حاجة
+## ⚠️ Migration Rules — Read Before Anything
 
-### ❌ ممنوع تماماً
-- No One Can Make `dotnet ef migrations add`. 
-- Please don't Change any file in Harfi.Repositories/Data/Migrations/ .
-- No One Updates AppDbContext.cs Before Before we discuss this in the group .
+### ❌ Never Do This
+- Never run `dotnet ef migrations add` — not even to test
+- Never edit any file inside `Harfi.Repositories/Data/Migrations/`
+- Never modify `AppDbContext.cs` without discussing it in the group first
 
-### ✅ اللي مسموح تعمله
-- `dotnet ef database update --project Harfi.Repositories --startup-project Harfi.API`
-- Once After Make `git pull origin dev`.
-
-### لو محتاج تغيير في الـ Database Schema
-افتح issue على GitHub أو ابعت message لإسراء بالتغيير اللي محتاجه.
-إسراء هي اللي بتعمل الـ Migration وتـ Push.
-
-### الترتيب الصح بعد كل Pull
+### ✅ The Only Thing You Should Run
+```bash
+# Only after git pull origin dev
 git pull origin dev
 dotnet ef database update --project Harfi.Repositories --startup-project Harfi.API
 dotnet run --project Harfi.API
+```
+
+### If You Need a Database Schema Change
+Open a GitHub issue or send Esraa a message describing the change you need.
+Esraa is the only one who creates migrations and pushes them.
+
+> 📌 **Note:** These rules exist purely to avoid merge conflicts and keep the database
+> in sync across all machines — not to impose authority on anyone.
+> Everyone's input on schema changes is welcome, just route it through one person.
