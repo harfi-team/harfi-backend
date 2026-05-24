@@ -31,4 +31,7 @@ public interface IAuthService
     /// Silent if token not found.
     /// </summary>
     Task LogoutAsync(string refreshToken);
+
+    Task<string> VerifyEmailAsync(VerifyEmailDto dto);
+    Task<string> ResendVerificationCodeAsync(ResendCodeDto dto);
 }

@@ -103,4 +103,21 @@ public class AuthController : ControllerBase
     [Authorize(Roles = "craftsman")]
     public IActionResult CraftsmanOnly()
         => Ok(new { message = "أهلاً بالحرفي 🔧" });
+
+
+    [HttpPost("verify-email")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyEmail([FromBody] VerifyEmailDto dto)
+    {
+        var message = await _authService.VerifyEmailAsync(dto);
+        return Ok(new { success = true, message });
+    }
+
+    [HttpPost("resend-code")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResendCode([FromBody] ResendCodeDto dto)
+    {
+        var message = await _authService.ResendVerificationCodeAsync(dto);
+        return Ok(new { success = true, message });
+    }
 }

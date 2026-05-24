@@ -33,6 +33,7 @@ public class User
 
     /// <summary>Soft delete flag — never hard-delete users</summary>
     public bool IsActive { get; set; } = true;
+    public bool IsVerified { get; set; } = false;
 
     [MaxLength(500)]
     public string? ProfileImageUrl { get; set; }
@@ -48,4 +49,6 @@ public class User
     public ICollection<UserConnection> UserConnections { get; set; } = new List<UserConnection>();
     public ICollection<Message> SentMessages { get; set; } = new List<Message>();
     public ICollection<MediaFile> UploadedFiles { get; set; } = new List<MediaFile>();
+    public ICollection<EmailVerification> EmailVerifications { get; set; }
+    = new List<EmailVerification>();
 }
