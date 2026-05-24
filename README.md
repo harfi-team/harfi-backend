@@ -208,20 +208,20 @@ Harfi.API/
     └── AuthController.cs
 
 Harfi.Services/
-├── Interfaces/
-│   ├── IAuthService.cs
-│   └── IEmailService.cs     
-└── Implementations/
-    ├── AuthService.cs
-    └── EmailService.cs      
+├── Interfaces/IAuthService.cs
+├── Interfaces/IEmailService.cs
+├── Implementations/AuthService.cs
+└── Implementations/EmailService.cs
 
 Harfi.Repositories/
 ├── Data/AppDbContext.cs
-├── Data/AppDbContextFactory.cs  
-├── Data/DataSeeder.cs           
+├── Data/AppDbContextFactory.cs
+├── Data/DataSeeder.cs
 ├── Data/Migrations/
-├── Interfaces/IGenericRepository.cs   
-└── Implementations/GenericRepository.cs  
+├── Interfaces/IGenericRepository.cs
+├── Interfaces/IUserRepository.cs
+├── Implementations/GenericRepository.cs
+└── Implementations/UserRepository.cs
 
 Harfi.Models/Entities/
 ├── User.cs
@@ -229,12 +229,12 @@ Harfi.Models/Entities/
 └── EmailVerification.cs
 
 Harfi.DTOs/Auth/
-├── AuthResponseDto.cs
-├── LoginDto.cs
-├── RefreshTokenRequestDto.cs   
 ├── RegisterDto.cs
-├── ResendCodeDto.cs            
-└── VerifyEmailDto.cs
+├── LoginDto.cs
+├── VerifyEmailDto.cs
+├── ResendCodeDto.cs
+├── RefreshTokenRequestDto.cs
+└── AuthResponseDto.cs
 ```
 
 ---
@@ -261,7 +261,7 @@ Harfi.Repositories/
 └── Implementations/CraftsmanRepository.cs
 
 Harfi.Models/Entities/
-└── Craftsman.cs
+└── Craftsman.cs                ← already created by Esraa ✅ do not recreate
 
 Harfi.DTOs/
 ├── User/
@@ -289,7 +289,7 @@ Harfi.Repositories/
 └── Implementations/JobRepository.cs
 
 Harfi.Models/Entities/
-└── Job.cs
+└── Job.cs                      ← already created by Esraa ✅ do not recreate
 
 Harfi.DTOs/Job/
 ├── CreateJobDto.cs
@@ -322,8 +322,8 @@ Harfi.Repositories/
     └── JobFeedbackRepository.cs
 
 Harfi.Models/Entities/
-├── Review.cs
-└── JobFeedback.cs
+├── Review.cs                   ← already created by Esraa ✅ do not recreate
+└── JobFeedback.cs              ← already created by Esraa ✅ do not recreate
 
 Harfi.DTOs/Review/
 ├── CreateReviewDto.cs
@@ -363,10 +363,10 @@ Harfi.Repositories/
     └── NotificationRepository.cs
 
 Harfi.Models/Entities/
-├── Conversation.cs
-├── Message.cs
-├── Notification.cs
-└── UserConnection.cs
+├── Conversation.cs             ← already created by Esraa ✅ do not recreate
+├── Message.cs                  ← already created by Esraa ✅ do not recreate
+├── Notification.cs             ← already created by Esraa ✅ do not recreate
+└── UserConnection.cs           ← already created by Esraa ✅ do not recreate
 
 Harfi.DTOs/Chat/
 ├── SendMessageDto.cs
@@ -398,8 +398,8 @@ Harfi.Repositories/
     └── RAGRepository.cs
 
 Harfi.Models/Entities/
-├── AIChatMessage.cs
-└── RAGDocument.cs
+├── AIChatMessage.cs            ← already created by Esraa ✅ do not recreate
+└── RAGDocument.cs              ← already created by Esraa ✅ do not recreate
 
 Harfi.DTOs/AI/
 ├── AIChatRequestDto.cs
