@@ -1,36 +1,44 @@
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using Harfi.DTOs.Auth;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Harfi.Services.Implementations;
 
 public class AuthService : IAuthService
 {
+    // ── FIELDS ────────────────────────────────────────────────
     private readonly IGenericRepository<User> _userRepo;
     private readonly IGenericRepository<RefreshToken> _refreshTokenRepo;
+    private readonly IGenericRepository<EmailVerification> _verificationRepo;
+    private readonly IEmailService _emailService;
     private readonly IConfiguration _config;
 
+    // ── CONSTRUCTOR ───────────────────────────────────────────
     public AuthService(
         IGenericRepository<User> userRepo,
         IGenericRepository<RefreshToken> refreshTokenRepo,
+        IGenericRepository<EmailVerification> verificationRepo,
+        IEmailService emailService,
         IConfiguration config)
     {
         _userRepo = userRepo;
         _refreshTokenRepo = refreshTokenRepo;
+        _verificationRepo = verificationRepo;
+        _emailService = emailService;
         _config = config;
     }
 
-    // ── REGISTER ─────────────────────────────────────────────
+    // ── REGISTER ──────────────────────────────────────────────
     public async Task<AuthResponseDto> RegisterAsync(RegisterDto dto)
     {
-        // 1. Check email is unique (case-insensitive)
+        // 1. Check email is unique
         var emailTaken = await _userRepo.ExistsAsync(
             u => u.Email == dto.Email.ToLower().Trim());
 
@@ -38,7 +46,7 @@ public class AuthService : IAuthService
             throw new InvalidOperationException(
                 "البريد الإلكتروني مسجل مسبقاً. جرب تسجيل الدخول.");
 
-        // 2. Create user entity
+        // 2. Create user
         var user = new User
         {
             Name = dto.Name.Trim(),
@@ -47,42 +55,62 @@ public class AuthService : IAuthService
             Role = dto.Role,
             Phone = dto.Phone?.Trim(),
             IsActive = true,
+            IsVerified = false,
             CreatedAt = DateTime.UtcNow
         };
 
-        // 3. Save to DB
+        // 3. Save user
         await _userRepo.AddAsync(user);
         await _userRepo.SaveChangesAsync();
 
-        // 4. Return tokens
+        // 4. Generate & save verification code
+        var code = new Random().Next(100000, 999999).ToString();
+        await _verificationRepo.AddAsync(new EmailVerification
+        {
+            UserId = user.Id,
+            Code = code,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+            IsUsed = false
+        });
+        await _verificationRepo.SaveChangesAsync();
+
+        // 5. Send verification email
+        await _emailService.SendVerificationCodeAsync(user.Email, user.Name, code);
+
+        // 6. Return tokens
         return await BuildAuthResponseAsync(user);
     }
 
     // ── LOGIN ─────────────────────────────────────────────────
     public async Task<AuthResponseDto> LoginAsync(LoginDto dto)
     {
-        // 1. Find user by email
+        // 1. Find user
         var user = await _userRepo.FirstOrDefaultAsync(
             u => u.Email == dto.Email.ToLower().Trim());
 
-        // 2. Verify password — same error message for security (no email enumeration)
+        // 2. Verify password
         if (user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             throw new UnauthorizedAccessException(
                 "البريد الإلكتروني أو كلمة المرور غير صحيحة.");
 
-        // 3. Check account is active
+        // 3. Check active
         if (!user.IsActive)
             throw new UnauthorizedAccessException(
                 "هذا الحساب موقوف. تواصل مع الدعم الفني.");
 
-        // 4. Return tokens
+        // 4. Check verified
+        if (!user.IsVerified)
+            throw new UnauthorizedAccessException(
+                "البريد الإلكتروني غير مفعّل. تحقق من بريدك الإلكتروني.");
+
+        // 5. Return tokens
         return await BuildAuthResponseAsync(user);
     }
 
     // ── REFRESH TOKEN ─────────────────────────────────────────
     public async Task<AuthResponseDto> RefreshTokenAsync(string refreshToken)
     {
-        // 1. Find the token in DB
+        // 1. Find token
         var stored = await _refreshTokenRepo.FirstOrDefaultAsync(
             rt => rt.Token == refreshToken);
 
@@ -91,7 +119,7 @@ public class AuthService : IAuthService
             throw new UnauthorizedAccessException(
                 "رمز التحديث غير صالح أو منتهي الصلاحية. سجّل الدخول مرة أخرى.");
 
-        // 3. Revoke the old token (rotation — one-time use)
+        // 3. Revoke old token
         stored.IsRevoked = true;
         _refreshTokenRepo.Update(stored);
         await _refreshTokenRepo.SaveChangesAsync();
@@ -122,14 +150,80 @@ public class AuthService : IAuthService
         // Silent if not found — logout should never throw
     }
 
+    // ── VERIFY EMAIL ──────────────────────────────────────────
+    public async Task<string> VerifyEmailAsync(VerifyEmailDto dto)
+    {
+        var user = await _userRepo.FirstOrDefaultAsync(
+            u => u.Email == dto.Email.ToLower());
+
+        if (user is null)
+            throw new KeyNotFoundException("المستخدم غير موجود.");
+
+        if (user.IsVerified)
+            throw new InvalidOperationException("البريد الإلكتروني مفعّل مسبقاً.");
+
+        var verification = await _verificationRepo.FirstOrDefaultAsync(
+            v => v.UserId == user.Id &&
+                 v.Code == dto.Code &&
+                 !v.IsUsed &&
+                 v.ExpiresAt > DateTime.UtcNow);
+
+        if (verification is null)
+            throw new InvalidOperationException("الكود غير صحيح أو منتهي الصلاحية.");
+
+        // Mark as verified
+        verification.IsUsed = true;
+        user.IsVerified = true;
+
+        _verificationRepo.Update(verification);
+        _userRepo.Update(user);
+        await _verificationRepo.SaveChangesAsync();
+
+        return "تم تفعيل البريد الإلكتروني بنجاح. يمكنك تسجيل الدخول الآن.";
+    }
+
+    // ── RESEND CODE ───────────────────────────────────────────
+    public async Task<string> ResendVerificationCodeAsync(ResendCodeDto dto)
+    {
+        var user = await _userRepo.FirstOrDefaultAsync(
+            u => u.Email == dto.Email.ToLower());
+
+        if (user is null)
+            throw new KeyNotFoundException("المستخدم غير موجود.");
+
+        if (user.IsVerified)
+            throw new InvalidOperationException("البريد الإلكتروني مفعّل مسبقاً.");
+
+        // Invalidate all old unused codes
+        var oldCodes = await _verificationRepo.FindAsync(
+            v => v.UserId == user.Id && !v.IsUsed);
+
+        foreach (var old in oldCodes)
+        {
+            old.IsUsed = true;
+            _verificationRepo.Update(old);
+        }
+
+        // Generate new code
+        var code = new Random().Next(100000, 999999).ToString();
+        await _verificationRepo.AddAsync(new EmailVerification
+        {
+            UserId = user.Id,
+            Code = code,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+            IsUsed = false
+        });
+
+        await _verificationRepo.SaveChangesAsync();
+        await _emailService.SendVerificationCodeAsync(user.Email, user.Name, code);
+
+        return "تم إرسال كود جديد إلى بريدك الإلكتروني.";
+    }
+
     // ══════════════════════════════════════════════════════════
     //  PRIVATE HELPERS
     // ══════════════════════════════════════════════════════════
 
-    /// <summary>
-    /// Builds the full AuthResponseDto with a new JWT + refresh token.
-    /// Called by Register, Login, and RefreshToken.
-    /// </summary>
     private async Task<AuthResponseDto> BuildAuthResponseAsync(User user)
     {
         var expiryMinutes = GetJwtSetting<int>("AccessTokenExpiryMinutes", 60);
@@ -153,7 +247,6 @@ public class AuthService : IAuthService
         };
     }
 
-    /// <summary>Creates and signs a JWT token for the given user.</summary>
     private string GenerateJwtToken(User user)
     {
         var secretKey = _config["JwtSettings:SecretKey"]
@@ -187,10 +280,6 @@ public class AuthService : IAuthService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    /// <summary>
-    /// Generates a cryptographically secure refresh token,
-    /// saves it to DB, and returns the entity.
-    /// </summary>
     private async Task<RefreshToken> CreateAndSaveRefreshTokenAsync(int userId)
     {
         var expiryDays = GetJwtSetting<int>("RefreshTokenExpiryDays", 30);
@@ -210,12 +299,10 @@ public class AuthService : IAuthService
         return refreshToken;
     }
 
-    /// <summary>Safely reads a typed value from JwtSettings config.</summary>
     private T GetJwtSetting<T>(string key, T defaultValue)
     {
         var raw = _config[$"JwtSettings:{key}"];
         if (raw is null) return defaultValue;
-
         try { return (T)Convert.ChangeType(raw, typeof(T)); }
         catch { return defaultValue; }
     }

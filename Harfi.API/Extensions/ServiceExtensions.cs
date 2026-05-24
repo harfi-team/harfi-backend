@@ -39,6 +39,7 @@ public static class ServiceExtensions
     {
         // Generic — covers all entities automatically
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
+        services.AddScoped<IEmailService, EmailService>();
 
         // TODO (Hadeer - Phase 2): add ICraftsmanRepository
         // TODO (Habiba - Phase 3): add IJobRepository
@@ -159,6 +160,8 @@ public static class ServiceExtensions
 
         return services;
     }
+
+
 
     // ── CORS ──────────────────────────────────────────────────
     public static IServiceCollection AddHarfiCors(

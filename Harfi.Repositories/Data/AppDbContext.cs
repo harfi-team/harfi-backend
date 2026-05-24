@@ -21,6 +21,7 @@ public class AppDbContext : DbContext
     public DbSet<MediaFile> MediaFiles { get; set; }
     public DbSet<JobFeedback> JobFeedbacks { get; set; }
     public DbSet<UserConnection> UserConnections { get; set; }
+    public DbSet<EmailVerification> EmailVerifications => Set<EmailVerification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
