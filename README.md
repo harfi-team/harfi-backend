@@ -57,27 +57,17 @@ git clone https://github.com/harfi-team/harfi-backend.git
 cd harfi/Harfi
 ```
 
-### 2. Run the setup script (Windows)
-```powershell
-.\setup.ps1
-```
 
-### 3. Configure & Run
+### 2. Configure & Run
 
 > 📄 Follow the full setup guide in **[SETUP.md](./SETUP.md)**  
 > It covers connection string, Gmail app password, migrations, and how to verify everything works.
 > ⚠️ Never commit real API keys or connection strings to Git!
+> ⚠️ **Team members:** never run `migrations add` — see [Migration Rules](#️-migration-rules) below.
 
-### 4. Run migrations & start
-```bash
-cd Harfi.API
-dotnet ef migrations add InitialCreate --project ../Harfi.Repositories
-dotnet ef database update --project ../Harfi.Repositories
-dotnet run
-```
 
-### 5. Open Swagger UI
-Navigate to: **http://localhost:5000**
+### 3. Open Swagger UI
+Navigate to: **http://localhost:5108**
 
 ---
 
@@ -408,3 +398,23 @@ Harfi.DTOs/AI/
 ```
 
 ---
+
+## ⚠️ Migration Rules — اقرأ ده قبل أي حاجة
+
+### ❌ ممنوع تماماً
+- لا تعمل `dotnet ef migrations add` أبداً
+- لا تعدّل أي ملف في Harfi.Repositories/Data/Migrations/
+- لا تعدّل AppDbContext.cs من غير ما تقول لإسراء
+
+### ✅ اللي مسموح تعمله
+- `dotnet ef database update --project Harfi.Repositories --startup-project Harfi.API`
+- دي بس — وبس بعد `git pull origin dev`
+
+### لو محتاج تغيير في الـ Database Schema
+افتح issue على GitHub أو ابعت message لإسراء بالتغيير اللي محتاجه.
+إسراء هي اللي بتعمل الـ Migration وتـ Push.
+
+### الترتيب الصح بعد كل Pull
+git pull origin dev
+dotnet ef database update --project Harfi.Repositories --startup-project Harfi.API
+dotnet run --project Harfi.API
