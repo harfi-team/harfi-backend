@@ -57,26 +57,17 @@ git clone https://github.com/harfi-team/harfi-backend.git
 cd harfi/Harfi
 ```
 
-### 2. Run the setup script (Windows)
-```powershell
-.\setup.ps1
-```
 
-### 3. Configure & Run
+### 2. Configure & Run
 
 > 📄 Follow the full setup guide in **[SETUP.md](./SETUP.md)**  
 > It covers connection string, Gmail app password, migrations, and how to verify everything works.
 > ⚠️ Never commit real API keys or connection strings to Git!
-
-### 4. Run migrations & start
 > ⚠️ **Team members:** never run `migrations add` — see [Migration Rules](#️-migration-rules) below.
-```bash
-dotnet ef database update --project Harfi.Repositories --startup-project Harfi.API
-dotnet run --project Harfi.API
-```
 
-### 5. Open Swagger UI
-Navigate to: **http://localhost:5000**
+
+### 3. Open Swagger UI
+Navigate to: **http://localhost:5108**
 
 ---
 
