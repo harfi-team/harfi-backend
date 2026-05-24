@@ -201,21 +201,27 @@ Harfi.API/
 ├── Program.cs
 ├── appsettings.json
 ├── Middleware/
-│   └── ErrorHandlingMiddleware.cs
+│   └── GlobalExceptionMiddleware.cs
 ├── Extensions/
 │   └── ServiceExtensions.cs
 └── Controllers/
     └── AuthController.cs
 
 Harfi.Services/
-├── Interfaces/IAuthService.cs
-└── Implementations/AuthService.cs
+├── Interfaces/
+│   ├── IAuthService.cs
+│   └── IEmailService.cs     
+└── Implementations/
+    ├── AuthService.cs
+    └── EmailService.cs      
 
 Harfi.Repositories/
 ├── Data/AppDbContext.cs
+├── Data/AppDbContextFactory.cs  
+├── Data/DataSeeder.cs           
 ├── Data/Migrations/
-├── Interfaces/IUserRepository.cs
-└── Implementations/UserRepository.cs
+├── Interfaces/IGenericRepository.cs   
+└── Implementations/GenericRepository.cs  
 
 Harfi.Models/Entities/
 ├── User.cs
@@ -223,10 +229,12 @@ Harfi.Models/Entities/
 └── EmailVerification.cs
 
 Harfi.DTOs/Auth/
-├── RegisterDto.cs
+├── AuthResponseDto.cs
 ├── LoginDto.cs
-├── VerifyEmailDto.cs
-└── AuthResponseDto.cs
+├── RefreshTokenRequestDto.cs   
+├── RegisterDto.cs
+├── ResendCodeDto.cs            
+└── VerifyEmailDto.cs
 ```
 
 ---
