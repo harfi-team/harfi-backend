@@ -180,16 +180,226 @@ public async Task<User?> GetUserAsync(int id) => await _repo.GetByIdAsync(id);
 
 ## 👥 Team & Assignments
 
-| Name    | Track         | Phase 1 Task                   |
-|---------|---------------|--------------------------------|
-| Ahmed   | Backend       | .NET Project Setup + EF Migrations |
-| Ibrahim | Backend       | JWT Auth — Register/Login/Roles |
-| Mazen   | Backend       | Docker + DevOps                |
-| Esraa   | Frontend      | Angular Setup + RTL + i18n     |
-| Habiba  | AI            | AI Agent + Semantic Kernel     |
-| Hadeer  | Admin/QA      | Testing & Admin Panel          |
+| Name    | Role              | Assignment                                                |
+|---------|-------------------|-----------------------------------------------------------|
+| Esraa   | Backend Lead      | Project Structure Setup + JWT Auth (Register/Login/Roles) |
+| Hadeer  | Backend           | Phase 2: Profiles, Administrative Controls & Filters      |
+| Habiba  | Backend           | Phase 3: Booking System & State Machinery                 |
+| Mazen   | Backend           | Phase 4: Reviews & Closures                               |
+| Ebrahim | Backend           | Phase 5: Real-time Comms                                  |
+| Ahmed   | Backend           | Phase 6: Orchestration Agent                              |
 
 ---
 
-## 📞 Need Help?
-Open a ClickUp task or ask in the team channel.
+## 🗂️ Who Works Where
+
+> Each member owns their files end-to-end: Model → Repository → Service → Controller → DTOs.  
+> **Never edit someone else's files without telling them first.**
+
+---
+
+### Esraa — Project Structure + JWT Auth ✅
+```
+Harfi.API/
+├── Program.cs
+├── appsettings.json
+├── Middleware/
+│   └── ErrorHandlingMiddleware.cs
+├── Extensions/
+│   └── ServiceExtensions.cs
+└── Controllers/
+    └── AuthController.cs
+
+Harfi.Services/
+├── Interfaces/IAuthService.cs
+└── Implementations/AuthService.cs
+
+Harfi.Repositories/
+├── Data/AppDbContext.cs
+├── Data/Migrations/
+├── Interfaces/IUserRepository.cs
+└── Implementations/UserRepository.cs
+
+Harfi.Models/Entities/
+├── User.cs
+├── RefreshToken.cs
+└── EmailVerification.cs
+
+Harfi.DTOs/Auth/
+├── RegisterDto.cs
+├── LoginDto.cs
+├── VerifyEmailDto.cs
+└── AuthResponseDto.cs
+```
+
+---
+
+### Hadeer — Phase 2: Profiles, Administrative Controls & Filters
+```
+Harfi.API/Controllers/
+├── UsersController.cs
+├── CraftsmenController.cs
+└── AdminController.cs
+
+Harfi.Services/
+├── Interfaces/
+│   ├── IUserService.cs
+│   ├── ICraftsmanService.cs
+│   └── IAdminService.cs
+└── Implementations/
+    ├── UserService.cs
+    ├── CraftsmanService.cs
+    └── AdminService.cs
+
+Harfi.Repositories/
+├── Interfaces/ICraftsmanRepository.cs
+└── Implementations/CraftsmanRepository.cs
+
+Harfi.Models/Entities/
+└── Craftsman.cs
+
+Harfi.DTOs/
+├── User/
+│   ├── UserProfileDto.cs
+│   └── UpdateUserDto.cs
+└── Craftsman/
+    ├── CraftsmanDto.cs
+    ├── CreateCraftsmanDto.cs
+    └── CraftsmanFilterDto.cs
+```
+
+---
+
+### Habiba — Phase 3: Booking System & State Machinery
+```
+Harfi.API/Controllers/
+└── JobsController.cs
+
+Harfi.Services/
+├── Interfaces/IJobService.cs
+└── Implementations/JobService.cs
+
+Harfi.Repositories/
+├── Interfaces/IJobRepository.cs
+└── Implementations/JobRepository.cs
+
+Harfi.Models/Entities/
+└── Job.cs
+
+Harfi.DTOs/Job/
+├── CreateJobDto.cs
+├── JobDto.cs
+├── UpdateJobStatusDto.cs
+└── JobResponseDto.cs
+```
+
+---
+
+### Mazen — Phase 4: Reviews & Closures
+```
+Harfi.API/Controllers/
+└── ReviewsController.cs
+
+Harfi.Services/
+├── Interfaces/
+│   ├── IReviewService.cs
+│   └── IJobFeedbackService.cs
+└── Implementations/
+    ├── ReviewService.cs
+    └── JobFeedbackService.cs
+
+Harfi.Repositories/
+├── Interfaces/
+│   ├── IReviewRepository.cs
+│   └── IJobFeedbackRepository.cs
+└── Implementations/
+    ├── ReviewRepository.cs
+    └── JobFeedbackRepository.cs
+
+Harfi.Models/Entities/
+├── Review.cs
+└── JobFeedback.cs
+
+Harfi.DTOs/Review/
+├── CreateReviewDto.cs
+└── ReviewResponseDto.cs
+```
+
+---
+
+### Ebrahim — Phase 5: Real-time Comms
+```
+Harfi.API/
+├── Controllers/
+│   ├── ConversationsController.cs
+│   └── NotificationsController.cs
+└── Hubs/                          ← create this folder
+    ├── ChatHub.cs
+    └── NotificationHub.cs
+
+Harfi.Services/
+├── Interfaces/
+│   ├── IConversationService.cs
+│   ├── IMessageService.cs
+│   └── INotificationService.cs
+└── Implementations/
+    ├── ConversationService.cs
+    ├── MessageService.cs
+    └── NotificationService.cs
+
+Harfi.Repositories/
+├── Interfaces/
+│   ├── IConversationRepository.cs
+│   ├── IMessageRepository.cs
+│   └── INotificationRepository.cs
+└── Implementations/
+    ├── ConversationRepository.cs
+    ├── MessageRepository.cs
+    └── NotificationRepository.cs
+
+Harfi.Models/Entities/
+├── Conversation.cs
+├── Message.cs
+├── Notification.cs
+└── UserConnection.cs
+
+Harfi.DTOs/Chat/
+├── SendMessageDto.cs
+├── MessageDto.cs
+└── ConversationDto.cs
+```
+
+---
+
+### Ahmed — Phase 6: Orchestration Agent
+```
+Harfi.API/Controllers/
+└── AIController.cs
+
+Harfi.Services/
+├── Interfaces/
+│   ├── IAIAgentService.cs
+│   └── IRAGService.cs
+└── Implementations/
+    ├── AIAgentService.cs
+    └── RAGService.cs
+
+Harfi.Repositories/
+├── Interfaces/
+│   ├── IAIChatRepository.cs
+│   └── IRAGRepository.cs
+└── Implementations/
+    ├── AIChatRepository.cs
+    └── RAGRepository.cs
+
+Harfi.Models/Entities/
+├── AIChatMessage.cs
+└── RAGDocument.cs
+
+Harfi.DTOs/AI/
+├── AIChatRequestDto.cs
+├── AIChatResponseDto.cs
+└── RAGDocumentDto.cs
+```
+
+---
