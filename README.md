@@ -53,7 +53,7 @@ API  →  Services  →  Repositories  →  Models
 
 ### 1. Clone the repo
 ```bash
-git clone https://github.com/your-org/harfi.git
+git clone https://github.com/harfi-team/harfi-backend.git
 cd harfi/Harfi
 ```
 
@@ -62,13 +62,10 @@ cd harfi/Harfi
 .\setup.ps1
 ```
 
-### 3. Configure your connection string
-Open `Harfi.API/appsettings.json` and update:
-```json
-"ConnectionStrings": {
-  "DefaultConnection": "Server=YOUR_SERVER;Database=HarfiDB;Trusted_Connection=True;TrustServerCertificate=True;"
-}
-```
+### 3. Configure & Run
+
+> 📄 Follow the full setup guide in **[SETUP.md](./SETUP.md)**  
+> It covers connection string, Gmail app password, migrations, and how to verify everything works.
 > ⚠️ Never commit real API keys or connection strings to Git!
 
 ### 4. Run migrations & start
