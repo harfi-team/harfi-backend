@@ -402,13 +402,13 @@ Harfi.DTOs/AI/
 ## ⚠️ Migration Rules — اقرأ ده قبل أي حاجة
 
 ### ❌ ممنوع تماماً
-- لا تعمل `dotnet ef migrations add` أبداً
-- لا تعدّل أي ملف في Harfi.Repositories/Data/Migrations/
-- لا تعدّل AppDbContext.cs من غير ما تقول لإسراء
+- No One Can Make `dotnet ef migrations add`. 
+- Please don't Change any file in Harfi.Repositories/Data/Migrations/ .
+- No One Updates AppDbContext.cs Before Before we discuss this in the group .
 
 ### ✅ اللي مسموح تعمله
 - `dotnet ef database update --project Harfi.Repositories --startup-project Harfi.API`
-- دي بس — وبس بعد `git pull origin dev`
+- Once After Make `git pull origin dev`.
 
 ### لو محتاج تغيير في الـ Database Schema
 افتح issue على GitHub أو ابعت message لإسراء بالتغيير اللي محتاجه.
