@@ -1,4 +1,5 @@
 using Harfi.API.Extensions;
+using Harfi.API.Hubs;
 using Harfi.API.Middleware;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
@@ -35,12 +36,16 @@ if (app.Environment.IsDevelopment())
         c.RoutePrefix = string.Empty;
     });
 }
-
+app.UseStaticFiles();
 app.UseHttpsRedirection();
 app.UseCors("HarfiCors");
 app.UseAuthentication();  // must be before Authorization
 app.UseAuthorization();
 app.MapControllers();
+
+// Ibrahim - Phase 5
+app.MapHub<ChatHub>("/hubs/chat");
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 // Auto-migrate on startup (Development only)
 if (app.Environment.IsDevelopment())
