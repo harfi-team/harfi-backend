@@ -4,11 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-<<<<<<< HEAD
     <UserSecretsId>9a5b1907-44b8-428a-8eac-2a59d77a0cd7</UserSecretsId>
-=======
-    <UserSecretsId>7dde4528-45dd-46f3-900b-463aa9e4f790</UserSecretsId>
->>>>>>> origin/dev
   </PropertyGroup>
 
   <ItemGroup>
