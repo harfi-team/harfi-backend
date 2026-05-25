@@ -1,31 +1,36 @@
 ﻿using Harfi.Models.Entities;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 
 namespace Harfi.Repositories.Data;
 
 public static class DataSeeder
 {
-    public static async Task SeedAsync(AppDbContext context)
+    public static async Task SeedAsync(UserManager<User> userManager)
     {
         // Only seed if no admin exists yet
-        bool adminExists = await context.Users
-            .AnyAsync(u => u.Role == "admin");
+        var adminExists = await userManager.FindByEmailAsync("admin@harfi.com");
 
-        if (adminExists) return;
+        if (adminExists is not null) return;
 
         var admin = new User
         {
+            UserName = "admin@harfi.com",
             Name = "Harfi Admin",
             Email = "admin@harfi.com",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@1234"),
             Role = "admin",
             Phone = "01000000000",
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
 
-        await context.Users.AddAsync(admin);
-        await context.SaveChangesAsync();
+        var result = await userManager.CreateAsync(admin, "Admin@1234");
+
+        if (!result.Succeeded)
+        {
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+            Console.WriteLine($"⚠ Failed to seed admin: {errors}");
+            return;
+        }
 
         Console.WriteLine("✅ Admin seeded: admin@harfi.com / Admin@1234");
     }
