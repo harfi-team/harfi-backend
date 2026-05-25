@@ -1,8 +1,13 @@
-﻿using System;
+﻿using Harfi.Models.Entities;
 
-public class Class1
+namespace Harfi.Repositories.Interfaces;
+
+public interface IJobRepository
 {
-	public Class1()
-	{
-	}
+    Task<Job?> GetByIdAsync(int id);
+    Task<IEnumerable<Job>> GetByCustomerIdAsync(int customerId);
+    Task<IEnumerable<Job>> GetByCraftsmanIdAsync(int craftsmanId);
+    Task<Job> CreateAsync(Job job);
+    Task<Job> UpdateAsync(Job job);
+    Task<Craftsman?> GetCraftsmanByUserIdAsync(int userId);
 }
