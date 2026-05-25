@@ -15,6 +15,7 @@ public interface IGenericRepository<T> where T : class
     Task<T?> FirstOrDefaultAsync(Expression<Func<T, bool>> predicate);
     Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate);
     Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null);
+    Task LoadReferenceAsync<TProperty>(T entity,Expression<Func<T, TProperty?>> navigationProperty)where TProperty : class;
 
     // ── WRITE ─────────────────────────────────────────────────
     Task<T> AddAsync(T entity);
