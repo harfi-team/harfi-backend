@@ -47,7 +47,11 @@ public static class ServiceExtensions
         services.AddScoped<IJobRepository, JobRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
         // TODO (Mazen  - Phase 4): add IReviewRepository
-        // TODO (Ibrahim - Phase 5): add IMessageRepository
+
+        // Ibrahim - Phase 5
+        services.AddScoped<IConversationRepository, ConversationRepository>();
+        services.AddScoped<IMessageRepository, MessageRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
 
         return services;
     }
@@ -63,7 +67,13 @@ public static class ServiceExtensions
         // TODO (Habiba - Phase 3): services.AddScoped<IJobService, JobService>();
         services.AddScoped<IJobService, JobService>();
         // TODO (Mazen  - Phase 4): services.AddScoped<IReviewService, ReviewService>();
-        // TODO (Ibrahim - Phase 5): services.AddScoped<IMessageService, MessageService>();
+
+        // Ibrahim - Phase 5
+        services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<IMessageService, MessageService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddSignalR();
+
         // TODO (Ahmed  - Phase 6): services.AddScoped<IAIAgentService, AIAgentService>();
 
         return services;
