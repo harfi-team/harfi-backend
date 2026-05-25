@@ -1,6 +1,8 @@
 using Harfi.API.Extensions;
 using Harfi.API.Middleware;
+using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -51,8 +53,8 @@ if (app.Environment.IsDevelopment())
 // Seed default admin
 using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DataSeeder.SeedAsync(db);
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
+    await DataSeeder.SeedAsync(userManager);
 }
 
 app.Run();
