@@ -1,8 +1,13 @@
-﻿using System;
+﻿using Harfi.DTOs.Job;
 
-public class Class1
+namespace Harfi.Services.Interfaces;
+
+public interface IJobService
 {
-	public Class1()
-	{
-	}
+    Task<JobResponseDto> CreateJobAsync(int customerId, CreateJobDto dto);
+    Task<JobResponseDto> AcceptJobAsync(int jobId, int craftsmanId);
+    Task<JobResponseDto> RejectJobAsync(int jobId, int craftsmanId);
+    Task<JobResponseDto> CompleteJobAsync(int jobId, int craftsmanId, UpdateJobStatusDto dto);
+    Task<IEnumerable<JobResponseDto>> GetCustomerJobsAsync(int customerId);
+    Task<IEnumerable<JobResponseDto>> GetCraftsmanJobsAsync(int craftsmanId);
 }
