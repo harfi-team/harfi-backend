@@ -5,6 +5,7 @@ using Harfi.Repositories.Interfaces;
 using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -65,7 +66,7 @@ public static class ServiceExtensions
         return services;
     }
 
-    // ── JWT AUTHENTICATION ────────────────────────────────────
+    // ── AUTHENTICATION — Identity + JWT ───────────────────────
     public static IServiceCollection AddJwtAuthentication(
         this IServiceCollection services,
         IConfiguration config)
@@ -75,6 +76,22 @@ public static class ServiceExtensions
             ?? throw new InvalidOperationException(
                 "JwtSettings:SecretKey is missing from appsettings.json");
 
+        // ── ASP.NET Core Identity (no cookie auth) ────────────
+        services
+            .AddIdentityCore<User>(options =>
+            {
+                options.Password.RequireDigit = false;
+                options.Password.RequiredLength = 8;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireLowercase = false;
+                options.SignIn.RequireConfirmedEmail = false;
+            })
+            .AddEntityFrameworkStores<AppDbContext>()
+            .AddDefaultTokenProviders()
+            .AddSignInManager<SignInManager<User>>();
+
+        // ── JWT Bearer ────────────────────────────────────────
         services
             .AddAuthentication(options =>
             {
