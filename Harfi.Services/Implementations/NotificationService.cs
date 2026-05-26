@@ -2,11 +2,6 @@
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Harfi.Services.Implementations
 {
@@ -32,6 +27,22 @@ namespace Harfi.Services.Implementations
                 Title = $"رسالة جديدة من {senderName}",
                 Body = preview,
                 Type = "new_message"
+            });
+            await _notifRepo.SaveChangesAsync();
+        }
+
+        public async Task CreateJobNotificationAsync(
+            int receiverId, string title, string body, string type, int relatedJobId)
+        {
+            await _notifRepo.AddAsync(new Notification
+            {
+                UserId = receiverId,
+                Title = title,
+                Body = body,
+                Type = type,
+                RelatedJobId = relatedJobId,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
             });
             await _notifRepo.SaveChangesAsync();
         }

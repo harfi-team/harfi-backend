@@ -9,5 +9,6 @@ namespace Harfi.Services.Interfaces
         Task MarkAsReadAsync(int notificationId, int userId);
         Task MarkAllAsReadAsync(int userId);
         Task<int> GetUnreadCountAsync(int userId);
+        Task CreateJobNotificationAsync(int receiverId, string title, string body, string type, int relatedJobId);
     }
 }
