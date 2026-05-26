@@ -8,12 +8,15 @@ namespace Harfi.Services.Implementations;
 public class JobService : IJobService
 {
     private readonly IJobRepository _jobRepository;
-    private readonly INotificationRepository _notificationRepository;
+    private readonly INotificationService _notificationService;
 
-    public JobService(IJobRepository jobRepository, INotificationRepository notificationRepository)
+
+    public JobService(
+    IJobRepository jobRepository,
+    INotificationService notificationService)
     {
         _jobRepository = jobRepository;
-        _notificationRepository = notificationRepository;
+        _notificationService = notificationService;
     }
 
     public async Task<JobResponseDto> CreateJobAsync(int customerId, CreateJobDto dto)
@@ -45,16 +48,10 @@ public class JobService : IJobService
         var updated = await _jobRepository.UpdateAsync(job);
 
         // notify customer
-        await _notificationRepository.CreateAsync(new Notification
-        {
-            UserId = job.CustomerId,
-            Title = "تم قبول طلبك",
-            Body = "قام الحرفي بقبول طلب الخدمة الخاص بك",
-            IsRead = false,
-            Type = "job_accepted",
-            RelatedJobId = job.Id,
-            CreatedAt = DateTime.UtcNow
-        });
+        await _notificationService.CreateJobNotificationAsync(
+        job.CustomerId, "تم قبول طلبك",
+        "قام الحرفي بقبول طلب الخدمة الخاص بك",
+        "job_accepted", job.Id);
 
         return MapToDto(updated);
     }
@@ -67,16 +64,10 @@ public class JobService : IJobService
         var updated = await _jobRepository.UpdateAsync(job);
 
         // notify customer
-        await _notificationRepository.CreateAsync(new Notification
-        {
-            UserId = job.CustomerId,
-            Title = "تم رفض طلبك",
-            Body = "قام الحرفي برفض طلب الخدمة الخاص بك",
-            IsRead = false,
-            Type = "job_rejected",
-            RelatedJobId = job.Id,
-            CreatedAt = DateTime.UtcNow
-        });
+        await _notificationService.CreateJobNotificationAsync(
+        job.CustomerId, "تم رفض طلبك",
+        "قام الحرفي برفض طلب الخدمة الخاص بك",
+        "job_rejected", job.Id);
 
         return MapToDto(updated);
     }
@@ -91,16 +82,10 @@ public class JobService : IJobService
         var updated = await _jobRepository.UpdateAsync(job);
 
         // notify customer
-        await _notificationRepository.CreateAsync(new Notification
-        {
-            UserId = job.CustomerId,
-            Title = "تم إنجاز طلبك",
-            Body = "قام الحرفي بإنهاء العمل. يمكنك الآن تقييم الخدمة",
-            IsRead = false,
-            Type = "job_completed",
-            RelatedJobId = job.Id,
-            CreatedAt = DateTime.UtcNow
-        });
+        await _notificationService.CreateJobNotificationAsync(
+        job.CustomerId, "تم إنجاز طلبك",
+        "قام الحرفي بإنهاء العمل. يمكنك الآن تقييم الخدمة",
+        "job_completed", job.Id);
 
         return MapToDto(updated);
     }
