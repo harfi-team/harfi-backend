@@ -35,7 +35,7 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Harfi API v1");
         c.RoutePrefix = string.Empty;
     });
-}
+} 
 app.UseStaticFiles();
 app.UseHttpsRedirection();
 app.UseCors("HarfiCors");
