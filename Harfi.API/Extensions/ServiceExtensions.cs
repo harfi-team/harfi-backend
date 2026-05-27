@@ -46,7 +46,15 @@ public static class ServiceExtensions
         // TODO (Habiba - Phase 3): add IJobRepository
         services.AddScoped<IJobRepository, JobRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+
         // TODO (Mazen  - Phase 4): add IReviewRepository
+        // ── Repositories ──────────────────────────────────────────────────────
+        // Scoped = one instance per HTTP request
+        services.AddScoped<IReviewRepository, ReviewRepository>();
+        services.AddScoped<IJobFeedbackRepository, JobFeedbackRepository>();
+        // ── Services ──────────────────────────────────────────────────────────
+        services.AddScoped<IReviewService, ReviewService>();
+        services.AddScoped<IJobFeedbackService, JobFeedbackService>();
 
         // Ibrahim - Phase 5
         services.AddScoped<IConversationRepository, ConversationRepository>();
