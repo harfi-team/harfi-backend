@@ -214,6 +214,8 @@ public static class ServiceExtensions
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials())); // required for SignalR
+        services.AddRagHttpClients(config);
+
 
         return services;
     }
