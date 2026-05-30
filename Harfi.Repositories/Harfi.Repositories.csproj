@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <ProjectReference Include="..\Harfi.DTOs\Harfi.DTOs.csproj" />
     <ProjectReference Include="..\Harfi.Models\Harfi.Models.csproj" />
   </ItemGroup>
 
