@@ -64,6 +64,7 @@ public enum SolutionFollowUpState
     None = 0,
     WaitingAnswer = 1,
     WaitingDetail = 2
+
 }
 
 public class Chat3Request
