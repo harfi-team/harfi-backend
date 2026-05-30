@@ -27,14 +27,12 @@ namespace Harfi.Repositories.Implementations
 
         public async Task<IEnumerable<Craftsman>> GetFilteredCraftsmenAsync(CraftsmanFilterDto filter)
         {
-            // 1. بنبدأ بالاستعلام الأساسي وبنعمل Include لجدول الـ User عشان نجيب اسم الحرفي وصورته وبياناته الأساسية
-            // وبنشترط إن الحرفي يكون مقبول من الأدمن (IsApproved == true)
+            
             var query = _context.Craftsmen
                 .Include(c => c.User)
                 .Where(c => c.IsApproved)
                 .AsQueryable();
 
-            // 2. الفلترة الديناميكية: لو الـ Frontend بعت قيمة، بنفلتر بيها.. لو مبعتش بيتجاهلها تماماً
 
             // الفلترة بنوع الخدمة (مثلاً: سباكة)
             if (!string.IsNullOrEmpty(filter.ServiceType))

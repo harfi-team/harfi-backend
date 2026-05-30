@@ -19,7 +19,7 @@ namespace Harfi.DTOs.User
         public string Phone { get; set; }
 
         [StringLength(500)]
-        public string ProfileImageUrl { get; set; } // رابط الصورة الجديدة بعد رفعها على Cloudinary
+        public string ProfileImageUrl { get; set; } 
     }
 }
 

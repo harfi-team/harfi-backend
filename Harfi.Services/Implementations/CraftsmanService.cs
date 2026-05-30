@@ -113,7 +113,7 @@ namespace Harfi.Services.Implementations
             craftsman.PriceRangeMax = dto.PriceRangeMax;
             craftsman.Experience = dto.Experience;
             craftsman.Bio = dto.Bio;
-            craftsman.UpdatedAt = DateTime.UtcNow; // لتحديث وقت التعديل تلقائياً
+            craftsman.UpdatedAt = DateTime.UtcNow; 
 
             return await _craftsmanRepository.UpdateAsync(craftsman);
         }
