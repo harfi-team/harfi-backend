@@ -3,6 +3,10 @@ using Harfi.API.Hubs;
 using Harfi.API.Middleware;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
+using Harfi.Repositories.Implementations;
+using Harfi.Repositories.Interfaces;
+using Harfi.Services.Implementations;
+using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,6 +23,14 @@ builder.Services
     .AddSwaggerWithJwt()
     .AddHarfiCors(builder.Configuration)
     .AddControllers();
+
+// 1. تسجيل الـ Repository الخاص بالحرفيين
+builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
+
+// 2. تسجيل الـ Services الثلاثة الخاصة بكِ
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ICraftsmanService, CraftsmanService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
 
 var app = builder.Build();
 
@@ -61,5 +73,6 @@ using (var scope = app.Services.CreateScope())
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
     await DataSeeder.SeedAsync(userManager);
 }
+app.MapControllers();
 
 app.Run();
