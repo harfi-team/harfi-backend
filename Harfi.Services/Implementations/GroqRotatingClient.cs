@@ -82,4 +82,26 @@ public class GroqRotatingClient
 
         return new HttpResponseMessage(HttpStatusCode.TooManyRequests);
     }
+    public async Task<string> CompleteAsync(string prompt, int maxTokens = 500)
+    {
+        var payload = new
+        {
+            model = "llama-3.3-70b-versatile",
+            max_tokens = maxTokens,
+            messages = new[] { new { role = "user", content = prompt } }
+        };
+
+        var response = await PostAsync(
+            "https://api.groq.com/openai/v1/chat/completions", payload);
+
+        if (!response.IsSuccessStatusCode)
+            return prompt; // fallback
+
+        var json = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        return json
+            .GetProperty("choices")[0]
+            .GetProperty("message")
+            .GetProperty("content")
+            .GetString() ?? prompt;
+    }
 }

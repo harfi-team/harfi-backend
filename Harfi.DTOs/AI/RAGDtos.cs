@@ -63,10 +63,10 @@ public enum SolutionFollowUpState
 {
     None = 0,
     WaitingAnswer = 1,
-    WaitingDetail = 2
+    WaitingDetail = 2,
+      WaitingFeedback = 3   // ← جديد
 
 }
-
 public class Chat3Request
 {
     public List<ChatMsg> Messages { get; set; } = new();
@@ -80,8 +80,8 @@ public class Chat3Request
     public int ProblemClarificationAttempts { get; set; } = 0;
     public SolutionFollowUpState FollowUpState { get; set; } = SolutionFollowUpState.None;
     public string? LastProblemDescription { get; set; }
+    public List<string> SolutionSteps { get; set; } = new();  // ← جديد
 }
-
 public class ChatMsg
 {
     public string Role { get; set; } = string.Empty;
@@ -99,6 +99,7 @@ public class Chat3Response
     public bool ShowIntentChoice { get; set; }
     public List<string> SolutionSteps { get; set; } = new();
     public bool ShowSolvedQuestion { get; set; }
+    public bool ShowFeedbackQuestion { get; set; }  // ← جديد
     public string? ExtractedService { get; set; }
     public string? ExtractedCity { get; set; }
     public int? ExtractedCount { get; set; }
@@ -108,7 +109,6 @@ public class Chat3Response
     public QueryResponse? Result { get; set; }
     public double LatencyMs { get; set; }
 }
-
 public class LlmExtractionResult
 {
     public string? ServiceType { get; set; }
