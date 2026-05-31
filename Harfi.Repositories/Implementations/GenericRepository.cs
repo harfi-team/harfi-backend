@@ -37,6 +37,14 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
             ? await _dbSet.CountAsync()
             : await _dbSet.CountAsync(predicate);
 
+    public async Task LoadReferenceAsync<TProperty>(T entity,Expression<Func<T, TProperty?>> navigationProperty)
+    where TProperty : class
+    {
+        await _context.Entry(entity)
+                      .Reference(navigationProperty)
+                      .LoadAsync();
+    }
+
     // ── WRITE ─────────────────────────────────────────────────
     public async Task<T> AddAsync(T entity)
     {
