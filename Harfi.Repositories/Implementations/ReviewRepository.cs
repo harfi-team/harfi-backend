@@ -1,0 +1,60 @@
+﻿using Harfi.DTOs.Review;
+using Harfi.Models.Entities;
+using Harfi.Repositories.Data;
+using Harfi.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
+
+namespace Harfi.Repositories.Implementations
+{
+    public class ReviewRepository : IReviewRepository
+    {
+        private readonly AppDbContext _db;
+
+        public ReviewRepository(AppDbContext db)
+        {
+            _db = db;
+        }
+        public async Task<Review> CreateReviewAsync(Review review)
+        {
+            _db.Reviews.Add(review);
+
+            await _db.SaveChangesAsync();
+
+            return review;
+        }
+
+        public async Task<Job?> GetJobByIdAsync(int jobId)
+        {
+            return await _db.Jobs
+                 .Include(j => j.Craftsman)
+             .FirstOrDefaultAsync(j => j.Id == jobId);
+        }
+
+        public async Task<List<ReviewResponseDto>> GetReviewsByCraftsmanIdAsync(int craftsmanId)
+        {
+            return await _db.Reviews
+               .Where(r => r.CraftsmanId == craftsmanId)
+
+            .OrderByDescending(r => r.CreatedAt)
+
+
+                .Select(r => new ReviewResponseDto
+                {
+                    Id = r.Id,
+                    JobId = r.JobId,
+                    Stars = r.Stars,
+                    Comment = r.Comment,
+                    CustomerName = r.Customer.Name,
+                    CreatedAt = r.CreatedAt
+                })
+                .ToListAsync();
+        }
+
+        public async Task<bool> ReviewExistsAsync(int jobId, int customerId)
+        {
+            return await _db.Reviews.AnyAsync(r =>
+                r.JobId == jobId &&
+                r.CustomerId == customerId);
+        }
+    }
+}

@@ -1,27 +1,13 @@
+using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Harfi.Models.Entities;
 
-public class User
+public class User : IdentityUser<int>
 {
-    [Key]
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public int Id { get; set; }
-
     [Required]
     [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
-
-    [Required]
-    [MaxLength(200)]
-    [EmailAddress]
-    public string Email { get; set; } = string.Empty;
-
-    /// <summary>BCrypt hashed password — never store plain text</summary>
-    [Required]
-    [MaxLength(500)]
-    public string PasswordHash { get; set; } = string.Empty;
 
     /// <summary>admin | craftsman | customer</summary>
     [Required]
@@ -50,5 +36,5 @@ public class User
     public ICollection<Message> SentMessages { get; set; } = new List<Message>();
     public ICollection<MediaFile> UploadedFiles { get; set; } = new List<MediaFile>();
     public ICollection<EmailVerification> EmailVerifications { get; set; }
-    = new List<EmailVerification>();
+        = new List<EmailVerification>();
 }
