@@ -55,7 +55,7 @@ public class SolutionService : ISolutionService
 
         try
         {
-            var qdrantResult = await _vectorDb.SearchProblemsAsync(qEmbed, topK: 3, minScore: 0.0);
+            var qdrantResult = await _vectorDb.SearchProblemsAsync(qEmbed, topK: 5, minScore: 0.0);
             var hits = qdrantResult.result ?? [];
 
             _logger.LogInformation("[Solution] Qdrant returned {C} candidates", hits.Count);
@@ -64,11 +64,13 @@ public class SolutionService : ISolutionService
             {
                 int jobId = GetInt(hit.payload, "problem_id");
 
+
+                // جديد
                 var job = await _db.Jobs
                     .Include(j => j.Review)
                     .Include(j => j.Craftsman)
-                    .FirstOrDefaultAsync(j => j.Id == jobId && j.Status == "done");
-
+                    .FirstOrDefaultAsync(j => j.Id == jobId &&
+                                              (j.Status == "done" || j.Status == "AI"));
                 if (job is null) continue;
 
                 double boostedScore = ComputeBoostedScore(
@@ -201,14 +203,14 @@ public class SolutionService : ISolutionService
         string stepsText = string.Join("\n", rawSteps.Select((s, i) => $"{i + 1}. {s}"));
 
         string prompt =
-            "أنت خبير في الصيانة المنزلية في مصر.\n\n" +
-            "لديك خطوات حل جاهزة لمشكلة مشابهة، مهمتك:\n" +
-            "- اعرض الخطوات بلغة عربية واضحة وسهلة\n" +
-            "- خليها مناسبة للمشكلة المحددة اللي وصفها العميل\n" +
-            "- ابدأ كل خطوة برقم متبوع بنقطة (1. 2. 3.)\n" +
-            "- لا تضيف مقدمة أو خاتمة، الخطوات فقط\n\n" +
-            "الخطوات المرجعية:\n" + stepsText;
-
+                        "أنت خبير في الصيانة المنزلية في مصر.\n\n" +
+                        "لديك خطوات حل جاهزة لمشكلة مشابهة، مهمتك:\n" +
+                        "- اعرض الخطوات بالعربية العامية المصرية البسيطة زي ما الناس بتتكلم\n" +
+                        "- خليها مناسبة للمشكلة المحددة اللي وصفها العميل\n" +
+                        "- ابدأ كل خطوة برقم متبوع بنقطة (1. 2. 3.)\n" +
+                        "- لا تضيف مقدمة أو خاتمة، الخطوات فقط\n" +
+                        "- أمثلة على الأسلوب: 'افحص الماتور كويس'، 'شيل الغبار من جوا'، 'جرب تشغله تاني'\n\n" +
+                        "الخطوات المرجعية:\n" + stepsText;
         var payload = new
         {
             model = _config["Groq:ChatModel"] ?? "llama-3.3-70b-versatile",
@@ -242,16 +244,16 @@ public class SolutionService : ISolutionService
     private async Task<List<string>> GenerateStepsWithLlmAsync(
         string serviceType, string problemDescription)
     {
-        string prompt =
-            "أنت خبير في الصيانة المنزلية في مصر.\n\n" +
-            "لم يتم العثور على حل جاهز لهذه المشكلة في قاعدة البيانات.\n" +
-            "مهمتك: إعطاء خطوات بسيطة وسريعة يمكن للشخص العادي تجربتها.\n\n" +
-            "قواعد الإجابة:\n" +
-            "- ابدأ بجملة: 'لم أجد في السجل حلاً محدداً لهذه المشكلة، لكن يمكنك تجربة:'\n" +
-            "- اكتب من 3 إلى 5 خطوات فقط\n" +
-            "- ابدأ كل خطوة برقم متبوع بنقطة (1. 2. 3.)\n" +
-            "- لا تضيف أي مقدمة أو خاتمة غير المطلوبة";
 
+                string prompt =
+                                "أنت خبير في الصيانة المنزلية في مصر.\n\n" +
+                                "مهمتك: إعطاء خطوات بسيطة بالعربية العامية المصرية يقدر الشخص العادي يجربها.\n\n" +
+                                "قواعد الإجابة:\n" +
+                                "- اكتب بالعامية المصرية البسيطة زي ما الناس بتتكلم فعلاً\n" +
+                                "- اكتب من 3 إلى 5 خطوات فقط\n" +
+                                "- ابدأ كل خطوة برقم متبوع بنقطة (1. 2. 3.)\n" +
+                                "- أمثلة على الأسلوب: 'افحص الأنابيب كويس'، 'اتأكد إن الكهرباء واصلة'، 'نضف الماتور من الغبار'\n" +
+                                "- لا تضيف أي مقدمة أو خاتمة";
         var payload = new
         {
             model = _config["Groq:ChatModel"] ?? "llama-3.3-70b-versatile",
@@ -414,4 +416,58 @@ public class SolutionService : ISolutionService
     {
         [JsonPropertyName("content")] public string Content { get; set; } = "";
     }
+
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  Ingest Single Job Solution → Qdrant
+    // ════════════════════════════════════════════════════════════════════════
+
+    public async Task<int> IngestSingleJobSolutionAsync(int jobId)
+    {
+        _logger.LogInformation("[SingleIngest] Starting for JobId={JobId}", jobId);
+
+        var job = await _db.Jobs.FindAsync(jobId);
+        if (job is null)
+        {
+            _logger.LogWarning("[SingleIngest] Job {JobId} not found", jobId);
+            return 0;
+        }
+
+        if (string.IsNullOrWhiteSpace(job.SolutionDescription))
+        {
+            _logger.LogWarning("[SingleIngest] Job {JobId} has no SolutionDescription", jobId);
+            return 0;
+        }
+
+        await _vectorDb.EnsureProblemsCollectionAsync();
+
+        string text =
+            $"نوع الخدمة: {job.ServiceType}\n" +
+            $"المشكلة: {job.ProblemDescription ?? job.Description}\n" +
+            $"الحل: {job.SolutionDescription}";
+
+        for (int attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                var embedding = await _embedder.EmbedQueryAsync(text);
+                await _vectorDb.AddProblemsAsync([(job.Id, text, embedding)]);
+                _logger.LogInformation("[SingleIngest] ✓ Job {JobId} upserted to Qdrant", jobId);
+                return 1;
+            }
+            catch (Exception ex) when (attempt < 3)
+            {
+                _logger.LogWarning("[SingleIngest] Attempt {A} failed — wait 45s: {M}", attempt, ex.Message);
+                await Task.Delay(45_000);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("[SingleIngest] Failed: {M}", ex.Message);
+                return 0;
+            }
+        }
+
+        return 0;
+    }
+
 }

@@ -1,11 +1,15 @@
-﻿using Harfi.DTOs.RAG;
-using Harfi.Services.Implementations;
-using Harfi.Services.Interfaces;
-using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics;
-using System.Text.Json;
+﻿
+    using Harfi.DTOs.RAG;
+    using Harfi.Models.Entities;
+    using Harfi.Repositories.Data;
+    using Harfi.Services.Implementations;
+    using Harfi.Services.Interfaces;
+    using Microsoft.AspNetCore.Mvc;
+    using Microsoft.EntityFrameworkCore;
+    using System.Diagnostics;
+    using System.Text.Json;
 
-namespace Harfi.API.Controllers;
+    namespace Harfi.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
@@ -16,6 +20,8 @@ public class AIController : ControllerBase
     private readonly ISolutionService _solution;
     private readonly VectorDbService _vectorDb;
     private readonly ILogger<AIController> _logger;
+    private readonly AppDbContext _db;
+    private readonly GroqRotatingClient _groq;
 
     private const string WelcomeMessage =
         "أهلاً بك! 👋\n" +
@@ -27,15 +33,18 @@ public class AIController : ControllerBase
         IntentService intent,
         ISolutionService solution,
         VectorDbService vectorDb,
-        ILogger<AIController> logger)
+        ILogger<AIController> logger,
+        AppDbContext db,
+        GroqRotatingClient groq)
     {
         _rag = rag;
         _intent = intent;
         _solution = solution;
         _vectorDb = vectorDb;
         _logger = logger;
+        _db = db;
+        _groq = groq;
     }
-
     // ════════════════════════════════════════════════════════════════════════
     //  GET /api/AI/welcome
     // ════════════════════════════════════════════════════════════════════════
@@ -90,32 +99,165 @@ public class AIController : ControllerBase
             });
         }
 
+       
+
+
         // ── 3. لو اختار "خطوات حل" ───────────────────────────────────────
         if (request.Intent == UserIntent.WantSteps
             && request.ExtractedService is not null)
         {
+            // ── 3AA. بننتظر feedback هل الخطوات مفيدة؟ ──────────────────
+            if (request.FollowUpState == SolutionFollowUpState.WaitingFeedback)
+            {
+                bool helpful = IsHelpfulAnswer(lastUserMsg);
+                bool notHelpful = IsNotHelpfulAnswer(lastUserMsg);
+
+                if (notHelpful)
+                {
+                    _logger.LogInformation("[Feedback] Not helpful — skip saving");
+                    sw.Stop();
+                    return Ok(new Chat3Response
+                    {
+                        IsComplete = false,
+                        Message = "شكراً على رأيك! 🙏 سأعمل على تحسين الخطوات.",
+                        ExtractedService = request.ExtractedService,
+                        ExtractedCity = request.ExtractedCity,
+                        ExtractedCount = request.ExtractedCount,
+                        FollowUpState = SolutionFollowUpState.None,
+                        LatencyMs = sw.ElapsedMilliseconds
+                    });
+                }
+
+                if (helpful)
+                {
+                    _logger.LogInformation("[Feedback] Helpful — saving to DB and Qdrant");
+                    try
+                    {
+                        var aiUser = await _db.Users
+                            .FirstOrDefaultAsync(u => u.Email == "ai@harfi.com");
+                        var aiCraftsman = await _db.Craftsmen
+                            .FirstOrDefaultAsync(c => c.UserId == aiUser!.Id);
+
+                        int aiUserId = aiUser!.Id;
+                        int aiCraftsmanId = aiCraftsman!.Id;
+
+                        //string stepsText = string.Join("\n", request.SolutionSteps
+                        //    .Select((s, i) => $"{i + 1}. {s}"));
+
+
+                        // جديد
+                        _logger.LogInformation("[Feedback] SolutionSteps count={N}", request.SolutionSteps.Count);
+
+                        var (desc, prob, sol) = await PrepareRagFieldsAsync(
+                            request.ExtractedService ?? "صيانة",
+                            request.LastProblemDescription ?? "",
+                            request.SolutionSteps);
+
+
+                        var job = new Job
+                        {
+                            CustomerId = aiUserId,
+                            CraftsmanId = aiCraftsmanId,
+                            Status = "AI",
+                            ServiceType = request.ExtractedService ?? "صيانة عامة",
+                            Description = desc,        // ← جديد
+                            Address = "AI",
+                            ProblemImageUrl = "AI",
+                            ProblemDescription = prob,        // ← جديد
+                            SolutionDescription = sol,         // ← جديد
+                            CreatedAt = DateTime.UtcNow,
+                            CompletedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        _db.Jobs.Add(job);
+                        await _db.SaveChangesAsync();
+                        _logger.LogInformation("[Feedback] ✓ Job saved Id={JobId}", job.Id);
+
+                        var ragDoc = new RAGDocument
+                        {
+                            JobId = job.Id,
+                            ChromaDocumentId = "AI",
+                            ChunkType = "solution",
+                            EmbeddingModel = "voyage-3",
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _db.RAGDocuments.Add(ragDoc);
+                        await _db.SaveChangesAsync();
+                        _logger.LogInformation("[Feedback] ✓ RAGDocument saved Id={RagId}", ragDoc.Id);
+
+                        var feedback = new JobFeedback
+                        {
+                            UserId = aiUserId,
+                            RAGDocumentId = ragDoc.Id,
+                            FeedbackType = "helpful",
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _db.JobFeedbacks.Add(feedback);
+                        await _db.SaveChangesAsync();
+                        _logger.LogInformation("[Feedback] ✓ JobFeedback saved");
+
+                        int upserted = await _solution.IngestSingleJobSolutionAsync(job.Id);
+                        _logger.LogInformation("[Feedback] ✓ Qdrant upserted={N}", upserted);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError("[Feedback] Error: {M}", ex.Message);
+                    }
+
+                    sw.Stop();
+                    return Ok(new Chat3Response
+                    {
+                        IsComplete = false,
+                        Message = "شكراً جزيلاً! 🙏 سيتم حفظ هذه الخطوات لمساعدة المزيد من الأشخاص. 💪",
+                        ExtractedService = request.ExtractedService,
+                        ExtractedCity = request.ExtractedCity,
+                        ExtractedCount = request.ExtractedCount,
+                        FollowUpState = SolutionFollowUpState.None,
+                        LatencyMs = sw.ElapsedMilliseconds
+                    });
+                }
+
+                // مش واضح → اسأل تاني
+                sw.Stop();
+                return Ok(new Chat3Response
+                {
+                    IsComplete = false,
+                    Message = "لم أفهم إجابتك. هل كانت الخطوات مفيدة؟",
+                    ExtractedService = request.ExtractedService,
+                    ExtractedCity = request.ExtractedCity,
+                    ExtractedCount = request.ExtractedCount,
+                    FollowUpState = SolutionFollowUpState.WaitingFeedback,
+                    LastProblemDescription = request.LastProblemDescription,
+                    SolutionSteps = request.SolutionSteps,
+                    ShowFeedbackQuestion = true,
+                    LatencyMs = sw.ElapsedMilliseconds
+                });
+            }
+
             // ── 3A. بننتظر إجابة "هل اتحلت المشكلة؟" ────────────────────
             if (request.FollowUpState == SolutionFollowUpState.WaitingAnswer)
             {
                 bool solved = IsSolvedAnswer(lastUserMsg);
                 bool notSolved = IsNotSolvedAnswer(lastUserMsg);
 
+            
                 if (solved)
                 {
                     sw.Stop();
                     return Ok(new Chat3Response
                     {
                         IsComplete = false,
-                        Message = "🎉 ممتاز! سعيد جداً إن المشكلة اتحلت.\n\nلو احتجت مساعدة في أي وقت، أنا هنا دايماً. 😊",
+                        Message = "🎉 ممتاز! سعيد جداً إن المشكلة اتحلت.\n\nهل كانت خطوات الحل مفيدة؟",
                         ExtractedService = request.ExtractedService,
                         ExtractedCity = request.ExtractedCity,
                         ExtractedCount = request.ExtractedCount,
-                        FollowUpState = SolutionFollowUpState.None,
-                        LastProblemDescription = null,
+                        FollowUpState = SolutionFollowUpState.WaitingFeedback,
+                        LastProblemDescription = request.LastProblemDescription,
+                        SolutionSteps = request.SolutionSteps,
+                        ShowFeedbackQuestion = true,
                         LatencyMs = sw.ElapsedMilliseconds
                     });
                 }
-
                 if (notSolved)
                 {
                     sw.Stop();
@@ -178,10 +320,14 @@ public class AIController : ControllerBase
                 });
             }
 
+
             // ── 3C. الحالة العادية — جيب خطوات ──────────────────────────
             string problem = (request.ProblemClarificationAttempts > 0 && lastUserMsg.Length > 5)
-                ? lastUserMsg
-                : ExtractProblemDescription(request.Messages, request.ExtractedService);
+     ? lastUserMsg
+     : ExtractProblemDescription(request.Messages, request.ExtractedService);
+
+            _logger.LogInformation("[3C] problem='{P}' service='{S}' equal={E}",
+                problem, request.ExtractedService, problem == request.ExtractedService);
 
             if (problem == request.ExtractedService
                 && request.ProblemClarificationAttempts == 0)
@@ -191,7 +337,7 @@ public class AIController : ControllerBase
                 {
                     IsComplete = false,
                     Message = "لمساعدتك بشكل أفضل، أحتاج مزيداً من التفاصيل حول المشكلة. 😊\n\n" +
-                                                   GetExampleHint(request.ExtractedService),
+                              GetExampleHint(request.ExtractedService),
                     ExtractedService = request.ExtractedService,
                     ExtractedCity = request.ExtractedCity,
                     ExtractedCount = request.ExtractedCount,
@@ -223,7 +369,6 @@ public class AIController : ControllerBase
                 LatencyMs = sw.ElapsedMilliseconds
             });
         }
-
         // ── 3.5. رسالة حرة بتطلب خطوات ──────────────────────────────────
         if (request.ExtractedService is not null
             && request.Intent == UserIntent.NotAskedYet
@@ -367,12 +512,16 @@ public class AIController : ControllerBase
         List<ChatMsg> messages, string serviceType)
     {
         string[] nonDescriptive =
-        [
-            "ينفع", "عندي مشكله", "عندي مشكلة", "في مشكلة",
-            "محتاج مساعدة", "محتاج مساعده", "عاوز فني",
-            "عاوز خطوات", "هاي", "أهلا", "أهلاً", "مرحبا",
-            "ايوه", "أيوه", "تمام", "أيوه ينفع"
-        ];
+[
+    "ينفع", "عندي مشكله", "عندي مشكلة", "في مشكلة",
+    "محتاج مساعدة", "محتاج مساعده", "عاوز فني",
+    "عاوز خطوات", "هاي", "أهلا", "أهلاً", "مرحبا",
+    "ايوه", "أيوه", "تمام", "أيوه ينفع",
+    "🔧 عاوز خطوات حل المشكلة",
+    "👷 عاوز فني متخصص",
+    "عاوز خطوات حل المشكلة",
+    "عاوز فني متخصص"
+];
 
         var meaningful = messages
             .Where(m => m.Role == "user")
@@ -430,8 +579,8 @@ public class AIController : ControllerBase
         string[] keywords =
         [
             "خطوات", "خطوه", "حل", "اصلح", "ازاي", "إزاي",
-            "كيف", "طريقة", "ساعدني", "لسه", "لسا",
-            "مش اتحل", "ما اتحلت", "موجودة", "مستمر"
+                "كيف", "طريقة", "ساعدني", "لسه", "لسا",
+                "مش اتحل", "ما اتحلت", "موجودة", "مستمر"
         ];
         return keywords.Any(kw => m.Contains(kw));
     }
@@ -442,8 +591,8 @@ public class AIController : ControllerBase
         string[] positives =
         [
             "ايوه", "أيوه", "اتحلت", "اتحل", "تمام", "نجح",
-            "شغال", "صح", "اشتغل", "yes", "ok", "fixed",
-            "كويس", "عظيم", "ممتاز", "حمد الله"
+                "شغال", "صح", "اشتغل", "yes", "ok", "fixed",
+                "كويس", "عظيم", "ممتاز", "حمد الله"
         ];
         return positives.Any(p => m.Contains(p));
     }
@@ -454,8 +603,8 @@ public class AIController : ControllerBase
         string[] negatives =
         [
             "لا", "لأ", "لسه", "ما اتحلتش", "مش شغال",
-            "مستمرة", "لم تحل", "no", "not fixed", "still",
-            "زي ما هي", "نفس المشكلة"
+                "مستمرة", "لم تحل", "no", "not fixed", "still",
+                "زي ما هي", "نفس المشكلة"
         ];
         return negatives.Any(p => m.Contains(p));
     }
@@ -474,8 +623,8 @@ public class AIController : ControllerBase
         string[] indicators =
         [
             "سباك", "كهربائي", "نجار", "حداد", "دهان",
-            "بناء", "تكييف", "زجاج", "سيراميك", "كاميرا",
-            "جبس", "صيانة", "حنفية"
+                "بناء", "تكييف", "زجاج", "سيراميك", "كاميرا",
+                "جبس", "صيانة", "حنفية"
         ];
         int count = indicators.Count(kw => msg.Contains(kw));
         return count >= 2 && (msg.Contains(" و") || msg.Contains("و "));
@@ -485,5 +634,112 @@ public class AIController : ControllerBase
     {
         if (!d.TryGetValue(key, out object? v)) return "-";
         return v is JsonElement je ? je.GetString() ?? "-" : v.ToString() ?? "-";
+    }
+
+
+
+    private static bool IsHelpfulAnswer(string msg)
+    {
+        var lower = msg.Trim().ToLower();
+        string[] positive = ["نعم", "ايوه", "أيوه", "ايوا", "اه", "آه",
+                             "مفيدة", "مفيده", "تمام", "ممتاز",
+                             "شكرا", "شكراً", "yes", "👍"];
+        return positive.Any(w => lower.Contains(w));
+    }
+
+    private static bool IsNotHelpfulAnswer(string msg)
+    {
+        var lower = msg.Trim().ToLower();
+        string[] negative = ["لا", "مش مفيدة", "مش مفيده", "no",
+                             "مفيدتش", "👎"];
+        return negative.Any(w => lower.Contains(w));
+    }
+
+   
+    private async Task<(string description, string problemDescription, string solutionDescription)>
+    PrepareRagFieldsAsync(string serviceType, string problemDescription, List<string> steps)
+    {
+        string stepsText = string.Join("\n", steps.Select((s, i) => $"{i + 1}. {s}"));
+
+        string prompt =
+            $"أنت متخصص في {serviceType}.\n\n" +
+            $"المشكلة التي أبلغ عنها المستخدم:\n{problemDescription}\n\n" +
+            $"الخطوات التي حلت المشكلة:\n{stepsText}\n\n" +
+            "اكتب بالعربية الفصحى البسيطة:\n" +
+            "- لا تستخدم أي كلمات إنجليزية أو أحرف غير عربية\n" +
+            "1. description: جملة واحدة تصف المشكلة والحل معاً بشكل مختصر\n" +
+            "2. problem_description: جملتان تصفان المشكلة بدقة بكلمات مفيدة للبحث\n" +
+            "3. solution_description: الخطوات مكتوبة بشكل نظيف ومرقم بدون تنسيق\n\n" +
+            "رد بـ JSON فقط بدون أي كلام إضافي:\n" +
+            "{\"description\": \"...\", \"problem_description\": \"...\", \"solution_description\": \"...\"}";
+
+        try
+        {
+            string raw = await _groq.CompleteAsync(prompt, maxTokens: 500);
+            string json = raw.Replace("```json", "").Replace("```", "").Trim();
+
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            string desc = root.GetProperty("description").GetString() ?? problemDescription;
+            string prob = root.GetProperty("problem_description").GetString() ?? problemDescription;
+            string sol = root.GetProperty("solution_description").GetString() ?? stepsText;
+
+            _logger.LogInformation("[Feedback] ✓ RAG fields prepared — desc={D}", desc);
+            return (desc, prob, sol);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("[Feedback] PrepareRagFields failed: {M} — using raw", ex.Message);
+            string stepsRaw = string.Join("\n", steps.Select((s, i) => $"{i + 1}. {s}"));
+            return (problemDescription, problemDescription, stepsRaw);
+        }
+    }
+    // ════════════════════════════════════════════════════════════════════════
+    //  POST /api/AI/ingest/job/{jobId}
+    // ════════════════════════════════════════════════════════════════════════
+
+    [HttpPost("ingest/job/{jobId}")]
+    public async Task<IActionResult> IngestSingleJob(int jobId)
+    {
+        _logger.LogInformation("[API] IngestSingleJob called for JobId={JobId}", jobId);
+        var upserted = await _solution.IngestSingleJobSolutionAsync(jobId);
+        return Ok(new { jobId, upserted });
+    }
+    private static bool IsIntentOnlyMessage(string msg)
+    {
+        string[] intentOnly =
+        [
+            "عاوز خطوات", "خطوات حل", "ابدأ", "هاي",
+            "أهلا", "مرحبا", "ايوه", "أيوه", "تمام",
+            "ينفع", "عاوز فني", "محتاج مساعدة", "عندي مشكلة"
+        ];
+        string m = msg.Trim();
+        return intentOnly.Any(w =>
+            string.Equals(m, w, StringComparison.OrdinalIgnoreCase));
+    }
+    private async Task<bool> IsProblemDescriptionAsync(string serviceType, string text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Trim().Length < 4) return false;
+
+        string prompt =
+            $"أنت مساعد ذكي.\n\n" +
+            $"التخصص: {serviceType}\n" +
+            $"النص: \"{text}\"\n\n" +
+            "هل هذا النص يصف مشكلة محددة يريد المستخدم حلها؟\n" +
+            "أم أنه مجرد ذكر اسم التخصص أو طلب عام؟\n\n" +
+            "رد بـ JSON فقط: {\"is_problem\": true} أو {\"is_problem\": false}";
+
+        try
+        {
+            string raw = await _groq.CompleteAsync(prompt, maxTokens: 20);
+            string json = raw.Replace("```json", "").Replace("```", "").Trim();
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.GetProperty("is_problem").GetBoolean();
+        }
+        catch
+        {
+            return text.Length >= 8;
+        }
     }
 }
