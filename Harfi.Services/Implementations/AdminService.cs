@@ -31,8 +31,8 @@ namespace Harfi.Services.Implementations
                 {
                     Id = c.Id,
                     UserId = c.UserId,
-                    FullName = c.User?.Name, 
-                    Email = c.User?.Email,
+                    FullName = c.User?.Name ?? string.Empty,
+                    Email = c.User?.Email ?? string.Empty,
                     Phone = c.User?.Phone,
                     ServiceType = c.ServiceType,
                     City = c.City,

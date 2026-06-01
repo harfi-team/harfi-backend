@@ -15,7 +15,7 @@ namespace Harfi.Services.Implementations
         }
 
         // 1. جلب بيانات البروفايل للمستخدم
-        public async Task<UserProfileDto> GetUserProfileAsync(int userId)
+        public async Task<UserProfileDto?> GetUserProfileAsync(int userId)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return null;
@@ -24,7 +24,7 @@ namespace Harfi.Services.Implementations
             {
                 Id = user.Id,
                 Name = user.Name,
-                Email = user.Email,
+                Email = user.Email ?? string.Empty,
                 Role = user.Role,
                 Phone = user.Phone,
                 ProfileImageUrl = user.ProfileImageUrl,

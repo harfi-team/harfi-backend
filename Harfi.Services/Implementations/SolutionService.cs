@@ -324,7 +324,7 @@ public class SolutionService : ISolutionService
                     _logger.LogInformation("[Jobs.Ingest] ✓ {D}/{T}", done, jobs.Count);
                     break;
                 }
-                catch (Exception ex) when (attempt < 3)
+                catch (Exception) when (attempt < 3)
                 {
                     _logger.LogWarning("[Jobs.Ingest] Attempt {A} failed — wait 65s", attempt);
                     await Task.Delay(65_000);
