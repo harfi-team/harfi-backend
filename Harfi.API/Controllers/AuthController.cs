@@ -120,4 +120,31 @@ public class AuthController : ControllerBase
         var message = await _authService.ResendVerificationCodeAsync(dto);
         return Ok(new { success = true, message });
     }
+
+    // ── POST /api/auth/send-phone-code ─────────────────────────
+    [HttpPost("send-phone-code")]
+    [Authorize]
+    public async Task<IActionResult> SendPhoneCode([FromBody] SendPhoneVerificationDto dto)
+    {
+        var message = await _authService.SendPhoneVerificationCodeAsync(dto);
+        return Ok(new { success = true, message });
+    }
+
+    // ── POST /api/auth/verify-phone ────────────────────────────
+    [HttpPost("verify-phone")]
+    [Authorize]
+    public async Task<IActionResult> VerifyPhone([FromBody] VerifyPhoneDto dto)
+    {
+        var message = await _authService.VerifyPhoneAsync(dto);
+        return Ok(new { success = true, message });
+    }
+
+    // ── POST /api/auth/resend-phone-code ───────────────────────
+    [HttpPost("resend-phone-code")]
+    [Authorize]
+    public async Task<IActionResult> ResendPhoneCode([FromBody] ResendPhoneCodeDto dto)
+    {
+        var message = await _authService.ResendPhoneVerificationCodeAsync(dto);
+        return Ok(new { success = true, message });
+    }
 }

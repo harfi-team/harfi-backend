@@ -1,6 +1,7 @@
 ﻿using Harfi.DTOs.RAG;
 using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using System.Text.Json;
@@ -9,6 +10,7 @@ namespace Harfi.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class AIController : ControllerBase
 {
     private readonly RAGService _rag;
@@ -41,6 +43,7 @@ public class AIController : ControllerBase
     // ════════════════════════════════════════════════════════════════════════
 
     [HttpGet("welcome")]
+    [AllowAnonymous]
     public IActionResult Welcome() =>
         Ok(new { message = WelcomeMessage });
 
@@ -49,6 +52,7 @@ public class AIController : ControllerBase
     // ════════════════════════════════════════════════════════════════════════
 
     [HttpPost("chat3")]
+    [AllowAnonymous]
     [ProducesResponseType(typeof(Chat3Response), 200)]
     public async Task<IActionResult> Chat3([FromBody] Chat3Request request)
     {

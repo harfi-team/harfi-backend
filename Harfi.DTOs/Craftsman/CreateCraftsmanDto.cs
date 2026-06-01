@@ -18,7 +18,7 @@ namespace Harfi.DTOs.Craftsman
 
         [Required]
         [StringLength(100)]
-        public string City { get; set; }
+        public string City { get; set; } = string.Empty;
 
         [StringLength(100)]
         public string Neighborhood { get; set; } // المنطقة أو الحي (nullable)
@@ -31,7 +31,7 @@ namespace Harfi.DTOs.Craftsman
         public int? Experience { get; set; } // عدد سنوات الخبرة
 
         [StringLength(1000)]
-        public string Bio { get; set; } // نبذة مخصصة في الحرفي عن نفسه
+        public string? Bio { get; set; } // نبذة مخصصة في الحرفي عن نفسه
 
         [Required]
         [StringLength(500)]

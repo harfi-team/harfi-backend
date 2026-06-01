@@ -4,6 +4,7 @@ using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -18,22 +19,28 @@ public class AuthService : IAuthService
     private readonly UserManager<User> _userManager;
     private readonly IGenericRepository<RefreshToken> _refreshTokenRepo;
     private readonly IGenericRepository<EmailVerification> _verificationRepo;
+    private readonly IGenericRepository<PhoneVerification> _phoneVerificationRepo;
     private readonly IEmailService _emailService;
     private readonly IConfiguration _config;
+    private readonly ILogger<AuthService> _logger;
 
     // ── CONSTRUCTOR ───────────────────────────────────────────
     public AuthService(
         UserManager<User> userManager,
         IGenericRepository<RefreshToken> refreshTokenRepo,
         IGenericRepository<EmailVerification> verificationRepo,
+        IGenericRepository<PhoneVerification> phoneVerificationRepo,
         IEmailService emailService,
-        IConfiguration config)
+        IConfiguration config,
+        ILogger<AuthService> logger)
     {
         _userManager = userManager;
         _refreshTokenRepo = refreshTokenRepo;
         _verificationRepo = verificationRepo;
+        _phoneVerificationRepo = phoneVerificationRepo;
         _emailService = emailService;
         _config = config;
+        _logger = logger;
     }
 
     // ── REGISTER ──────────────────────────────────────────────
@@ -68,19 +75,30 @@ public class AuthService : IAuthService
             throw new InvalidOperationException(errors);
         }
 
-        // 4. Generate & save verification code
+        // 4. Generate Identity email confirmation token + custom 6-digit code
+        var identityToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
         var code = new Random().Next(100000, 999999).ToString();
         await _verificationRepo.AddAsync(new EmailVerification
         {
             UserId = user.Id,
             Code = code,
+            IdentityToken = identityToken,
             ExpiresAt = DateTime.UtcNow.AddMinutes(10),
             IsUsed = false
         });
         await _verificationRepo.SaveChangesAsync();
 
-        // 5. Send verification email
-        await _emailService.SendVerificationCodeAsync(user.Email!, user.Name, code);
+        // 5. Send verification email (non-blocking — network failure must not crash registration)
+        try
+        {
+            await _emailService.SendVerificationCodeAsync(user.Email!, user.Name, code);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to send verification email to {Email}. Registration completed anyway.",
+                user.Email);
+        }
 
         // 6. Return tokens
         return await BuildAuthResponseAsync(user);
@@ -174,12 +192,23 @@ public class AuthService : IAuthService
         if (verification is null)
             throw new InvalidOperationException("الكود غير صحيح أو منتهي الصلاحية.");
 
-        // Mark as verified
+        // Mark code as used
         verification.IsUsed = true;
-        user.IsVerified = true;
-
         _verificationRepo.Update(verification);
-        await _userManager.UpdateAsync(user); // saves both user + verification
+
+        // Use Identity's ConfirmEmailAsync — this validates the token
+        // and automatically flips the EmailConfirmed column to true.
+        var confirmResult = await _userManager.ConfirmEmailAsync(user, verification.IdentityToken!);
+
+        if (!confirmResult.Succeeded)
+        {
+            var errors = string.Join("; ", confirmResult.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"فشل تأكيد البريد الإلكتروني: {errors}");
+        }
+
+        // Preserve custom business logic: mark user as verified
+        user.IsVerified = true;
+        await _userManager.UpdateAsync(user);
 
         return "تم تفعيل البريد الإلكتروني بنجاح. يمكنك تسجيل الدخول الآن.";
     }
@@ -205,12 +234,14 @@ public class AuthService : IAuthService
             _verificationRepo.Update(old);
         }
 
-        // Generate new code
+        // Generate new Identity token + custom code
+        var identityToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
         var code = new Random().Next(100000, 999999).ToString();
         await _verificationRepo.AddAsync(new EmailVerification
         {
             UserId = user.Id,
             Code = code,
+            IdentityToken = identityToken,
             ExpiresAt = DateTime.UtcNow.AddMinutes(10),
             IsUsed = false
         });
@@ -219,6 +250,122 @@ public class AuthService : IAuthService
         await _emailService.SendVerificationCodeAsync(user.Email!, user.Name, code);
 
         return "تم إرسال كود جديد إلى بريدك الإلكتروني.";
+    }
+
+    // ── SEND PHONE VERIFICATION CODE ─────────────────────────
+    public async Task<string> SendPhoneVerificationCodeAsync(SendPhoneVerificationDto dto)
+    {
+        var user = await _userManager.FindByEmailAsync(dto.Email.ToLower().Trim())
+            ?? throw new KeyNotFoundException("المستخدم غير موجود.");
+
+        if (user.PhoneNumberConfirmed)
+            throw new InvalidOperationException("رقم الهاتف مفعّل مسبقاً.");
+
+        // Generate Identity phone change token + custom 6-digit code
+        var identityToken = await _userManager.GenerateChangePhoneNumberTokenAsync(
+            user, dto.PhoneNumber);
+        var code = new Random().Next(100000, 999999).ToString();
+
+        await _phoneVerificationRepo.AddAsync(new PhoneVerification
+        {
+            UserId = user.Id,
+            PhoneNumber = dto.PhoneNumber,
+            Code = code,
+            IdentityToken = identityToken,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+            IsUsed = false
+        });
+        await _phoneVerificationRepo.SaveChangesAsync();
+
+        // TODO: Replace with actual SMS gateway integration
+        await _emailService.SendVerificationCodeAsync(
+            user.Email!, user.Name, $"📱 كود تفعيل رقم الهاتف: {code}");
+
+        return "تم إرسال كود التفعيل إلى بريدك الإلكتروني. يُرجى التحقق.";
+    }
+
+    // ── VERIFY PHONE ──────────────────────────────────────────
+    public async Task<string> VerifyPhoneAsync(VerifyPhoneDto dto)
+    {
+        var user = await _userManager.FindByEmailAsync(dto.Email.ToLower().Trim())
+            ?? throw new KeyNotFoundException("المستخدم غير موجود.");
+
+        if (user.PhoneNumberConfirmed)
+            throw new InvalidOperationException("رقم الهاتف مفعّل مسبقاً.");
+
+        var verification = await _phoneVerificationRepo.FirstOrDefaultAsync(
+            v => v.UserId == user.Id &&
+                 v.PhoneNumber == dto.PhoneNumber &&
+                 v.Code == dto.Code &&
+                 !v.IsUsed &&
+                 v.ExpiresAt > DateTime.UtcNow);
+
+        if (verification is null)
+            throw new InvalidOperationException("الكود غير صحيح أو منتهي الصلاحية.");
+
+        // Mark code as used
+        verification.IsUsed = true;
+        _phoneVerificationRepo.Update(verification);
+
+        // Use Identity's ChangePhoneNumberAsync — this validates the token
+        // and automatically flips the PhoneNumberConfirmed column to true.
+        var confirmResult = await _userManager.ChangePhoneNumberAsync(
+            user, verification.PhoneNumber, verification.IdentityToken!);
+
+        if (!confirmResult.Succeeded)
+        {
+            var errors = string.Join("; ", confirmResult.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"فشل تأكيد رقم الهاتف: {errors}");
+        }
+
+        // Sync custom Phone field with the verified number
+        user.Phone = verification.PhoneNumber;
+        await _userManager.UpdateAsync(user);
+
+        return "تم تفعيل رقم الهاتف بنجاح.";
+    }
+
+    // ── RESEND PHONE CODE ─────────────────────────────────────
+    public async Task<string> ResendPhoneVerificationCodeAsync(ResendPhoneCodeDto dto)
+    {
+        var user = await _userManager.FindByEmailAsync(dto.Email.ToLower().Trim())
+            ?? throw new KeyNotFoundException("المستخدم غير موجود.");
+
+        if (user.PhoneNumberConfirmed)
+            throw new InvalidOperationException("رقم الهاتف مفعّل مسبقاً.");
+
+        // Invalidate all old unused codes for this user + phone
+        var oldCodes = await _phoneVerificationRepo.FindAsync(
+            v => v.UserId == user.Id && v.PhoneNumber == dto.PhoneNumber && !v.IsUsed);
+
+        foreach (var old in oldCodes)
+        {
+            old.IsUsed = true;
+            _phoneVerificationRepo.Update(old);
+        }
+
+        // Generate new Identity token + custom code
+        var identityToken = await _userManager.GenerateChangePhoneNumberTokenAsync(
+            user, dto.PhoneNumber);
+        var code = new Random().Next(100000, 999999).ToString();
+
+        await _phoneVerificationRepo.AddAsync(new PhoneVerification
+        {
+            UserId = user.Id,
+            PhoneNumber = dto.PhoneNumber,
+            Code = code,
+            IdentityToken = identityToken,
+            ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+            IsUsed = false
+        });
+
+        await _phoneVerificationRepo.SaveChangesAsync();
+
+        // TODO: Replace with actual SMS gateway integration
+        await _emailService.SendVerificationCodeAsync(
+            user.Email!, user.Name, $"📱 كود تفعيل رقم الهاتف الجديد: {code}");
+
+        return "تم إرسال كود جديد.";
     }
 
     // ══════════════════════════════════════════════════════════

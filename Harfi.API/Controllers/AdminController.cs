@@ -1,4 +1,5 @@
 using Harfi.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 
@@ -6,6 +7,7 @@ namespace Harfi.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize(Roles = "admin")]
     public class AdminController : ControllerBase
     {
         private readonly IAdminService _adminService;

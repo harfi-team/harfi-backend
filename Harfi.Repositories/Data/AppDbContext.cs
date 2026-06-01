@@ -23,6 +23,7 @@ public class AppDbContext : IdentityUserContext<User, int>
     public DbSet<JobFeedback> JobFeedbacks { get; set; }
     public DbSet<UserConnection> UserConnections { get; set; }
     public DbSet<EmailVerification> EmailVerifications => Set<EmailVerification>();
+    public DbSet<PhoneVerification> PhoneVerifications => Set<PhoneVerification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,27 +1,43 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Harfi.DTOs.Craftsman;
+﻿using Harfi.DTOs.Craftsman;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
+using Microsoft.AspNetCore.Identity;
 
 namespace Harfi.Services.Implementations
 {
-    public class CraftsmanService:ICraftsmanService
+    public class CraftsmanService : ICraftsmanService
     {
         private readonly ICraftsmanRepository _craftsmanRepository;
+        private readonly UserManager<User> _userManager;
 
-        public CraftsmanService(ICraftsmanRepository craftsmanRepository)
+        public CraftsmanService(
+            ICraftsmanRepository craftsmanRepository,
+            UserManager<User> userManager)
         {
             _craftsmanRepository = craftsmanRepository;
+            _userManager = userManager;
         }
 
         // 1. تسجيل حرفي جديد (بيكون معلق IsApproved = false في البداية)
         public async Task<bool> RegisterCraftsmanAsync(CreateCraftsmanDto createCraftsmanDto)
         {
+            // 1. التحقق من وجود المستخدم
+            var user = await _userManager.FindByIdAsync(createCraftsmanDto.UserId.ToString());
+            if (user is null)
+                throw new KeyNotFoundException("المستخدم غير موجود.");
+
+            // 2. التحقق من أن دور المستخدم هو "craftsman"
+            if (user.Role != "craftsman")
+                throw new InvalidOperationException(
+                    "هذا المستخدم ليس لديه صلاحية التسجيل كحرفي.");
+
+            // 3. التأكد من عدم وجود سجل حرفي مسبق لنفس المستخدم (علاقة 1:1)
+            var exists = await _craftsmanRepository.ExistsAsync(c => c.UserId == createCraftsmanDto.UserId);
+            if (exists)
+                throw new InvalidOperationException(
+                    "هذا المستخدم مسجل كحرفي مسبقاً.");
+
             var craftsman = new Craftsman
             {
                 UserId = createCraftsmanDto.UserId,
@@ -33,21 +49,25 @@ namespace Harfi.Services.Implementations
                 Experience = (int)createCraftsmanDto.Experience,
                 Bio = createCraftsmanDto.Bio,
                 NationalIdUrl = createCraftsmanDto.NationalIdUrl,
-                IsApproved = false, // افتراضياً غير مقبول لحين مراجعة الأدمن
+                IsApproved = false,
                 IsAvailable = true,
-                Rating = 0, // يبدأ بتقييم صفر
+                Rating = 0,
                 CreatedAt = DateTime.UtcNow
             };
 
             await _craftsmanRepository.AddAsync(craftsman);
+            await _craftsmanRepository.SaveChangesAsync();
             return true;
         }
 
         // 2. جلب بروفايل حرفي معين بكامل بياناته المهنية والشخصية
         public async Task<CraftsmanDto> GetCraftsmanProfileAsync(int id)
         {
-            var craftsman = await _craftsmanRepository.GetByIdAsync(id); 
+            var craftsman = await _craftsmanRepository.GetByIdAsync(id);
             if (craftsman == null) return null;
+
+            // تحميل بيانات المستخدم المرتبط لتجنب null reference
+            await _craftsmanRepository.LoadReferenceAsync(craftsman, c => c.User);
 
             return new CraftsmanDto
             {

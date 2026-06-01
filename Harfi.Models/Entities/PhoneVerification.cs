@@ -1,12 +1,13 @@
-﻿namespace Harfi.Models.Entities;
+namespace Harfi.Models.Entities;
 
-public class EmailVerification
+public class PhoneVerification
 {
     public int Id { get; set; }
     public int UserId { get; set; }
+    public string PhoneNumber { get; set; } = null!;
     public string Code { get; set; } = null!;
 
-    /// <summary>ASP.NET Core Identity email confirmation token for UserManager.ConfirmEmailAsync</summary>
+    /// <summary>ASP.NET Core Identity phone change token for UserManager.ChangePhoneNumberAsync</summary>
     public string? IdentityToken { get; set; }
 
     public DateTime ExpiresAt { get; set; }
