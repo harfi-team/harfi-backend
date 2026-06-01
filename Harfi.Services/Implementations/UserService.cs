@@ -1,31 +1,25 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Harfi.DTOs.User;
+﻿using Harfi.DTOs.User;
 using Harfi.Models.Entities;
-using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
+using Microsoft.AspNetCore.Identity;
 
 namespace Harfi.Services.Implementations
 {
     public class UserService : IUserService
     {
-        private readonly IGenericRepository<User> _userRepository; 
+        private readonly UserManager<User> _userManager;
 
-        public UserService(IGenericRepository<User> userRepository)
+        public UserService(UserManager<User> userManager)
         {
-            _userRepository = userRepository;
+            _userManager = userManager;
         }
 
         // 1. جلب بيانات البروفايل للمستخدم
         public async Task<UserProfileDto> GetUserProfileAsync(int userId)
         {
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return null;
 
-            // تحويل الـ Entity إلى DTO
             return new UserProfileDto
             {
                 Id = user.Id,
@@ -42,10 +36,9 @@ namespace Harfi.Services.Implementations
         // 2. تحديث بيانات البروفايل
         public async Task<bool> UpdateUserProfileAsync(int userId, UpdateUserDto updateUserDto)
         {
-            var user = await _userRepository.GetByIdAsync(userId);
+            var user = await _userManager.FindByIdAsync(userId.ToString());
             if (user == null) return false;
 
-            // تحديث الحقول المسموح بتعديلها فقط
             user.Name = updateUserDto.Name;
             user.Phone = updateUserDto.Phone;
             if (!string.IsNullOrEmpty(updateUserDto.ProfileImageUrl))
@@ -53,8 +46,8 @@ namespace Harfi.Services.Implementations
                 user.ProfileImageUrl = updateUserDto.ProfileImageUrl;
             }
 
-             _userRepository.Update( user);
-            return true;
+            var result = await _userManager.UpdateAsync(user);
+            return result.Succeeded;
         }
     }
 }
