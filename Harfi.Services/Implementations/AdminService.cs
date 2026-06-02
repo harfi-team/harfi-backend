@@ -22,8 +22,8 @@ namespace Harfi.Services.Implementations
         // 1. جلب كل الحرفيين المعلقين (الذين ينتظرون موافقة الأدمن IsApproved == false)
         public async Task<IEnumerable<CraftsmanDto>> GetPendingCraftsmenAsync()
         {
-            // جلب كل البيانات من الـ Repository
-            var allCraftsmen = await _craftsmanRepository.GetAllAsync();
+            // جلب كل البيانات من الـ Repository مع تحميل بيانات المستخدم لتجنب null reference
+            var allCraftsmen = await _craftsmanRepository.GetAllWithUserAsync();
 
             return allCraftsmen
                 .Where(c => !c.IsApproved)
@@ -31,8 +31,8 @@ namespace Harfi.Services.Implementations
                 {
                     Id = c.Id,
                     UserId = c.UserId,
-                    FullName = c.User?.Name, 
-                    Email = c.User?.Email,
+                    FullName = c.User?.Name ?? string.Empty,
+                    Email = c.User?.Email ?? string.Empty,
                     Phone = c.User?.Phone,
                     ServiceType = c.ServiceType,
                     City = c.City,

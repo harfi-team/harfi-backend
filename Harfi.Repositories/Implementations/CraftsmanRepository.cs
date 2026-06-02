@@ -1,4 +1,3 @@
-﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -13,21 +12,34 @@ namespace Harfi.Repositories.Implementations
 {
     public class CraftsmanRepository : GenericRepository<Craftsman>, ICraftsmanRepository
     {
-        private readonly AppDbContext _context;
+        private readonly new AppDbContext _context;
 
         public CraftsmanRepository(AppDbContext context) : base(context)
         {
             _context = context;
         }
 
-        public Task DeleteAsync(int craftsmanId)
+        public async Task<IEnumerable<Craftsman>> GetAllWithUserAsync()
         {
-            throw new NotImplementedException();
+            return await _context.Craftsmen
+                .Include(c => c.User)
+                .ToListAsync();
+        }
+
+        public async Task DeleteAsync(int craftsmanId)
+        {
+            var craftsman = await _context.Craftsmen.FindAsync(craftsmanId);
+            if (craftsman is not null)
+            {
+                _context.Craftsmen.Remove(craftsman);
+                await _context.SaveChangesAsync();
+            }
         }
 
         public async Task<IEnumerable<Craftsman>> GetFilteredCraftsmenAsync(CraftsmanFilterDto filter)
         {
             // 1. جلب الحرفيين المعتمدين من الداتابيز
+
             var query = _context.Craftsmen
                                 .Include(c => c.User)
                                 .Where(c => c.IsApproved)
@@ -64,9 +76,11 @@ namespace Harfi.Repositories.Implementations
             return await query.ToListAsync();
         }
 
-        public Task<bool> UpdateAsync(Craftsman craftsman)
+        public async Task<bool> UpdateAsync(Craftsman craftsman)
         {
-            throw new NotImplementedException();
+            _context.Craftsmen.Update(craftsman);
+            await _context.SaveChangesAsync();
+            return true;
         }
     }
 }

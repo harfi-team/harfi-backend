@@ -1,14 +1,15 @@
 using Harfi.Models.Entities;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace Harfi.Repositories.Data;
 
-public class AppDbContext : DbContext
+public class AppDbContext : IdentityUserContext<User, int>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
 
     // ── DbSets ────────────────────────────────────────────────
-    public DbSet<User> Users { get; set; }
+    // Users is already provided by IdentityUserContext<User, int>
     public DbSet<Craftsman> Craftsmen { get; set; }
     public DbSet<Job> Jobs { get; set; }
     public DbSet<Conversation> Conversations { get; set; }
@@ -22,6 +23,7 @@ public class AppDbContext : DbContext
     public DbSet<JobFeedback> JobFeedbacks { get; set; }
     public DbSet<UserConnection> UserConnections { get; set; }
     public DbSet<EmailVerification> EmailVerifications => Set<EmailVerification>();
+    public DbSet<PhoneVerification> PhoneVerifications => Set<PhoneVerification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +32,7 @@ public class AppDbContext : DbContext
         // ── USERS ────────────────────────────────────────────
         modelBuilder.Entity<User>(e =>
         {
+            e.ToTable("Users");
             e.HasIndex(u => u.Email).IsUnique();
             e.Property(u => u.IsActive).HasDefaultValue(true);
             e.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");

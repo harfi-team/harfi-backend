@@ -16,65 +16,67 @@
 
 ---
 
-## 1 — Configure appsettings.json
+## 1 — Configure User Secrets
 
-Open `Harfi.API/appsettings.json` and fill in **all** of these values:
+> ⚠️ Sensitive config values are **never stored in `appsettings.json`** — they go in **.NET User Secrets**, which is private to your machine and never committed to Git.
 
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=YOUR_PC_NAME\\SQLEXPRESS;Database=HarfiDB;Trusted_Connection=True;TrustServerCertificate=True;"
-  },
+### 1a — Initialize User Secrets
 
-  "JwtSettings": {
-    "SecretKey": "Harfi@SuperSecret_2024_JWT_Key!XYZ",
-    "Issuer": "HarfiAPI",
-    "Audience": "HarfiClient",
-    "AccessTokenExpiryMinutes": 60,
-    "RefreshTokenExpiryDays": 30
-  },
-
-  "EmailSettings": {
-    "Host": "smtp.gmail.com",
-    "Port": 587,
-    "SenderEmail": "YOUR_GMAIL@gmail.com",
-    "SenderName": "Harfi Platform",
-    "AppPassword": "xxxx xxxx xxxx xxxx"
-  },
-
-  "AllowedOrigins": [
-    "http://localhost:4200",
-    "https://harfi.app"
-  ],
-
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning",
-      "Microsoft.EntityFrameworkCore": "Warning"
-    }
-  },
-
-  "AllowedHosts": "*"
-}
+```bash
+dotnet user-secrets init --project Harfi.API
 ```
 
-### How to find YOUR server name:
+This creates a `secrets.json` file on your machine (in `%APPDATA%\Microsoft\UserSecrets\`) that `builder.Configuration` reads automatically in **Development** mode.
+
+### 1b — Set Your Connection String
+
+Find your SQL Server name:
 1. Open **SSMS**
 2. Click **Connect → Database Engine**
-3. The value in the **Server name** field is your server name
-4. Copy it exactly and replace `YOUR_PC_NAME\\SQLEXPRESS`
+3. The **Server name** field is your server name
+
+Then run:
+```bash
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=YOUR_PC_NAME\SQLEXPRESS;Database=HarfiDB;Trusted_Connection=True;TrustServerCertificate=True;" --project Harfi.API
+```
 
 **Examples:**
 ```
-DESKTOP-ABC123\SQLEXPRESS    →   "Server=DESKTOP-ABC123\\SQLEXPRESS;..."
-LAPTOP-XYZ\SQLEXPRESS        →   "Server=LAPTOP-XYZ\\SQLEXPRESS;..."
+Server=DESKTOP-ABC123\SQLEXPRESS
+Server=LAPTOP-XYZ\SQLEXPRESS
 ```
-> ⚠️ Notice the **double backslash** `\\` in the JSON — this is required.
 
-### SecretKey rules:
+### 1c — Set the JWT Secret Key
+
+```bash
+dotnet user-secrets set "JwtSettings:SecretKey" "Harfi@SuperSecret_2024_JWT_Key!XYZ" --project Harfi.API
+```
+
+**Rules:**
 - Must be **at least 32 characters**
 - Use the same value as the rest of the team
+
+### 1d — Set Your Gmail App Password
+
+After generating your app password (see [Section 2](#2--get-your-gmail-app-password)):
+```bash
+dotnet user-secrets set "EmailSettings:SenderEmail" "your_gmail@gmail.com" --project Harfi.API
+dotnet user-secrets set "EmailSettings:AppPassword" "xxxx xxxx xxxx xxxx" --project Harfi.API
+```
+
+### 1e — Verify All Secrets
+
+```bash
+dotnet user-secrets list --project Harfi.API
+```
+
+You should see 4 entries:
+```
+ConnectionStrings:DefaultConnection = Server=...
+JwtSettings:SecretKey = Harfi@SuperSecret_2024_JWT_Key!XYZ
+EmailSettings:SenderEmail = your_gmail@gmail.com
+EmailSettings:AppPassword = xxxx xxxx xxxx xxxx
+```
 ---
 
 ## 2 — Get Your Gmail App Password
@@ -96,7 +98,7 @@ LAPTOP-XYZ\SQLEXPRESS        →   "Server=LAPTOP-XYZ\\SQLEXPRESS;..."
 8. Google shows a **16-character password** like: `abcd efgh ijkl mnop`
 9. Copy it and paste it in `appsettings.json` under `AppPassword`
 
-> ⚠️ This password is shown only once. Save it somewhere safe.
+> ⚠️ This password is shown only once. Save it somewhere safe, then store it in User Secrets (see [Step 1d](#1d--set-your-gmail-app-password)).
 
 ---
 
@@ -123,11 +125,11 @@ If you see any errors here — check your internet connection and run again.
 
 ## 4 — Apply Database Migrations
 
-This step creates the `HarfiDB` database and all 14 tables automatically.
+This step creates the `HarfiDB` database and all tables automatically.
 
 Run:
 ```bash
-dotnet ef database update --project Harfi.Repositories
+dotnet ef database update --project Harfi.Repositories --startup-project Harfi.API
 ```
 
 You should see:
@@ -136,6 +138,7 @@ Build started...
 Build succeeded.
 Applying migration '..._InitialCreate'.
 Applying migration '..._AddEmailVerification'.
+Applying migration '..._MigrateToIdentity'.
 Done.
 ```
 
@@ -158,6 +161,9 @@ dbo.MediaFiles
 dbo.JobFeedbacks
 dbo.UserConnections
 dbo.EmailVerifications
+dbo.AspNetUserClaims
+dbo.AspNetUserLogins
+dbo.AspNetUserTokens
 dbo.__EFMigrationsHistory
 ```
 
@@ -185,8 +191,10 @@ Application started. Press Ctrl+C to shut down.
 
 Open your browser and go to:
 ```
-http://localhost:5108
+https://localhost:5000
 ```
+(or **http://localhost:5108**)  
+
 **Swagger UI** should open showing all API endpoints.
 
 ---
@@ -313,7 +321,7 @@ git push origin your-branch-name
 ### When Esraa pushes a new migration:
 ```bash
 git pull origin dev
-dotnet ef database update --project Harfi.Repositories
+dotnet ef database update --project Harfi.Repositories --startup-project Harfi.API
 ```
 This updates your local database automatically.
 
@@ -325,8 +333,9 @@ This updates your local database automatically.
 |-------|-------|-----|
 | `Login failed for user` | Wrong server name | Check Step 1 — update connection string |
 | `Cannot open database HarfiDB` | Migration not applied | Run Step 4 again |
-| `JWT SecretKey is missing` | Missing config | Add SecretKey to appsettings.json |
-| `EmailSettings:AppPassword is missing` | Missing config | Follow Step 2 |
+| `JWT SecretKey is missing` | Missing User Secret | Run `dotnet user-secrets set "JwtSettings:SecretKey" "<key>" --project Harfi.API` |
+| `EmailSettings:AppPassword is missing` | Missing User Secret | Run `dotnet user-secrets set "EmailSettings:AppPassword" "<pw>" --project Harfi.API` |
+| `ConnectionStrings:DefaultConnection is missing` | Missing User Secret | Run `dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<conn>" --project Harfi.API` |
 | `Build failed` | Missing packages | Run `dotnet restore` |
 | `dotnet ef not found` | EF CLI not installed | Run `dotnet tool install --global dotnet-ef` |
 | `AppControl policy blocked` | Windows security on D: drive | Update server name in `AppDbContextFactory.cs` |
@@ -342,4 +351,4 @@ If you're stuck on any step, contact **Esraa** before spending more than 10 minu
 
 ---
 
-*Last updated: Phase 1 complete — N-tier structure + JWT Auth + Email Verification*
+*Last updated: Phase 1 complete — ASP.NET Core Identity + JWT Auth + User Secrets + Email Verification*
