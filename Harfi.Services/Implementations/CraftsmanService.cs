@@ -57,7 +57,6 @@ namespace Harfi.Services.Implementations
                 Email = craftsman.User?.Email,
                 Phone = craftsman.User?.Phone,
                 ProfileImageUrl = craftsman.User?.ProfileImageUrl,
-                ServiceType = craftsman.ServiceType,
                 City = craftsman.City,
                 Neighborhood = craftsman.Neighborhood,
                 PriceRangeMin = craftsman.PriceRangeMin,
@@ -105,8 +104,7 @@ namespace Harfi.Services.Implementations
             var craftsman = await _craftsmanRepository.GetByIdAsync(id); 
             if (craftsman == null) return false;
 
-            // تحديث البيانات
-            craftsman.ServiceType = dto.ServiceType;
+            // تحديث البيانات=
             craftsman.City = dto.City;
             craftsman.Neighborhood = dto.Neighborhood;
             craftsman.PriceRangeMin = dto.PriceRangeMin;
