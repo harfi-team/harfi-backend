@@ -18,20 +18,32 @@ namespace Harfi.API.Controllers
             _userService = userService;
         }
 
+        // 1. جلب بروفايل المستخدم
         [HttpGet("profile/{id}")]
         public async Task<IActionResult> GetProfile(int id)
         {
             var profile = await _userService.GetUserProfileAsync(id);
-            if (profile == null) return NotFound("User not found");
+
+            if (profile == null)
+                return NotFound(new { message = "عذراً، هذا المستخدم غير موجود." });
+
             return Ok(profile);
         }
 
+        // 2. تحديث بروفايل المستخدم
         [HttpPut("profile/{id}")]
         public async Task<IActionResult> UpdateProfile(int id, [FromBody] UpdateUserDto dto)
         {
+            // أضفنا فحص الـ ModelState هنا للتأكد من سلامة المدخلات
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
             var result = await _userService.UpdateUserProfileAsync(id, dto);
-            if (!result) return BadRequest("Data could not be updated ");
-            return Ok("The profile has been successfully updated.");
+
+            if (!result)
+                return BadRequest(new { message = "فشل في تحديث البيانات، يرجى التحقق من المدخلات والمحاولة مرة أخرى." });
+
+            return Ok(new { message = "تم تحديث بيانات الملف الشخصي بنجاح." });
         }
     }
 }
