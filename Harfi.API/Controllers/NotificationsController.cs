@@ -39,7 +39,7 @@ namespace Harfi.API.Controllers
         [HttpPut("{id}/read")]
         public async Task<IActionResult> MarkAsRead(int id)
         {
-            if (id <= 0) return BadRequest("Invalid notification ID.");
+            if (id <= 0) return BadRequest("معرف الإشعار غير صالح .");
             await _notifService.MarkAsReadAsync(id, GetUserId());
             return NoContent();
         }
