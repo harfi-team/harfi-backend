@@ -66,7 +66,7 @@ git clone https://github.com/harfi-team/harfi-backend.git
 
 
 ### 3. Open Swagger UI
-Navigate to: **http://localhost:5108**
+Navigate to: **https://localhost:5000** (or **http://localhost:5108**)
 
 ---
 
@@ -88,6 +88,9 @@ Navigate to: **http://localhost:5108**
 | JobFeedbacks       | AI guidance feedback (helpful/not)               |
 | UserConnections    | SignalR Hub connection tracking                  |
 | EmailVerifications | Email verification codes and expiry tracking     |
+| AspNetUserClaims   | Identity user claims (added by Identity)         |
+| AspNetUserLogins   | Identity external logins (added by Identity)     |
+| AspNetUserTokens   | Identity auth tokens (added by Identity)         |
  
 ---
 
@@ -157,9 +160,9 @@ public async Task<User?> GetUserAsync(int id) => await _repo.GetByIdAsync(id);
 
 ## 🔒 Security Notes
 
-- Passwords are hashed with **BCrypt** — never store plain text
+- Passwords are hashed by **ASP.NET Core Identity PasswordHasher (PBKDF2)** — never store plain text
 - JWT tokens expire after **60 minutes** — use refresh tokens for long sessions
-- All secrets go in `appsettings.json` locally and **Azure Key Vault** in production
+- Secrets go in **.NET User Secrets** locally and **Azure Key Vault** in production — never in `appsettings.json`
 - Soft delete everywhere — `IsActive = false` instead of deleting rows
 
 ---
@@ -168,7 +171,7 @@ public async Task<User?> GetUserAsync(int id) => await _repo.GetByIdAsync(id);
 
 | Name    | Role              | Assignment                                                |
 |---------|-------------------|-----------------------------------------------------------|
-| Esraa   | Backend Lead      | Project Structure Setup + JWT Auth (Register/Login/Roles) |
+| Esraa   | Backend Lead      | Project Structure Setup + ASP.NET Core Identity + JWT Auth |
 | Hadeer  | Backend           | Phase 2: Profiles, Administrative Controls & Filters      |
 | Habiba  | Backend           | Phase 3: Booking System & State Machinery                 |
 | Mazen   | Backend           | Phase 4: Reviews & Closures                               |
@@ -184,7 +187,7 @@ public async Task<User?> GetUserAsync(int id) => await _repo.GetByIdAsync(id);
 
 ---
 
-### Esraa — Project Structure + JWT Auth ✅
+### Esraa — Project Structure + ASP.NET Core Identity + JWT Auth ✅
 ```
 Harfi.API/
 ├── Program.cs

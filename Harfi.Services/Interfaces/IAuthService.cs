@@ -34,4 +34,8 @@ public interface IAuthService
 
     Task<string> VerifyEmailAsync(VerifyEmailDto dto);
     Task<string> ResendVerificationCodeAsync(ResendCodeDto dto);
+
+    Task<string> SendPhoneVerificationCodeAsync(SendPhoneVerificationDto dto);
+    Task<string> VerifyPhoneAsync(VerifyPhoneDto dto);
+    Task<string> ResendPhoneVerificationCodeAsync(ResendPhoneCodeDto dto);
 }

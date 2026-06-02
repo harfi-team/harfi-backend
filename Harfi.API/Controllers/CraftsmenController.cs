@@ -1,5 +1,6 @@
 using Harfi.DTOs.Craftsman;
 using Harfi.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading.Tasks;
 
@@ -7,6 +8,7 @@ namespace Harfi.API.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class CraftsmenController : ControllerBase
     {
         private readonly ICraftsmanService _craftsmanService;
@@ -18,6 +20,7 @@ namespace Harfi.API.Controllers
 
         // 1. تقديم طلب تسجيل الحرفي
         [HttpPost("register")]
+        [AllowAnonymous]
         public async Task<IActionResult> Register([FromBody] CreateCraftsmanDto dto)
         {
             var result = await _craftsmanService.RegisterCraftsmanAsync(dto);
@@ -30,6 +33,7 @@ namespace Harfi.API.Controllers
 
         // 2. جلب الملف الشخصي للحرفي بواسطة الـ ID
         [HttpGet("{id}")]
+        [AllowAnonymous]
         public async Task<IActionResult> GetProfile(int id)
         {
             var profile = await _craftsmanService.GetCraftsmanProfileAsync(id);
@@ -42,6 +46,7 @@ namespace Harfi.API.Controllers
 
         // 3. البحث والفلترة المتقدمة (يدعم العربي والإنجليزي)
         [HttpGet("search")]
+        [AllowAnonymous]
         public async Task<IActionResult> Search([FromQuery] CraftsmanFilterDto filter)
         {
             var results = await _craftsmanService.GetFilteredCraftsmenAsync(filter);

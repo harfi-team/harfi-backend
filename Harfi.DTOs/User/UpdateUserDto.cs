@@ -11,15 +11,15 @@ namespace Harfi.DTOs.User
     {
         [Required]
         [StringLength(100)]
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
 
         [Required]
         [StringLength(20)]
         [Phone]
-        public string Phone { get; set; }
+        public string? Phone { get; set; }
 
         [StringLength(500)]
-        public string ProfileImageUrl { get; set; } 
+        public string? ProfileImageUrl { get; set; }
     }
 }
 

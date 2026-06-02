@@ -5,6 +5,7 @@ using Harfi.Repositories.Interfaces;
 using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -43,8 +44,22 @@ public static class ServiceExtensions
 
         // TODO (Hadeer - Phase 2): add ICraftsmanRepository
         // TODO (Habiba - Phase 3): add IJobRepository
+        services.AddScoped<IJobRepository, JobRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
+
         // TODO (Mazen  - Phase 4): add IReviewRepository
-        // TODO (Ibrahim - Phase 5): add IMessageRepository
+        // ── Repositories ──────────────────────────────────────────────────────
+        // Scoped = one instance per HTTP request
+        services.AddScoped<IReviewRepository, ReviewRepository>();
+        services.AddScoped<IJobFeedbackRepository, JobFeedbackRepository>();
+        // ── Services ──────────────────────────────────────────────────────────
+        services.AddScoped<IReviewService, ReviewService>();
+        services.AddScoped<IJobFeedbackService, JobFeedbackService>();
+
+        // Ibrahim - Phase 5
+        services.AddScoped<IConversationRepository, ConversationRepository>();
+        services.AddScoped<IMessageRepository, MessageRepository>();
+        services.AddScoped<INotificationRepository, NotificationRepository>();
 
         return services;
     }
@@ -58,14 +73,21 @@ public static class ServiceExtensions
 
         // TODO (Hadeer - Phase 2): services.AddScoped<ICraftsmanService, CraftsmanService>();
         // TODO (Habiba - Phase 3): services.AddScoped<IJobService, JobService>();
+        services.AddScoped<IJobService, JobService>();
         // TODO (Mazen  - Phase 4): services.AddScoped<IReviewService, ReviewService>();
-        // TODO (Ibrahim - Phase 5): services.AddScoped<IMessageService, MessageService>();
+
+        // Ibrahim - Phase 5
+        services.AddScoped<IConversationService, ConversationService>();
+        services.AddScoped<IMessageService, MessageService>();
+        services.AddScoped<INotificationService, NotificationService>();
+        services.AddSignalR();
+
         // TODO (Ahmed  - Phase 6): services.AddScoped<IAIAgentService, AIAgentService>();
 
         return services;
     }
 
-    // ── JWT AUTHENTICATION ────────────────────────────────────
+    // ── AUTHENTICATION — Identity + JWT ───────────────────────
     public static IServiceCollection AddJwtAuthentication(
         this IServiceCollection services,
         IConfiguration config)
@@ -75,6 +97,22 @@ public static class ServiceExtensions
             ?? throw new InvalidOperationException(
                 "JwtSettings:SecretKey is missing from appsettings.json");
 
+        // ── ASP.NET Core Identity (no cookie auth) ────────────
+        services
+            .AddIdentityCore<User>(options =>
+            {
+                options.Password.RequireDigit = false;
+                options.Password.RequiredLength = 8;
+                options.Password.RequireNonAlphanumeric = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireLowercase = false;
+                options.SignIn.RequireConfirmedEmail = false;
+            })
+            .AddEntityFrameworkStores<AppDbContext>()
+            .AddDefaultTokenProviders()
+            .AddSignInManager<SignInManager<User>>();
+
+        // ── JWT Bearer ────────────────────────────────────────
         services
             .AddAuthentication(options =>
             {
@@ -176,6 +214,8 @@ public static class ServiceExtensions
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials())); // required for SignalR
+        services.AddRagHttpClients(config);
+
 
         return services;
     }
