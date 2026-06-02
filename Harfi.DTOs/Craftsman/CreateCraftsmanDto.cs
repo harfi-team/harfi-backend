@@ -14,14 +14,14 @@ namespace Harfi.DTOs.Craftsman
 
         [Required]
         [StringLength(50)]
-        public string ServiceType { get; set; } // مثال: سباكة، كهرباء، نجارة
+        public string ServiceType { get; set; } = string.Empty; // مثال: سباكة، كهرباء، نجارة
 
         [Required]
         [StringLength(100)]
         public string City { get; set; } = string.Empty;
 
         [StringLength(100)]
-        public string Neighborhood { get; set; } // المنطقة أو الحي (nullable)
+        public string? Neighborhood { get; set; } // المنطقة أو الحي (nullable)
 
         public decimal? PriceRangeMin { get; set; }
 
@@ -35,7 +35,7 @@ namespace Harfi.DTOs.Craftsman
 
         [Required]
         [StringLength(500)]
-        public string NationalIdUrl { get; set; } // رابط الصورة المرفوعة لبطاقة الرقم القومي من أجل موافقة الأدمن
+        public string NationalIdUrl { get; set; } = string.Empty; // رابط الصورة المرفوعة لبطاقة الرقم القومي من أجل موافقة الأدمن
     }
 
 }

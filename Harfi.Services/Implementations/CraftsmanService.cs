@@ -46,7 +46,7 @@ namespace Harfi.Services.Implementations
                 Neighborhood = createCraftsmanDto.Neighborhood,
                 PriceRangeMin = createCraftsmanDto.PriceRangeMin,
                 PriceRangeMax = createCraftsmanDto.PriceRangeMax,
-                Experience = (int)createCraftsmanDto.Experience,
+                Experience = createCraftsmanDto.Experience ?? 0,
                 Bio = createCraftsmanDto.Bio,
                 NationalIdUrl = createCraftsmanDto.NationalIdUrl,
                 IsApproved = false,
@@ -61,7 +61,7 @@ namespace Harfi.Services.Implementations
         }
 
         // 2. جلب بروفايل حرفي معين بكامل بياناته المهنية والشخصية
-        public async Task<CraftsmanDto> GetCraftsmanProfileAsync(int id)
+        public async Task<CraftsmanDto?> GetCraftsmanProfileAsync(int id)
         {
             var craftsman = await _craftsmanRepository.GetByIdAsync(id);
             if (craftsman == null) return null;
@@ -73,11 +73,10 @@ namespace Harfi.Services.Implementations
             {
                 Id = craftsman.Id,
                 UserId = craftsman.UserId,
-                FullName = craftsman.User?.Name, // جلب الاسم من جدول اليوزر بفضل الـ Include
-                Email = craftsman.User?.Email,
+                FullName = craftsman.User?.Name ?? string.Empty,
+                Email = craftsman.User?.Email ?? string.Empty,
                 Phone = craftsman.User?.Phone,
                 ProfileImageUrl = craftsman.User?.ProfileImageUrl,
-                ServiceType = craftsman.ServiceType,
                 City = craftsman.City,
                 Neighborhood = craftsman.Neighborhood,
                 PriceRangeMin = craftsman.PriceRangeMin,
@@ -102,8 +101,8 @@ namespace Harfi.Services.Implementations
             {
                 Id = c.Id,
                 UserId = c.UserId,
-                FullName = c.User?.Name,
-                Email = c.User?.Email,
+                FullName = c.User?.Name ?? string.Empty,
+                Email = c.User?.Email ?? string.Empty,
                 Phone = c.User?.Phone,
                 ProfileImageUrl = c.User?.ProfileImageUrl,
                 ServiceType = c.ServiceType,
@@ -125,8 +124,7 @@ namespace Harfi.Services.Implementations
             var craftsman = await _craftsmanRepository.GetByIdAsync(id); 
             if (craftsman == null) return false;
 
-            // تحديث البيانات
-            craftsman.ServiceType = dto.ServiceType;
+            // تحديث البيانات=
             craftsman.City = dto.City;
             craftsman.Neighborhood = dto.Neighborhood;
             craftsman.PriceRangeMin = dto.PriceRangeMin;

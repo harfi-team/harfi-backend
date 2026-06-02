@@ -9,7 +9,7 @@ namespace Harfi.Services.Interfaces
 {
     public interface IUserService
     {
-        Task<UserProfileDto> GetUserProfileAsync(int userId);
+        Task<UserProfileDto?> GetUserProfileAsync(int userId);
         Task<bool> UpdateUserProfileAsync(int userId, UpdateUserDto updateUserDto);
     }
 }

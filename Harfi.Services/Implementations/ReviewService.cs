@@ -80,7 +80,7 @@ namespace Harfi.Services.Implementations
                 CustomerId = customerId,
 
              
-                CraftsmanId = (int)job.CraftsmanId,
+                CraftsmanId = job.CraftsmanId ?? 0,
 
                 Stars = dto.Stars,
 
