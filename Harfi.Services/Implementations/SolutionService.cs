@@ -1,6 +1,7 @@
 ﻿using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Harfi.Models.Constants;
 using Harfi.Repositories.Data;
 using Harfi.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -67,7 +68,7 @@ public class SolutionService : ISolutionService
                 var job = await _db.Jobs
                     .Include(j => j.Review)
                     .Include(j => j.Craftsman)
-                    .FirstOrDefaultAsync(j => j.Id == jobId && j.Status == "done");
+                    .FirstOrDefaultAsync(j => j.Id == jobId && j.Status == JobStatusConstants.Done);
 
                 if (job is null) continue;
 
@@ -289,7 +290,7 @@ public class SolutionService : ISolutionService
         var jobs = await _db.Jobs
             .Include(j => j.Review)
             .Include(j => j.Craftsman)
-            .Where(j => j.Status == "done" && j.SolutionDescription != null)
+            .Where(j => j.Status == JobStatusConstants.Done && j.SolutionDescription != null)
             .AsNoTracking()
             .ToListAsync();
 

@@ -6,7 +6,7 @@ namespace Harfi.Models.Entities;
 // ── REVIEW ────────────────────────────────────────────────────
 /// <summary>
 /// One review per job (UNIQUE on JobId).
-/// Only allowed when Job.Status == "done"
+/// Only allowed when Job.Status == "مكتمل"
 /// </summary>
 public class Review
 {

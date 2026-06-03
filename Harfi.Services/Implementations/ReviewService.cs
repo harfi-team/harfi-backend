@@ -1,4 +1,5 @@
 ﻿using Harfi.DTOs.Review;
+using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
@@ -45,7 +46,7 @@ namespace Harfi.Services.Implementations
                 return ServiceResult<ReviewResponseDto>.Fail(
                     "الطلب غير موجود");
 
-            if (job.Status != "done")
+            if (job.Status != JobStatusConstants.Done)
                 return ServiceResult<ReviewResponseDto>.Fail(
                     $"لا يمكن تقديم تقييم إلا بعد اكتمال الشغل. " +
                     $"حالة الطلب الحالية: {job.Status}");

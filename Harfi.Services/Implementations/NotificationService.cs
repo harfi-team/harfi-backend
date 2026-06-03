@@ -53,7 +53,7 @@ namespace Harfi.Services.Implementations
             return notifications.Select(MapToDto);
         }
 
-        public Task MarkAsReadAsync(int notificationId, int userId)
+        public Task<bool> MarkAsReadAsync(int notificationId, int userId)
             => _notifRepo.MarkAsReadAsync(notificationId, userId);
 
         public Task MarkAllAsReadAsync(int userId)
