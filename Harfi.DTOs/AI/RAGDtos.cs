@@ -1,4 +1,6 @@
-﻿namespace Harfi.DTOs.RAG;
+﻿using Microsoft.AspNetCore.Http;
+namespace Harfi.DTOs.RAG;
+
 
 // ── RAG DTOs ──────────────────────────────────────────────────────────────────
 
@@ -185,4 +187,12 @@ public class QdrantScrollResponse
 public class QdrantScrollResult
 {
     public List<QdrantScoredPoint>? points { get; set; }
+}
+public class AnalyzeMediaDto
+{
+    public IFormFile? Image { get; set; }
+    public IFormFile? Audio { get; set; }
+    public string? ExtractedService { get; set; }
+    public string? ExtractedCity { get; set; }
+    public int? ExtractedCount { get; set; }
 }
