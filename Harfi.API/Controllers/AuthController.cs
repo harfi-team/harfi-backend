@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Harfi.DTOs.Auth;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -72,22 +71,6 @@ public class AuthController : ControllerBase
     {
         await _authService.LogoutAsync(dto.RefreshToken);
         return Ok(new { message = "تم تسجيل الخروج بنجاح" });
-    }
-
-    // ── GET /api/auth/me ──────────────────────────────────────
-    /// <summary>بيانات المستخدم الحالي من التوكن</summary>
-    [HttpGet("me")]
-    [Authorize]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public IActionResult Me()
-    {
-        var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var email = User.FindFirstValue(ClaimTypes.Email);
-        var role = User.FindFirstValue(ClaimTypes.Role);
-        var name = User.FindFirstValue(ClaimTypes.Name);
-
-        return Ok(new { id, name, email, role });
     }
 
     // ── GET /api/auth/admin-only (example) ───────────────────
