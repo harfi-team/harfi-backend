@@ -118,7 +118,7 @@ public class AuthService : IAuthService
         // 3. Check active
         if (!user.IsActive)
             throw new UnauthorizedAccessException(
-                "هذا الحساب موقوف. تواصل مع الدعم الفني.");
+                "الحساب غير مفعّل. تواصل مع الدعم.");
 
         // 4. Check verified
         if (!user.IsVerified)
@@ -139,7 +139,7 @@ public class AuthService : IAuthService
         // 2. Validate
         if (stored is null || !stored.IsActive)
             throw new UnauthorizedAccessException(
-                "رمز التحديث غير صالح أو منتهي الصلاحية. سجّل الدخول مرة أخرى.");
+                "رمز التحديث غير صالح أو منتهي الصلاحية.");
 
         // 3. Revoke old token
         stored.IsRevoked = true;
@@ -151,7 +151,7 @@ public class AuthService : IAuthService
             ?? throw new UnauthorizedAccessException("المستخدم غير موجود.");
 
         if (!user.IsActive)
-            throw new UnauthorizedAccessException("هذا الحساب موقوف.");
+            throw new UnauthorizedAccessException("الحساب غير مفعّل. تواصل مع الدعم.");
 
         // 5. Return new tokens
         return await BuildAuthResponseAsync(user);
@@ -210,7 +210,7 @@ public class AuthService : IAuthService
         user.IsVerified = true;
         await _userManager.UpdateAsync(user);
 
-        return "تم تفعيل البريد الإلكتروني بنجاح. يمكنك تسجيل الدخول الآن.";
+        return "تم تفعيل البريد الإلكتروني بنجاح.";
     }
 
     // ── RESEND CODE ───────────────────────────────────────────
@@ -249,7 +249,7 @@ public class AuthService : IAuthService
         await _verificationRepo.SaveChangesAsync();
         await _emailService.SendVerificationCodeAsync(user.Email!, user.Name, code);
 
-        return "تم إرسال كود جديد إلى بريدك الإلكتروني.";
+        return "تم إعادة إرسال الكود بنجاح.";
     }
 
     // ── SEND PHONE VERIFICATION CODE ─────────────────────────
@@ -281,7 +281,7 @@ public class AuthService : IAuthService
         await _emailService.SendVerificationCodeAsync(
             user.Email!, user.Name, $"📱 كود تفعيل رقم الهاتف: {code}");
 
-        return "تم إرسال كود التفعيل إلى بريدك الإلكتروني. يُرجى التحقق.";
+        return "تم إرسال الكود بنجاح.";
     }
 
     // ── VERIFY PHONE ──────────────────────────────────────────
@@ -365,7 +365,7 @@ public class AuthService : IAuthService
         await _emailService.SendVerificationCodeAsync(
             user.Email!, user.Name, $"📱 كود تفعيل رقم الهاتف الجديد: {code}");
 
-        return "تم إرسال كود جديد.";
+        return "تم إعادة إرسال الكود بنجاح.";
     }
 
     // ══════════════════════════════════════════════════════════
@@ -398,10 +398,10 @@ public class AuthService : IAuthService
     private string GenerateJwtToken(User user)
     {
         var secretKey = _config["JwtSettings:SecretKey"]
-            ?? throw new InvalidOperationException("JWT SecretKey is not configured.");
+            ?? throw new InvalidOperationException("مفتاح JWT السري غير مضبوط.");
 
         if (string.IsNullOrEmpty(user.Email))
-            throw new InvalidOperationException("User email is missing.");
+            throw new InvalidOperationException("البريد الإلكتروني للمستخدم مفقود.");
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
 
