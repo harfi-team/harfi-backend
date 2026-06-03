@@ -40,8 +40,14 @@ namespace Harfi.API.Controllers
         public async Task<IActionResult> MarkAsRead(int id)
         {
             if (id <= 0) return BadRequest("معرف الإشعار غير صالح .");
-            await _notifService.MarkAsReadAsync(id, GetUserId());
-            return NoContent();
+
+            var userId = GetUserId();
+            var result = await _notifService.MarkAsReadAsync(id, userId);
+
+            if (!result)
+                return NotFound("الإشعار غير موجود أو لا ينتمي إليك.");
+
+            return Ok(new { message = "تم تحديث الإشعار بنجاح" });
         }
 
         // PUT /api/notifications/read-all

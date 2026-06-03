@@ -1,4 +1,5 @@
 ﻿using Harfi.DTOs.Job;
+using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
@@ -25,7 +26,7 @@ public class JobService : IJobService
         {
             CustomerId = customerId,
             CraftsmanId = dto.CraftsmanId,
-            Status = "open",
+            Status = JobStatusConstants.Open,
             ServiceType = dto.ServiceType,
             Description = dto.Description,
             Address = dto.Address,
@@ -42,8 +43,8 @@ public class JobService : IJobService
 
     public async Task<JobResponseDto> AcceptJobAsync(int jobId, int craftsmanId)
     {
-        var job = await GetAndValidateJob(jobId, craftsmanId, "open");
-        job.Status = "in-progress";
+        var job = await GetAndValidateJob(jobId, craftsmanId, JobStatusConstants.Open);
+        job.Status = JobStatusConstants.InProgress;
 
         var updated = await _jobRepository.UpdateAsync(job);
 
@@ -58,8 +59,8 @@ public class JobService : IJobService
 
     public async Task<JobResponseDto> RejectJobAsync(int jobId, int craftsmanId)
     {
-        var job = await GetAndValidateJob(jobId, craftsmanId, "open");
-        job.Status = "rejected";
+        var job = await GetAndValidateJob(jobId, craftsmanId, JobStatusConstants.Open);
+        job.Status = JobStatusConstants.Rejected;
 
         var updated = await _jobRepository.UpdateAsync(job);
 
@@ -74,8 +75,8 @@ public class JobService : IJobService
 
     public async Task<JobResponseDto> CompleteJobAsync(int jobId, int craftsmanId, UpdateJobStatusDto dto)
     {
-        var job = await GetAndValidateJob(jobId, craftsmanId, "in-progress");
-        job.Status = "done";
+        var job = await GetAndValidateJob(jobId, craftsmanId, JobStatusConstants.InProgress);
+        job.Status = JobStatusConstants.Done;
         job.SolutionDescription = dto.SolutionDescription;
         job.CompletedAt = DateTime.UtcNow;
 

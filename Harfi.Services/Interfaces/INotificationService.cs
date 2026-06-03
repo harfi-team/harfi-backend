@@ -6,7 +6,7 @@ namespace Harfi.Services.Interfaces
     {
         Task CreateMessageNotificationAsync(int receiverId, string senderName, string messagePreview);
         Task<IEnumerable<NotificationDto>> GetUserNotificationsAsync(int userId);
-        Task MarkAsReadAsync(int notificationId, int userId);
+        Task<bool> MarkAsReadAsync(int notificationId, int userId);
         Task MarkAllAsReadAsync(int userId);
         Task<int> GetUnreadCountAsync(int userId);
         Task CreateJobNotificationAsync(int receiverId, string title, string body, string type, int relatedJobId);

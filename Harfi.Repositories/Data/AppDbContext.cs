@@ -69,7 +69,7 @@ public class AppDbContext : IdentityUserContext<User, int>
              .HasForeignKey(j => j.CraftsmanId)
              .OnDelete(DeleteBehavior.Restrict);
 
-            e.Property(j => j.Status).HasDefaultValue("open");
+            e.Property(j => j.Status).HasDefaultValue("مفتوح");
             e.Property(j => j.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             e.Property(j => j.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
 

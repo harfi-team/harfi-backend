@@ -1,4 +1,5 @@
 ﻿using Harfi.DTOs.Chat;
+using Harfi.Models.Constants;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -43,7 +44,7 @@ namespace Harfi.API.Controllers
             if (job == null)
                 return NotFound("الوظيفة غير موجودة.");
 
-            if (job.Status == "rejected" || job.Status == "cancelled")
+            if (job.Status == JobStatusConstants.Rejected || job.Status == JobStatusConstants.Cancelled)
                 return BadRequest( $"لا يمكن بدء محادثة على وظيفة {job.Status}.");
 
             var conversation = await _convService
