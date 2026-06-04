@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="Harfi.API/Harfi.API.csproj" />
+  <Project Path="Harfi.DTOs/Harfi.DTOs.csproj" />
+  <Project Path="Harfi.Models/Harfi.Models.csproj" />
+  <Project Path="Harfi.Repositories/Harfi.Repositories.csproj" />
+  <Project Path="Harfi.Services/Harfi.Services.csproj" />
+</Solution>
