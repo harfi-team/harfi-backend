@@ -1,0 +1,91 @@
+﻿using Harfi.DTOs.Chat;
+using Harfi.Models.Entities;
+using Harfi.Repositories.Interfaces;
+using Harfi.Services.Interfaces;
+
+namespace Harfi.Services.Implementations
+{
+    public class ConversationService : IConversationService
+    {
+        private readonly IConversationRepository _convRepo;
+        private readonly IMessageRepository _msgRepo;
+
+        public ConversationService(
+            IConversationRepository convRepo,
+            IMessageRepository msgRepo)
+        {
+            _convRepo = convRepo;
+            _msgRepo = msgRepo;
+        }
+
+
+        public async Task<ConversationDto> GetOrCreateAsync(
+            int jobId, int customerId, int craftsmanId)
+        {
+            var existing = await _convRepo
+                .GetByParticipantsAsync(jobId, customerId, craftsmanId);
+
+            if (existing != null)
+                return await MapToDtoAsync(existing, customerId);
+
+            var created = await _convRepo.AddAsync(new Conversation
+            {
+                JobId = jobId,
+                CustomerId = customerId,
+                CraftsmanId = craftsmanId
+            });
+            await _convRepo.SaveChangesAsync();
+
+            var full = await _convRepo.GetByIdWithDetailsAsync(created.Id);
+            return await MapToDtoAsync(full!, customerId);
+        }
+
+        public Task<bool> IsParticipantAsync(int conversationId, int userId)
+            => _convRepo.IsParticipantAsync(conversationId, userId);
+
+        public async Task<IEnumerable<ConversationDto>> GetUserConversationsAsync(int userId)
+        {
+            var conversations = await _convRepo.GetUserConversationsAsync(userId);
+            var result = new List<ConversationDto>();
+            foreach (var c in conversations)
+                result.Add(await MapToDtoAsync(c, userId));
+            return result;
+        }
+
+        public async Task<ConversationDto?> GetByIdAsync(int conversationId, int userId)
+        {
+            var c = await _convRepo.GetByIdWithDetailsAsync(conversationId);
+            if (c == null) return null;
+            if (c.CustomerId != userId && c.Craftsman?.UserId != userId) return null;
+            return await MapToDtoAsync(c, userId);
+        }
+
+        // ── Mapper ────────────────────────────────────────────────
+        private async Task<ConversationDto> MapToDtoAsync(Conversation c, int userId)
+        {
+            var isCustomer = c.CustomerId == userId;
+            var otherUserId = isCustomer ? c.Craftsman.UserId : c.CustomerId;
+            var otherUserName = isCustomer
+                ? (c.Craftsman?.User?.Name ?? string.Empty)
+                : (c.Customer?.Name ?? string.Empty);
+            var otherUserAvatar = isCustomer
+                ? c.Craftsman?.User?.ProfileImageUrl
+                : c.Customer?.ProfileImageUrl;
+
+            var lastMsg = c.Messages.OrderByDescending(m => m.SentAt).FirstOrDefault();
+            var unreadCount = await _msgRepo.GetUnreadCountAsync(c.Id, userId);
+
+            return new ConversationDto
+            {
+                Id = c.Id,
+                JobId = c.JobId,
+                OtherUserId = otherUserId,
+                OtherUserName = otherUserName,
+                OtherUserAvatar = otherUserAvatar,
+                LastMessage = lastMsg?.Content,
+                LastMessageAt = lastMsg?.SentAt,
+                UnreadCount = unreadCount
+            };
+        }
+    }
+}
