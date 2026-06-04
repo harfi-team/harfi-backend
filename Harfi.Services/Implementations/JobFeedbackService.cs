@@ -1,12 +1,8 @@
 ﻿using Harfi.DTOs.Review;
+using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Harfi.Services.Implementations
 {
@@ -14,9 +10,9 @@ namespace Harfi.Services.Implementations
     {
         private readonly IJobFeedbackRepository _feedbackRepository;
 
-       
+
         private static readonly string[] ValidFeedbackTypes =
-            ["helpful", "need_craftsman"];
+        [FeedbackTypes.Helpful, FeedbackTypes.NeedCraftsman];
 
         public JobFeedbackService(IJobFeedbackRepository feedbackRepository)
         {
@@ -31,13 +27,13 @@ namespace Harfi.Services.Implementations
                 return ServiceResult<string>.Fail(
                     "وثيقة الذكاء الاصطناعي غير موجودة");
 
-           
+
             if (!ValidFeedbackTypes.Contains(dto.FeedbackType))
                 return ServiceResult<string>.Fail(
                     "نوع الرأي غير صحيح. " +
-                    "القيم المسموح بها: helpful, need_craftsman");
+        $"القيم المسموح بها: {FeedbackTypes.Helpful}, {FeedbackTypes.NeedCraftsman}");
 
-    
+
             var alreadySubmitted = await _feedbackRepository
                 .FeedbackExistsAsync(dto.RAGDocumentId, userId);
 
@@ -46,7 +42,6 @@ namespace Harfi.Services.Implementations
                     "لقد قدمت رأيك على هذا المحتوى من قبل");
 
 
-            // ── ALL RULES PASSED — Save feedback ──────────────────────────────
             var feedback = new JobFeedback
             {
                 UserId = userId,
