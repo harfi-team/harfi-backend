@@ -7,7 +7,9 @@
         using Microsoft.AspNetCore.Mvc;
         using Microsoft.EntityFrameworkCore;
         using System.Diagnostics;
-        using System.Text.Json;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 
         namespace Harfi.API.Controllers;
 
@@ -742,144 +744,284 @@
                 return text.Length >= 8;
             }
         }
+
     // ════════════════════════════════════════════════════════════════════════
-    //  POST /api/AI/analyze-media  — تحليل صورة و/أو صوت عبر n8n
+    //  POST /api/AI/analyze-media  — تحليل صورة/صوت/نص عبر n8n ثم RAG
     // ════════════════════════════════════════════════════════════════════════
+    //[HttpPost("analyze-media")]
+    //[Consumes("multipart/form-data")]
+    //[ProducesResponseType(typeof(Chat3Response), 200)]
+    //public async Task<IActionResult> AnalyzeMedia([FromForm] AnalyzeMediaDto dto)
+    //{
+    //    var sw = Stopwatch.StartNew();
+
+    //    bool hasImages = dto.Images is not null && dto.Images.Count > 0;
+    //    bool hasAudio = dto.Audio is not null;
+
+    //    if (!hasImages && !hasAudio)
+    //    {
+    //        sw.Stop();
+    //        return Ok(new Chat3Response
+    //        {
+    //            IsComplete = false,
+    //            Message = "من فضلك ابعت صورة أو تسجيل صوتي للمشكلة. 😊",
+    //            LatencyMs = sw.ElapsedMilliseconds
+    //        });
+    //    }
+
+    //    try
+    //    {
+    //        using var form = new MultipartFormDataContent();
+
+    //        // الصور المتعددة → JSON array في field واحد
+    //        if (hasImages)
+    //        {
+    //            var urls = new List<string>();
+    //            foreach (var img in dto.Images!)
+    //            {
+    //                using var ms = new MemoryStream();
+    //                await img.CopyToAsync(ms);
+    //                string base64 = Convert.ToBase64String(ms.ToArray());
+    //                string ct = string.IsNullOrEmpty(img.ContentType) ? "image/jpeg" : img.ContentType;
+    //                urls.Add($"data:{ct};base64,{base64}");
+    //            }
+    //            form.Add(new StringContent(JsonSerializer.Serialize(urls)), "imageUrlsJson");
+    //        }
+
+    //        // النص المكتوب مع الميديا
+    //        if (!string.IsNullOrWhiteSpace(dto.UserText))
+    //            form.Add(new StringContent(dto.UserText), "userText");
+
+    //        if (hasAudio)
+    //        {
+    //            using var ams = new MemoryStream();
+    //            await dto.Audio!.CopyToAsync(ams);
+    //            string audioBase64 = Convert.ToBase64String(ams.ToArray());
+    //            form.Add(new StringContent(audioBase64), "audioBase64");
+    //        }
+    //        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+    //        const string n8nUrl = "https://ahmeddabish2.app.n8n.cloud/webhook/analyze-media";
+
+    //        var n8nResp = await http.PostAsync(n8nUrl, form);
+    //        string respBody = await n8nResp.Content.ReadAsStringAsync();
+
+    //        _logger.LogInformation("[AnalyzeMedia] n8n status={S} body={B}",
+    //            n8nResp.StatusCode, respBody);
+
+    //        if (!n8nResp.IsSuccessStatusCode)
+    //        {
+    //            sw.Stop();
+    //            return Ok(new Chat3Response
+    //            {
+    //                IsComplete = false,
+    //                Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني بعد شوية. 🙏",
+    //                LatencyMs = sw.ElapsedMilliseconds
+    //            });
+    //        }
+
+    //        using var doc = JsonDocument.Parse(respBody);
+    //        var root = doc.RootElement;
+
+    //        bool understood = root.TryGetProperty("understood", out var u)
+    //                          && u.ValueKind == JsonValueKind.True;
+
+    //        if (!understood)
+    //        {
+    //            sw.Stop();
+    //            return Ok(new Chat3Response
+    //            {
+    //                IsComplete = false,
+    //                Message = "مش قادر أحدد المشكلة من اللي بعته. 🤔\n\n" +
+    //                          "ممكن تبعت صورة أوضح، أو تسجيل صوتي تشرح فيه المشكلة بالتفصيل؟",
+    //                LatencyMs = sw.ElapsedMilliseconds
+    //            });
+    //        }
+
+    //        string serviceType = root.TryGetProperty("service_type", out var st)
+    //            ? st.GetString() ?? "صيانة عامة" : "صيانة عامة";
+    //        string problemDesc = root.TryGetProperty("problem_description", out var pd)
+    //            ? pd.GetString() ?? "" : "";
+
+    //        // ← الفرق المهم: ناخد وصف المشكلة ونبعته للـ RAG (نفس chat3)
+    //        var steps = await _solution.GetSolutionStepsAsync(serviceType, problemDesc);
+
+    //        string stepsMsg =
+    //            $"🔧 فهمت إن المشكلة في تخصص: {serviceType}\n\n" +
+    //            $"📋 المشكلة: {problemDesc}\n\n" +
+    //            "إليك خطوات عملية يمكنك تجربتها:\n\n" +
+    //            string.Join("\n", steps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
+
+    //        sw.Stop();
+    //        return Ok(new Chat3Response
+    //        {
+    //            IsComplete = false,
+    //            Message = stepsMsg,
+    //            SolutionSteps = steps,
+    //            ExtractedService = serviceType,
+    //            ExtractedCity = dto.ExtractedCity,
+    //            ExtractedCount = dto.ExtractedCount,
+    //            FollowUpState = SolutionFollowUpState.WaitingAnswer,
+    //            LastProblemDescription = problemDesc,
+    //            ProblemClarificationAttempts = 0,
+    //            LatencyMs = sw.ElapsedMilliseconds
+    //        });
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        _logger.LogError("[AnalyzeMedia] Error: {M}", ex.Message);
+    //        sw.Stop();
+    //        return Ok(new Chat3Response
+    //        {
+    //            IsComplete = false,
+    //            Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني. 🙏",
+    //            LatencyMs = sw.ElapsedMilliseconds
+    //        });
+    //    }
+    //}
     [HttpPost("analyze-media")]
     [Consumes("multipart/form-data")]
-    [ProducesResponseType(typeof(Chat3Response), 200)]
     public async Task<IActionResult> AnalyzeMedia([FromForm] AnalyzeMediaDto dto)
     {
-        var image = dto.Image;
-        var audio = dto.Audio;
-        var extractedService = dto.ExtractedService;
-        var extractedCity = dto.ExtractedCity;
-        var extractedCount = dto.ExtractedCount; var sw = Stopwatch.StartNew();
+        var sw = Stopwatch.StartNew();
 
-            if (image is null && audio is null)
+        bool hasImages = dto.Images is { Count: > 0 };
+        bool hasAudio = dto.Audio is not null;
+
+        if (!hasImages && !hasAudio)
+        {
+            return Ok(new Chat3Response
             {
-                sw.Stop();
-                return Ok(new Chat3Response
-                {
-                    IsComplete = false,
-                    Message = "من فضلك ابعت صورة أو تسجيل صوتي للمشكلة. 😊",
-                    LatencyMs = sw.ElapsedMilliseconds
-                });
-            }
+                IsComplete = false,
+                Message = "من فضلك ابعت صورة أو تسجيل صوتي للمشكلة. 😊",
+                LatencyMs = sw.ElapsedMilliseconds
+            });
+        }
 
-            try
+        try
+        {
+            // ── بناء الـ payload كـ JSON ──
+            var payload = new Dictionary<string, object?>();
+
+            if (hasImages)
             {
-                using var form = new MultipartFormDataContent();
-
-                if (image is not null)
+                var imageUrls = new List<string>();
+                foreach (var img in dto.Images!)
                 {
                     using var ms = new MemoryStream();
-                    await image.CopyToAsync(ms);
-                    string base64 = Convert.ToBase64String(ms.ToArray());
-                    string contentType = string.IsNullOrEmpty(image.ContentType)
-                        ? "image/jpeg" : image.ContentType;
-                    string dataUrl = $"data:{contentType};base64,{base64}";
-                    form.Add(new StringContent(dataUrl), "imageUrl");
+                    await img.OpenReadStream().CopyToAsync(ms);
+                    var base64 = Convert.ToBase64String(ms.ToArray());
+                    var mime = img.ContentType ?? "image/jpeg";
+                    imageUrls.Add($"data:{mime};base64,{base64}");
                 }
-
-                if (audio is not null)
-                {
-                    var audioBytes = new MemoryStream();
-                    await audio.CopyToAsync(audioBytes);
-                    audioBytes.Position = 0;
-                    var audioContent = new StreamContent(audioBytes);
-                    audioContent.Headers.ContentType =
-                        new System.Net.Http.Headers.MediaTypeHeaderValue(
-                            string.IsNullOrEmpty(audio.ContentType) ? "audio/webm" : audio.ContentType);
-                    form.Add(audioContent, "audio",
-                        string.IsNullOrEmpty(audio.FileName) ? "recording.webm" : audio.FileName);
-                }
-
-                using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
-                const string n8nUrl = "https://ahmeddabish2.app.n8n.cloud/webhook/analyze-media";
-
-                var n8nResp = await http.PostAsync(n8nUrl, form);
-                string respBody = await n8nResp.Content.ReadAsStringAsync();
-
-                _logger.LogInformation("[AnalyzeMedia] n8n status={S} body={B}",
-                    n8nResp.StatusCode, respBody);
-
-                if (!n8nResp.IsSuccessStatusCode)
-                {
-                    sw.Stop();
-                    return Ok(new Chat3Response
-                    {
-                        IsComplete = false,
-                        Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني بعد شوية. 🙏",
-                        LatencyMs = sw.ElapsedMilliseconds
-                    });
-                }
-
-                using var doc = JsonDocument.Parse(respBody);
-                var root = doc.RootElement;
-
-                bool understood = root.TryGetProperty("understood", out var u)
-                                  && u.ValueKind == JsonValueKind.True;
-
-                if (!understood)
-                {
-                    sw.Stop();
-                    return Ok(new Chat3Response
-                    {
-                        IsComplete = false,
-                        Message = "مش قادر أحدد المشكلة من اللي بعته. 🤔\n\n" +
-                                  "ممكن تبعت صورة أوضح، أو تسجيل صوتي تشرح فيه المشكلة بالتفصيل؟",
-                        LatencyMs = sw.ElapsedMilliseconds
-                    });
-                }
-
-                string serviceType = root.TryGetProperty("service_type", out var st)
-                    ? st.GetString() ?? "صيانة عامة" : "صيانة عامة";
-                string problemDesc = root.TryGetProperty("problem_description", out var pd)
-                    ? pd.GetString() ?? "" : "";
-
-                var steps = new List<string>();
-                if (root.TryGetProperty("solution_steps", out var stepsEl)
-                    && stepsEl.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var s in stepsEl.EnumerateArray())
-                    {
-                        string val = s.GetString() ?? "";
-                        if (!string.IsNullOrWhiteSpace(val)) steps.Add(val);
-                    }
-                }
-
-                string stepsMsg =
-                    $"🔧 فهمت إن المشكلة في تخصص: {serviceType}\n\n" +
-                    $"📋 المشكلة: {problemDesc}\n\n" +
-                    "إليك خطوات عملية يمكنك تجربتها:\n\n" +
-                    string.Join("\n", steps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
-
-                sw.Stop();
-                return Ok(new Chat3Response
-                {
-                    IsComplete = false,
-                    Message = stepsMsg,
-                    SolutionSteps = steps,
-                    ExtractedService = serviceType,
-                    ExtractedCity = extractedCity,
-                    ExtractedCount = extractedCount,
-                    FollowUpState = SolutionFollowUpState.WaitingAnswer,
-                    LastProblemDescription = problemDesc,
-                    ProblemClarificationAttempts = 0,
-                    LatencyMs = sw.ElapsedMilliseconds
-                });
+                payload["imageUrls"] = imageUrls;   // array من data URLs
             }
-            catch (Exception ex)
+            // ── الصوت كـ base64 ──
+            if (hasAudio)
             {
-                _logger.LogError("[AnalyzeMedia] Error: {M}", ex.Message);
-                sw.Stop();
+                using var ms = new MemoryStream();
+                await dto.Audio!.OpenReadStream().CopyToAsync(ms);
+                var base64 = Convert.ToBase64String(ms.ToArray());
+                payload["audioBase64"] = base64;
+
+                var ext = Path.GetExtension(dto.Audio.FileName)?.TrimStart('.').ToLower() ?? "wav";
+                payload["audioFormat"] = ext;
+            }
+
+            // ── النص ──
+            if (!string.IsNullOrWhiteSpace(dto.UserText))
+                payload["userText"] = dto.UserText;
+
+            // ── البيانات الإضافية ──
+            if (!string.IsNullOrWhiteSpace(dto.ExtractedService))
+                payload["extractedService"] = dto.ExtractedService;
+            if (!string.IsNullOrWhiteSpace(dto.ExtractedCity))
+                payload["extractedCity"] = dto.ExtractedCity;
+            if (dto.ExtractedCount.HasValue)
+                payload["extractedCount"] = dto.ExtractedCount.Value;
+
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
+            const string n8nUrl = "https://ahmeddabish2.app.n8n.cloud/webhook/analyze-media";
+
+            var n8nResp = await http.PostAsync(n8nUrl, content);
+            string respBody = await n8nResp.Content.ReadAsStringAsync();
+
+            _logger.LogInformation("[AnalyzeMedia] n8n status={S} body={B}",
+                n8nResp.StatusCode, respBody);
+
+            if (!n8nResp.IsSuccessStatusCode)
+            {
                 return Ok(new Chat3Response
                 {
                     IsComplete = false,
-                    Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني. 🙏",
+                    Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني بعد شوية. 🙏",
                     LatencyMs = sw.ElapsedMilliseconds
                 });
             }
+
+            if (string.IsNullOrWhiteSpace(respBody))
+            {
+                return Ok(new Chat3Response
+                {
+                    IsComplete = false,
+                    Message = "مش قادر أحدد المشكلة. حاول تاني. 🙏",
+                    LatencyMs = sw.ElapsedMilliseconds
+                });
+            }
+
+            using var doc = JsonDocument.Parse(respBody);
+            var root = doc.RootElement;
+
+            bool understood = root.TryGetProperty("understood", out var u) && u.ValueKind == JsonValueKind.True;
+
+            if (!understood)
+            {
+                return Ok(new Chat3Response
+                {
+                    IsComplete = false,
+                    Message = "مش قادر أحدد المشكلة من اللي بعته. 🤔\n\nممكن تبعت صورة أوضح، أو تسجيل صوتي تشرح فيه المشكلة بالتفصيل؟",
+                    LatencyMs = sw.ElapsedMilliseconds
+                });
+            }
+
+            string serviceType = root.TryGetProperty("service_type", out var st) ? st.GetString() ?? "صيانة عامة" : "صيانة عامة";
+            string problemDesc = root.TryGetProperty("problem_description", out var pd) ? pd.GetString() ?? "" : "";
+
+            var steps = await _solution.GetSolutionStepsAsync(serviceType, problemDesc);
+
+            string stepsMsg =
+                $"🔧 فهمت إن المشكلة في تخصص: {serviceType}\n\n" +
+                $"📋 المشكلة: {problemDesc}\n\n" +
+                "إليك خطوات عملية يمكنك تجربتها:\n\n" +
+                string.Join("\n", steps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
+
+            sw.Stop();
+            return Ok(new Chat3Response
+            {
+                IsComplete = false,
+                Message = stepsMsg,
+                SolutionSteps = steps,
+                ExtractedService = serviceType,
+                ExtractedCity = dto.ExtractedCity,
+                ExtractedCount = dto.ExtractedCount,
+                FollowUpState = SolutionFollowUpState.WaitingAnswer,
+                LastProblemDescription = problemDesc,
+                ProblemClarificationAttempts = 0,
+                LatencyMs = sw.ElapsedMilliseconds
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("[AnalyzeMedia] Error: {M}", ex.Message);
+            sw.Stop();
+            return Ok(new Chat3Response
+            {
+                IsComplete = false,
+                Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني. 🙏",
+                LatencyMs = sw.ElapsedMilliseconds
+            });
         }
     }
+}
