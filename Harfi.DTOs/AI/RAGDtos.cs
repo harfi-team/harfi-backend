@@ -190,8 +190,9 @@ public class QdrantScrollResult
 }
 public class AnalyzeMediaDto
 {
-    public IFormFile? Image { get; set; }
+    public List<IFormFile>? Images { get; set; }
     public IFormFile? Audio { get; set; }
+    public string? UserText { get; set; }
     public string? ExtractedService { get; set; }
     public string? ExtractedCity { get; set; }
     public int? ExtractedCount { get; set; }
