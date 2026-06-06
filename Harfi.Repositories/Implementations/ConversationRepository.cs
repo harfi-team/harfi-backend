@@ -2,11 +2,6 @@
 using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Harfi.Repositories.Implementations
 {
@@ -31,6 +26,25 @@ namespace Harfi.Repositories.Implementations
                     .OrderByDescending(m => m.SentAt)
                     .Take(1))
                 .FirstOrDefaultAsync(c => c.Id == id);
+
+        public async Task<Conversation?> GetByIdWithMessagesAsync(int id)
+            => await _dbSet
+                .Include(c => c.Customer)
+                .Include(c => c.Craftsman)
+                    .ThenInclude(cr => cr.User)
+                .Include(c => c.Job)
+                .Include(c => c.Messages)
+                    .ThenInclude(m => m.Sender)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+        public IQueryable<Conversation> GetAllConversationsQuery()
+            => _dbSet
+                .Include(c => c.Customer)
+                .Include(c => c.Craftsman)
+                    .ThenInclude(cr => cr.User)
+                .Include(c => c.Job)
+                .Include(c => c.Messages)
+                .AsQueryable();
 
         public async Task<IEnumerable<Conversation>> GetUserConversationsAsync(int userId)
             => await _dbSet

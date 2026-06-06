@@ -1,7 +1,7 @@
+using Harfi.DTOs.Chat;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
 
 namespace Harfi.API.Controllers
 {
@@ -11,10 +11,14 @@ namespace Harfi.API.Controllers
     public class AdminController : ControllerBase
     {
         private readonly IAdminService _adminService;
+        private readonly IAdminConversationService _adminConvService;
 
-        public AdminController(IAdminService adminService)
+        public AdminController(
+            IAdminService adminService,
+            IAdminConversationService adminConvService)
         {
             _adminService = adminService;
+            _adminConvService = adminConvService;
         }
 
         [HttpGet("pending-craftsmen")]
@@ -38,6 +42,21 @@ namespace Harfi.API.Controllers
             var result = await _adminService.RejectCraftsmanAsync(id);
             if (!result) return NotFound("The Craftsman is not Present");
             return Ok("The craftsman's request was rejected and deleted from the system.");
+        }
+
+        [HttpGet("conversations")]
+        public async Task<IActionResult> GetAllConversations([FromQuery] ConversationFilterDto filter)
+        {
+            var result = await _adminConvService.GetAllConversationsAsync(filter);
+            return Ok(result);
+        }
+
+        [HttpGet("conversations/{id}")]
+        public async Task<IActionResult> GetConversationDetails(int id)
+        {
+            var result = await _adminConvService.GetConversationWithMessagesAsync(id);
+            if (result == null) return NotFound();
+            return Ok(result);
         }
     }
 }

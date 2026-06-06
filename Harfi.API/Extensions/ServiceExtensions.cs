@@ -80,6 +80,7 @@ public static class ServiceExtensions
         services.AddScoped<IConversationService, ConversationService>();
         services.AddScoped<IMessageService, MessageService>();
         services.AddScoped<INotificationService, NotificationService>();
+        services.AddScoped<IAdminConversationService, AdminConversationService>();
         services.AddSignalR();
 
         // TODO (Ahmed  - Phase 6): services.AddScoped<IAIAgentService, AIAgentService>();
