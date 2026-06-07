@@ -1,6 +1,7 @@
 ﻿using Harfi.DTOs.User;
 using Harfi.Models.Entities;
 using Harfi.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 
 namespace Harfi.Services.Implementations
@@ -8,13 +9,14 @@ namespace Harfi.Services.Implementations
     public class UserService : IUserService
     {
         private readonly UserManager<User> _userManager;
+        private readonly IImageservice _imageService;
 
-        public UserService(UserManager<User> userManager)
+        public UserService(UserManager<User> userManager, IImageservice imageService)
         {
             _userManager = userManager;
+            _imageService = imageService;
         }
 
-        // 1. جلب بيانات البروفايل للمستخدم
         public async Task<UserProfileDto?> GetUserProfileAsync(int userId)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
@@ -33,7 +35,6 @@ namespace Harfi.Services.Implementations
             };
         }
 
-        // 2. تحديث بيانات البروفايل
         public async Task<bool> UpdateUserProfileAsync(int userId, UpdateUserDto updateUserDto)
         {
             var user = await _userManager.FindByIdAsync(userId.ToString());
@@ -41,13 +42,25 @@ namespace Harfi.Services.Implementations
 
             user.Name = updateUserDto.Name;
             user.Phone = updateUserDto.Phone;
-            if (!string.IsNullOrEmpty(updateUserDto.ProfileImageUrl))
-            {
-                user.ProfileImageUrl = updateUserDto.ProfileImageUrl;
-            }
 
             var result = await _userManager.UpdateAsync(user);
             return result.Succeeded;
+        }
+
+        public async Task<string?> UploadProfileImageAsync(int userId, IFormFile file)
+        {
+            var user = await _userManager.FindByIdAsync(userId.ToString());
+            if (user == null) return null;
+
+            if (!string.IsNullOrEmpty(user.ProfileImageUrl))
+                _imageService.DeleteImage(user.ProfileImageUrl, "profiles");
+
+            var imageUrl = await _imageService.SaveImageAsync(file, "profiles");
+
+            user.ProfileImageUrl = imageUrl;
+            var result = await _userManager.UpdateAsync(user);
+
+            return result.Succeeded ? imageUrl : null;
         }
     }
 }
