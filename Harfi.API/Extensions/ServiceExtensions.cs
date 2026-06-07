@@ -6,6 +6,7 @@ using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Razor.TagHelpers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -82,6 +83,8 @@ public static class ServiceExtensions
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IAdminConversationService, AdminConversationService>();
         services.AddSignalR();
+        services.AddHttpContextAccessor();
+        services.AddScoped<IImageservice, Imageservice>();
 
         // TODO (Ahmed  - Phase 6): services.AddScoped<IAIAgentService, AIAgentService>();
 
