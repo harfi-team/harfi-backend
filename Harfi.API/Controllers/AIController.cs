@@ -1,12 +1,11 @@
-﻿
-        using Harfi.DTOs.RAG;
-        using Harfi.Models.Entities;
-        using Harfi.Repositories.Data;
-        using Harfi.Services.Implementations;
-        using Harfi.Services.Interfaces;
-        using Microsoft.AspNetCore.Mvc;
-        using Microsoft.EntityFrameworkCore;
-        using System.Diagnostics;
+﻿using Harfi.DTOs.RAG;
+using Harfi.Models.Entities;
+using Harfi.Repositories.Data;
+using Harfi.Services.Implementations;
+using Harfi.Services.Interfaces;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -30,14 +29,21 @@ using System.Text.Json;
             "أنا مساعدك الذكي للعثور على أفضل الحرفيين في مصر.\n" +
             "أخبرني بمشكلتك وسأجد لك الحرفي المناسب فوراً! 🔧";
 
-        public AIController(
+
+    private readonly IWebHostEnvironment _env;
+    private static readonly string ImagesFolder = Path.Combine("wwwroot", "AiChat", "images");
+    private static readonly string AudioFolder = Path.Combine("wwwroot", "AiChat", "audio");
+
+    public AIController(
             RAGService rag,
             IntentService intent,
             ISolutionService solution,
             VectorDbService vectorDb,
             ILogger<AIController> logger,
             AppDbContext db,
-            GroqRotatingClient groq)
+            GroqRotatingClient groq,
+             IWebHostEnvironment env
+            )
         {
             _rag = rag;
             _intent = intent;
@@ -46,7 +52,8 @@ using System.Text.Json;
             _logger = logger;
             _db = db;
             _groq = groq;
-        }
+        _env = env;
+    }
         // ════════════════════════════════════════════════════════════════════════
         //  GET /api/AI/welcome
         // ════════════════════════════════════════════════════════════════════════
@@ -135,20 +142,33 @@ using System.Text.Json;
                         _logger.LogInformation("[Feedback] Helpful — saving to DB and Qdrant");
                         try
                         {
-                            var aiUser = await _db.Users
-                                .FirstOrDefaultAsync(u => u.Email == "ai@harfi.com");
-                            var aiCraftsman = await _db.Craftsmen
-                                .FirstOrDefaultAsync(c => c.UserId == aiUser!.Id);
+                        int aiUserId = request.UserId ?? 0;
+                        if (aiUserId <= 0)
+                        {
+                            _logger.LogWarning("[Feedback] userId مش موجود في الـ request");
+                            sw.Stop();
+                            return Ok(new Chat3Response
+                            {
+                                IsComplete = false,
+                                Message = "مش قادر أحفظ الخطوات — مفيش userId.",
+                                LatencyMs = sw.ElapsedMilliseconds
+                            });
+                        }
+                        var userCraftsman = await _db.Craftsmen
+                            .FirstOrDefaultAsync(c => c.UserId == aiUserId);
+                        int aiCraftsmanId = userCraftsman?.Id
+                            ?? (await _db.Craftsmen.FirstOrDefaultAsync(c =>
+                                c.UserId == _db.Users
+                                    .Where(u => u.Email == "ai@harfi.com")
+                                    .Select(u => u.Id)
+                                    .FirstOrDefault()))!.Id;
 
-                            int aiUserId = aiUser!.Id;
-                            int aiCraftsmanId = aiCraftsman!.Id;
-
-                            //string stepsText = string.Join("\n", request.SolutionSteps
-                            //    .Select((s, i) => $"{i + 1}. {s}"));
+                        //string stepsText = string.Join("\n", request.SolutionSteps
+                        //    .Select((s, i) => $"{i + 1}. {s}"));
 
 
-                            // جديد
-                            _logger.LogInformation("[Feedback] SolutionSteps count={N}", request.SolutionSteps.Count);
+                        // جديد
+                        _logger.LogInformation("[Feedback] SolutionSteps count={N}", request.SolutionSteps.Count);
 
                             var (desc, prob, sol) = await PrepareRagFieldsAsync(
                                 request.ExtractedService ?? "صيانة",
@@ -158,7 +178,7 @@ using System.Text.Json;
 
                             var job = new Job
                             {
-                                CustomerId = aiUserId,
+                                CustomerId = aiUserId,   // دلوقتي بيبقى userId المستخدم الحالي
                                 CraftsmanId = aiCraftsmanId,
                                 Status = "AI",
                                 ServiceType = request.ExtractedService ?? "صيانة عامة",
@@ -510,8 +530,7 @@ using System.Text.Json;
         //  Helpers
         // ════════════════════════════════════════════════════════════════════════
 
-        private static string ExtractProblemDescription(
-            List<ChatMsg> messages, string serviceType)
+        private static string ExtractProblemDescription(   List<ChatMsg> messages, string serviceType)
         {
             string[] nonDescriptive =
     [
@@ -638,8 +657,6 @@ using System.Text.Json;
             return v is JsonElement je ? je.GetString() ?? "-" : v.ToString() ?? "-";
         }
 
-
-
         private static bool IsHelpfulAnswer(string msg)
         {
             var lower = msg.Trim().ToLower();
@@ -745,139 +762,8 @@ using System.Text.Json;
             }
         }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  POST /api/AI/analyze-media  — تحليل صورة/صوت/نص عبر n8n ثم RAG
-    // ════════════════════════════════════════════════════════════════════════
-    //[HttpPost("analyze-media")]
-    //[Consumes("multipart/form-data")]
-    //[ProducesResponseType(typeof(Chat3Response), 200)]
-    //public async Task<IActionResult> AnalyzeMedia([FromForm] AnalyzeMediaDto dto)
-    //{
-    //    var sw = Stopwatch.StartNew();
+   
 
-    //    bool hasImages = dto.Images is not null && dto.Images.Count > 0;
-    //    bool hasAudio = dto.Audio is not null;
-
-    //    if (!hasImages && !hasAudio)
-    //    {
-    //        sw.Stop();
-    //        return Ok(new Chat3Response
-    //        {
-    //            IsComplete = false,
-    //            Message = "من فضلك ابعت صورة أو تسجيل صوتي للمشكلة. 😊",
-    //            LatencyMs = sw.ElapsedMilliseconds
-    //        });
-    //    }
-
-    //    try
-    //    {
-    //        using var form = new MultipartFormDataContent();
-
-    //        // الصور المتعددة → JSON array في field واحد
-    //        if (hasImages)
-    //        {
-    //            var urls = new List<string>();
-    //            foreach (var img in dto.Images!)
-    //            {
-    //                using var ms = new MemoryStream();
-    //                await img.CopyToAsync(ms);
-    //                string base64 = Convert.ToBase64String(ms.ToArray());
-    //                string ct = string.IsNullOrEmpty(img.ContentType) ? "image/jpeg" : img.ContentType;
-    //                urls.Add($"data:{ct};base64,{base64}");
-    //            }
-    //            form.Add(new StringContent(JsonSerializer.Serialize(urls)), "imageUrlsJson");
-    //        }
-
-    //        // النص المكتوب مع الميديا
-    //        if (!string.IsNullOrWhiteSpace(dto.UserText))
-    //            form.Add(new StringContent(dto.UserText), "userText");
-
-    //        if (hasAudio)
-    //        {
-    //            using var ams = new MemoryStream();
-    //            await dto.Audio!.CopyToAsync(ams);
-    //            string audioBase64 = Convert.ToBase64String(ams.ToArray());
-    //            form.Add(new StringContent(audioBase64), "audioBase64");
-    //        }
-    //        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
-    //        const string n8nUrl = "https://ahmeddabish2.app.n8n.cloud/webhook/analyze-media";
-
-    //        var n8nResp = await http.PostAsync(n8nUrl, form);
-    //        string respBody = await n8nResp.Content.ReadAsStringAsync();
-
-    //        _logger.LogInformation("[AnalyzeMedia] n8n status={S} body={B}",
-    //            n8nResp.StatusCode, respBody);
-
-    //        if (!n8nResp.IsSuccessStatusCode)
-    //        {
-    //            sw.Stop();
-    //            return Ok(new Chat3Response
-    //            {
-    //                IsComplete = false,
-    //                Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني بعد شوية. 🙏",
-    //                LatencyMs = sw.ElapsedMilliseconds
-    //            });
-    //        }
-
-    //        using var doc = JsonDocument.Parse(respBody);
-    //        var root = doc.RootElement;
-
-    //        bool understood = root.TryGetProperty("understood", out var u)
-    //                          && u.ValueKind == JsonValueKind.True;
-
-    //        if (!understood)
-    //        {
-    //            sw.Stop();
-    //            return Ok(new Chat3Response
-    //            {
-    //                IsComplete = false,
-    //                Message = "مش قادر أحدد المشكلة من اللي بعته. 🤔\n\n" +
-    //                          "ممكن تبعت صورة أوضح، أو تسجيل صوتي تشرح فيه المشكلة بالتفصيل؟",
-    //                LatencyMs = sw.ElapsedMilliseconds
-    //            });
-    //        }
-
-    //        string serviceType = root.TryGetProperty("service_type", out var st)
-    //            ? st.GetString() ?? "صيانة عامة" : "صيانة عامة";
-    //        string problemDesc = root.TryGetProperty("problem_description", out var pd)
-    //            ? pd.GetString() ?? "" : "";
-
-    //        // ← الفرق المهم: ناخد وصف المشكلة ونبعته للـ RAG (نفس chat3)
-    //        var steps = await _solution.GetSolutionStepsAsync(serviceType, problemDesc);
-
-    //        string stepsMsg =
-    //            $"🔧 فهمت إن المشكلة في تخصص: {serviceType}\n\n" +
-    //            $"📋 المشكلة: {problemDesc}\n\n" +
-    //            "إليك خطوات عملية يمكنك تجربتها:\n\n" +
-    //            string.Join("\n", steps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
-
-    //        sw.Stop();
-    //        return Ok(new Chat3Response
-    //        {
-    //            IsComplete = false,
-    //            Message = stepsMsg,
-    //            SolutionSteps = steps,
-    //            ExtractedService = serviceType,
-    //            ExtractedCity = dto.ExtractedCity,
-    //            ExtractedCount = dto.ExtractedCount,
-    //            FollowUpState = SolutionFollowUpState.WaitingAnswer,
-    //            LastProblemDescription = problemDesc,
-    //            ProblemClarificationAttempts = 0,
-    //            LatencyMs = sw.ElapsedMilliseconds
-    //        });
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        _logger.LogError("[AnalyzeMedia] Error: {M}", ex.Message);
-    //        sw.Stop();
-    //        return Ok(new Chat3Response
-    //        {
-    //            IsComplete = false,
-    //            Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني. 🙏",
-    //            LatencyMs = sw.ElapsedMilliseconds
-    //        });
-    //    }
-    //}
     [HttpPost("analyze-media")]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> AnalyzeMedia([FromForm] AnalyzeMediaDto dto)
@@ -897,9 +783,75 @@ using System.Text.Json;
             });
         }
 
+        // ════════════════════════════════════════════════════════════════
+        //  💾 1) احفظ الـ files في wwwroot أول حاجة
+        // ════════════════════════════════════════════════════════════════
+        var savedImageUrls = new List<string>();
+        string? savedAudioUrl = null;
+
+        if (hasImages)
+        {
+            var dir = Path.Combine(_env.ContentRootPath, ImagesFolder);
+            Directory.CreateDirectory(dir);
+            foreach (var img in dto.Images!)
+            {
+                var ext = Path.GetExtension(img.FileName).ToLower();
+                if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+                var name = $"{Guid.NewGuid()}{ext}";
+                var path = Path.Combine(dir, name);
+                await using (var fs = System.IO.File.Create(path))
+                    await img.OpenReadStream().CopyToAsync(fs);
+                savedImageUrls.Add($"/AiChat/images/{name}");
+            }
+        }
+
+        if (hasAudio)
+        {
+            var dir = Path.Combine(_env.ContentRootPath, AudioFolder);
+            Directory.CreateDirectory(dir);
+            var ext = Path.GetExtension(dto.Audio!.FileName).ToLower().TrimStart('.');
+            if (string.IsNullOrEmpty(ext)) ext = "wav";
+            var name = $"{Guid.NewGuid()}.{ext}";
+            var path = Path.Combine(dir, name);
+            await using (var fs = System.IO.File.Create(path))
+                await dto.Audio.OpenReadStream().CopyToAsync(fs);
+            savedAudioUrl = $"/AiChat/audio/{name}";
+        }
+
+        // ════════════════════════════════════════════════════════════════
+        //  💾 2) احفظ رسالة الـ user في AIChatMessages (مع الـ media markers)
+        // ════════════════════════════════════════════════════════════════
+        if (dto.UserId.HasValue && !string.IsNullOrEmpty(dto.SessionId))
+        {
+            try
+            {
+                var userText = dto.UserText
+                    ?? (hasImages && hasAudio ? "📷 صورة + 🎤 صوت"
+                       : hasImages ? "📷 صورة"
+                                                : "🎤 تسجيل صوتي");
+
+                var userContent = BuildContent(userText, savedImageUrls, savedAudioUrl);
+                _db.AIChatMessages.Add(new AIChatMessage
+                {
+                    UserId = dto.UserId.Value,
+                    SessionId = dto.SessionId,
+                    Role = "user",
+                    Content = userContent.Length > 4000 ? userContent[..4000] : userContent,
+                    CreatedAt = DateTime.UtcNow
+                });
+                await _db.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("[AnalyzeMedia] save user msg failed: {M}", ex.Message);
+            }
+        }
+
         try
         {
-            // ── بناء الـ payload كـ JSON ──
+            // ════════════════════════════════════════════════════════════
+            //  3) ابني payload للـ n8n (زي ما هو)
+            // ════════════════════════════════════════════════════════════
             var payload = new Dictionary<string, object?>();
 
             if (hasImages)
@@ -913,9 +865,9 @@ using System.Text.Json;
                     var mime = img.ContentType ?? "image/jpeg";
                     imageUrls.Add($"data:{mime};base64,{base64}");
                 }
-                payload["imageUrls"] = imageUrls;   // array من data URLs
+                payload["imageUrls"] = imageUrls;
             }
-            // ── الصوت كـ base64 ──
+
             if (hasAudio)
             {
                 using var ms = new MemoryStream();
@@ -927,11 +879,9 @@ using System.Text.Json;
                 payload["audioFormat"] = ext;
             }
 
-            // ── النص ──
             if (!string.IsNullOrWhiteSpace(dto.UserText))
                 payload["userText"] = dto.UserText;
 
-            // ── البيانات الإضافية ──
             if (!string.IsNullOrWhiteSpace(dto.ExtractedService))
                 payload["extractedService"] = dto.ExtractedService;
             if (!string.IsNullOrWhiteSpace(dto.ExtractedCity))
@@ -951,22 +901,51 @@ using System.Text.Json;
             _logger.LogInformation("[AnalyzeMedia] n8n status={S} body={B}",
                 n8nResp.StatusCode, respBody);
 
+            // ════════════════════════════════════════════════════════════
+            //  Helper: يحفظ رد assistant
+            // ════════════════════════════════════════════════════════════
+            async Task SaveAssistantAsync(string assistantMsg)
+            {
+                if (!dto.UserId.HasValue || string.IsNullOrEmpty(dto.SessionId)) return;
+                try
+                {
+                    _db.AIChatMessages.Add(new AIChatMessage
+                    {
+                        UserId = dto.UserId.Value,
+                        SessionId = dto.SessionId,
+                        Role = "assistant",
+                        Content = assistantMsg.Length > 4000 ? assistantMsg[..4000] : assistantMsg,
+                        CreatedAt = DateTime.UtcNow.AddMilliseconds(1)
+                    });
+                    await _db.SaveChangesAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("[AnalyzeMedia] save assistant msg failed: {M}", ex.Message);
+                }
+            }
+
+            // ────────────────────────────────────────────────────────────
             if (!n8nResp.IsSuccessStatusCode)
             {
+                var msg = "حصلت مشكلة في تحليل الوسائط. حاول تاني بعد شوية. 🙏";
+                await SaveAssistantAsync(msg);
                 return Ok(new Chat3Response
                 {
                     IsComplete = false,
-                    Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني بعد شوية. 🙏",
+                    Message = msg,
                     LatencyMs = sw.ElapsedMilliseconds
                 });
             }
 
             if (string.IsNullOrWhiteSpace(respBody))
             {
+                var msg = "مش قادر أحدد المشكلة. حاول تاني. 🙏";
+                await SaveAssistantAsync(msg);
                 return Ok(new Chat3Response
                 {
                     IsComplete = false,
-                    Message = "مش قادر أحدد المشكلة. حاول تاني. 🙏",
+                    Message = msg,
                     LatencyMs = sw.ElapsedMilliseconds
                 });
             }
@@ -978,10 +957,12 @@ using System.Text.Json;
 
             if (!understood)
             {
+                var msg = "مش قادر أحدد المشكلة من اللي بعته. 🤔\n\nممكن تبعت صورة أوضح، أو تسجيل صوتي تشرح فيه المشكلة بالتفصيل؟";
+                await SaveAssistantAsync(msg);
                 return Ok(new Chat3Response
                 {
                     IsComplete = false,
-                    Message = "مش قادر أحدد المشكلة من اللي بعته. 🤔\n\nممكن تبعت صورة أوضح، أو تسجيل صوتي تشرح فيه المشكلة بالتفصيل؟",
+                    Message = msg,
                     LatencyMs = sw.ElapsedMilliseconds
                 });
             }
@@ -996,6 +977,11 @@ using System.Text.Json;
                 $"📋 المشكلة: {problemDesc}\n\n" +
                 "إليك خطوات عملية يمكنك تجربتها:\n\n" +
                 string.Join("\n", steps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
+
+            // ════════════════════════════════════════════════════════════
+            //  💾 4) احفظ رد الـ assistant
+            // ════════════════════════════════════════════════════════════
+            await SaveAssistantAsync(stepsMsg);
 
             sw.Stop();
             return Ok(new Chat3Response
@@ -1016,12 +1002,421 @@ using System.Text.Json;
         {
             _logger.LogError("[AnalyzeMedia] Error: {M}", ex.Message);
             sw.Stop();
+            var msg = "حصلت مشكلة في تحليل الوسائط. حاول تاني. 🙏";
+
+            // حفظ رد الـ error في الـ DB
+            if (dto.UserId.HasValue && !string.IsNullOrEmpty(dto.SessionId))
+            {
+                try
+                {
+                    _db.AIChatMessages.Add(new AIChatMessage
+                    {
+                        UserId = dto.UserId.Value,
+                        SessionId = dto.SessionId,
+                        Role = "assistant",
+                        Content = msg,
+                        CreatedAt = DateTime.UtcNow.AddMilliseconds(1)
+                    });
+                    await _db.SaveChangesAsync();
+                }
+                catch { /* صامت */ }
+            }
+
             return Ok(new Chat3Response
             {
                 IsComplete = false,
-                Message = "حصلت مشكلة في تحليل الوسائط. حاول تاني. 🙏",
+                Message = msg,
                 LatencyMs = sw.ElapsedMilliseconds
             });
         }
     }
+
+
+    // ════════════════════════════════════════════════════════════════
+    //  GET /api/AI/sessions/{userId}
+    //  جيب ملخص كل محادثات المستخدم
+    // ════════════════════════════════════════════════════════════════
+    [HttpGet("sessions/{userId:int}")]
+    public async Task<IActionResult> GetSessions(int userId)
+    {
+        var sessions = await _db.AIChatMessages
+            .Where(m => m.UserId == userId)
+            .GroupBy(m => m.SessionId)
+            .Select(g => new AiSessionSummaryDto
+            {
+                SessionId = g.Key,
+                Title = g.Where(m => m.ToolUsed != null && m.ToolUsed.StartsWith("__title__:"))
+          .Select(m => m.ToolUsed!.Substring("__title__:".Length))
+          .FirstOrDefault()
+         ?? g.Where(m => m.Role == "user")
+              .OrderBy(m => m.CreatedAt)
+              .Select(m => m.Content).FirstOrDefault() ?? "محادثة جديدة",
+                LastMessage = g.OrderByDescending(m => m.CreatedAt)
+                                .Select(m => m.Content).FirstOrDefault() ?? "",
+                LastActivity = g.Max(m => m.CreatedAt),
+                MessageCount = g.Count()
+            })
+            .OrderByDescending(s => s.LastActivity)
+            .ToListAsync();
+
+        foreach (var s in sessions)
+        {
+            s.Title = CleanMediaMarkers(s.Title);
+            s.LastMessage = CleanMediaMarkers(s.LastMessage);
+            if (s.Title.Length > 60) s.Title = s.Title[..60] + "...";
+            if (s.LastMessage.Length > 80) s.LastMessage = s.LastMessage[..80] + "...";
+        }
+        return Ok(sessions);
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  GET /api/AI/sessions/{userId}/{sessionId}
+    //  جيب رسائل محادثة كاملة (مع تفكيك الـ media markers)
+    // ════════════════════════════════════════════════════════════════
+    [HttpGet("sessions/{userId:int}/{sessionId}")]
+    public async Task<IActionResult> GetSessionDetail(int userId, string sessionId)
+    {
+        var rows = await _db.AIChatMessages
+            .Where(m => m.UserId == userId && m.SessionId == sessionId)
+            .OrderBy(m => m.CreatedAt)
+            .ToListAsync();
+
+        if (!rows.Any()) return NotFound(new { error = "المحادثة مش موجودة" });
+
+        var messages = rows.Select(m =>
+        {
+            var (text, imgs, aud) = ParseContent(m.Content);
+            return new AiSessionMessageDto
+            {
+                Id = m.Id,
+                Role = m.Role,
+                Content = text,
+                Images = imgs,
+                Audio = aud,
+                CreatedAt = m.CreatedAt
+            };
+        }).ToList();
+
+        string title = messages.FirstOrDefault(x => x.Role == "user")?.Content ?? "محادثة جديدة";
+        if (title.Length > 60) title = title[..60] + "...";
+
+        return Ok(new AiSessionDetailDto
+        {
+            SessionId = sessionId,
+            Title = title,
+            Messages = messages
+        });
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  POST /api/AI/sessions/message
+    //  احفظ رسالة (مع صور/صوت اختياري) — multipart/form-data
+    // ════════════════════════════════════════════════════════════════
+    [HttpPost("sessions/message")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> SaveMessage([FromForm] SaveMessageFormDto dto)
+    {
+        if (string.IsNullOrEmpty(dto.SessionId) || dto.UserId <= 0)
+            return BadRequest(new { error = "userId و sessionId مطلوبين" });
+
+        var imageUrls = new List<string>();
+        string? audioUrl = null;
+
+        // ── حفظ الصور في wwwroot/AiChat/images ──
+        if (dto.Images is { Count: > 0 })
+        {
+            var dir = Path.Combine(_env.ContentRootPath, ImagesFolder);
+            Directory.CreateDirectory(dir);
+            foreach (var img in dto.Images)
+            {
+                var ext = Path.GetExtension(img.FileName).ToLower();
+                if (string.IsNullOrEmpty(ext)) ext = ".jpg";
+                var name = $"{Guid.NewGuid()}{ext}";
+                var path = Path.Combine(dir, name);
+                await using var fs = System.IO.File.Create(path);
+                await img.CopyToAsync(fs);
+                imageUrls.Add($"/AiChat/images/{name}");
+            }
+        }
+
+        // ── حفظ الصوت في wwwroot/AiChat/audio ──
+        if (dto.Audio is not null)
+        {
+            var dir = Path.Combine(_env.ContentRootPath, AudioFolder);
+            Directory.CreateDirectory(dir);
+            var ext = Path.GetExtension(dto.Audio.FileName).ToLower().TrimStart('.');
+            if (string.IsNullOrEmpty(ext)) ext = "wav";
+            var name = $"{Guid.NewGuid()}.{ext}";
+            var path = Path.Combine(dir, name);
+            await using var fs = System.IO.File.Create(path);
+            await dto.Audio.CopyToAsync(fs);
+            audioUrl = $"/AiChat/audio/{name}";
+        }
+
+        // ── حفظ الـ record في AIChatMessages ──
+        var content = BuildContent(dto.Content ?? "", imageUrls, audioUrl);
+        var msg = new AIChatMessage
+        {
+            UserId = dto.UserId,
+            SessionId = dto.SessionId,
+            Role = dto.Role,
+            Content = content.Length > 4000 ? content[..4000] : content,
+            ToolUsed = dto.ToolUsed,
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.AIChatMessages.Add(msg);
+        await _db.SaveChangesAsync();
+
+        // ── ولّد عنوان لو دي أول رسالة user في الـ session ──
+        if (dto.Role == "user")
+        {
+            bool isFirst = !await _db.AIChatMessages
+                .AnyAsync(m => m.UserId == dto.UserId
+                            && m.SessionId == dto.SessionId
+                            && m.Id != msg.Id
+                            && m.Role == "user");
+            if (isFirst)
+            {
+                var generatedTitle = await GenerateSessionTitleAsync(dto.Content ?? "");
+                msg.ToolUsed = $"__title__:{generatedTitle}";
+                await _db.SaveChangesAsync();
+            }
+        }
+
+        _logger.LogInformation("[AI/Save] msg={Id} session={S} role={R}", msg.Id, msg.SessionId, msg.Role);
+        return Ok(new { id = msg.Id, images = imageUrls, audio = audioUrl });
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  DELETE /api/AI/sessions/{userId}/{sessionId}
+    //  امسح محادثة كاملة + الملفات من الـ disk
+    // ════════════════════════════════════════════════════════════════
+    [HttpDelete("sessions/{userId:int}/{sessionId}")]
+    public async Task<IActionResult> DeleteSession(int userId, string sessionId)
+    {
+        var rows = await _db.AIChatMessages
+            .Where(m => m.UserId == userId && m.SessionId == sessionId)
+            .ToListAsync();
+
+        if (!rows.Any()) return NotFound(new { error = "المحادثة مش موجودة" });
+
+        // ── امسح الملفات من wwwroot ──
+        foreach (var m in rows)
+        {
+            var (_, imgs, aud) = ParseContent(m.Content);
+            foreach (var u in imgs) TryDeleteFile(u);
+            TryDeleteFile(aud);
+        }
+
+        _db.AIChatMessages.RemoveRange(rows);
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("[AI/Delete] session={S} count={N}", sessionId, rows.Count);
+        return Ok(new { deleted = rows.Count });
+    }
+    // ════════════════════════════════════════════════════════════════
+    //  Media Markers Helpers
+    //  الـ Content بيتخزن بصيغة:
+    //  {{IMG:/AiChat/images/x.jpg}}{{AUD:/AiChat/audio/y.wav}}النص الأصلي
+    // ════════════════════════════════════════════════════════════════
+
+    private static string BuildContent(string text, List<string> images, string? audio)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var u in images)
+            sb.Append("{{IMG:").Append(u).Append("}}");
+        if (!string.IsNullOrEmpty(audio))
+            sb.Append("{{AUD:").Append(audio).Append("}}");
+        sb.Append(text);
+        return sb.ToString();
+    }
+
+    private static (string text, List<string> images, string? audio) ParseContent(string content)
+    {
+        var imgs = new List<string>();
+        string? aud = null;
+        string text = content ?? "";
+
+        var imgRx = new System.Text.RegularExpressions.Regex(@"\{\{IMG:([^}]+)\}\}");
+        foreach (System.Text.RegularExpressions.Match m in imgRx.Matches(text))
+            imgs.Add(m.Groups[1].Value);
+        text = imgRx.Replace(text, "");
+
+        var audRx = new System.Text.RegularExpressions.Regex(@"\{\{AUD:([^}]+)\}\}");
+        var audMatch = audRx.Match(text);
+        if (audMatch.Success) aud = audMatch.Groups[1].Value;
+        text = audRx.Replace(text, "");
+
+        return (text.Trim(), imgs, aud);
+    }
+
+    private static string CleanMediaMarkers(string content)
+    {
+        if (string.IsNullOrEmpty(content)) return "";
+        var rx1 = new System.Text.RegularExpressions.Regex(@"\{\{IMG:[^}]+\}\}");
+        var rx2 = new System.Text.RegularExpressions.Regex(@"\{\{AUD:[^}]+\}\}");
+        return rx2.Replace(rx1.Replace(content, ""), "").Trim();
+    }
+
+    private void TryDeleteFile(string? relUrl)
+    {
+        if (string.IsNullOrEmpty(relUrl)) return;
+        try
+        {
+            var rel = relUrl.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+            var full = Path.Combine(_env.ContentRootPath, "wwwroot", rel);
+            if (System.IO.File.Exists(full)) System.IO.File.Delete(full);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("[AI] DeleteFile failed: {M}", ex.Message);
+        }
+    }
+
+
+    // أضف الـ method دي جوه الـ AIController class
+
+    private async Task<string> GenerateSessionTitleAsync(string firstUserMessage)
+    {
+        if (string.IsNullOrWhiteSpace(firstUserMessage)) return "محادثة جديدة";
+
+        string prompt =
+            "أنت مساعد ذكي. المستخدم كتب المشكلة دي:\n" +
+            $"\"{firstUserMessage}\"\n\n" +
+            "اكتب عنوان قصير من 3 كلمات بالعربية الفصحى يصف المشكلة.\n" +
+            "مثال: \"حنفية بتقطر\" أو \"كهرباء مقطوعة\" أو \"باب مكسور\"\n" +
+            "رد بالعنوان فقط بدون أي كلام إضافي أو علامات ترقيم.";
+
+        try
+        {
+            string title = await _groq.CompleteAsync(prompt, maxTokens: 20);
+            title = title.Trim().Trim('"').Trim();
+            // تأكد مش أكتر من 3 كلمات
+            var words = title.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (words.Length > 3) title = string.Join(" ", words.Take(3));
+            return string.IsNullOrWhiteSpace(title) ? "محادثة جديدة" : title;
+        }
+        catch
+        {
+            return "محادثة جديدة";
+        }
+    }
+
+
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  POST /api/AI/craftsman/submit-solution
+    //  الحرفي بيرسل خطوات الحل → LLM يصلحها → تتحفظ في DB + Qdrant
+    // ════════════════════════════════════════════════════════════════════════
+    [HttpPost("craftsman/submit-solution")]
+    public async Task<IActionResult> SubmitCraftsmanSolution([FromBody] CraftsmanSolutionDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.ServiceType))
+            return BadRequest(new { error = "التخصص مطلوب" });
+
+        if (dto.Steps is null || dto.Steps.Count == 0)
+            return BadRequest(new { error = "الخطوات مطلوبة" });
+
+        // ── 1. LLM يصلح الخطوات ──────────────────────────────────────────
+        string rawSteps = string.Join("\n", dto.Steps.Select((s, i) => $"{i + 1}. {s}"));
+
+        string prompt =
+            $"أنت حرفي متخصص في {dto.ServiceType}.\n\n" +
+            $"المشكلة: {dto.ProblemDescription}\n\n" +
+            $"الخطوات اللي كتبها الحرفي:\n{rawSteps}\n\n" +
+            "المطلوب:\n" +
+            "1. صحح الأخطاء الإملائية\n" +
+            "2. رتب الخطوات بشكل منطقي لو محتاج\n" +
+            "3. اكتبها بالعربية المصرية الشعبية البسيطة\n" +
+            "4. كل خطوة تبدأ بفعل أمر واضح زي: افتح، افصل، نظف، ربط...\n" +
+            "5. متزودش ولا تنقص خطوات — بس صحح ورتب اللي موجود\n\n" +
+            "رد بـ JSON فقط بدون أي كلام:\n" +
+            "{\"steps\": [\"الخطوة الأولى\", \"الخطوة التانية\", ...]}";
+
+        List<string> fixedSteps;
+        try
+        {
+            string raw = await _groq.CompleteAsync(prompt, maxTokens: 600);
+            string json = raw.Replace("```json", "").Replace("```", "").Trim();
+            using var doc = JsonDocument.Parse(json);
+            fixedSteps = doc.RootElement
+                .GetProperty("steps")
+                .EnumerateArray()
+                .Select(e => e.GetString() ?? "")
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .ToList();
+
+            if (fixedSteps.Count == 0) throw new Exception("steps فاضية");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("[SubmitSolution] LLM fix failed: {M} — using raw steps", ex.Message);
+            fixedSteps = dto.Steps; // fallback للخطوات الأصلية
+        }
+
+        // ── 2. حضّر الـ fields للـ RAG ────────────────────────────────────
+        var (desc, prob, sol) = await PrepareRagFieldsAsync(
+            dto.ServiceType,
+            dto.ProblemDescription ?? dto.ServiceType,
+            fixedSteps);
+
+        // ── 3. احفظ في DB ────────────────────────────────────────────────
+        if (dto.UserId <= 0)
+            return BadRequest(new { error = "userId مطلوب" });
+
+        var userCraftsman = await _db.Craftsmen
+            .FirstOrDefaultAsync(c => c.UserId == dto.UserId);
+        int craftsmanId = dto.CraftsmanId > 0
+            ? dto.CraftsmanId
+            : userCraftsman?.Id
+              ?? (await _db.Craftsmen.FirstOrDefaultAsync(c =>
+                  c.UserId == _db.Users
+                      .Where(u => u.Email == "ai@harfi.com")
+                      .Select(u => u.Id)
+                      .FirstOrDefault()))!.Id;
+
+        var job = new Job
+        {
+            CustomerId = dto.UserId,
+            CraftsmanId = craftsmanId,
+            Status = "AI",
+            ServiceType = dto.ServiceType,
+            Description = desc,
+            Address = "AI",
+            ProblemImageUrl = "AI",
+            ProblemDescription = prob,
+            SolutionDescription = sol,
+            CreatedAt = DateTime.UtcNow,
+            CompletedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.Jobs.Add(job);
+        await _db.SaveChangesAsync();
+        _logger.LogInformation("[SubmitSolution] ✓ Job saved Id={JobId}", job.Id);
+
+        // ── 4. RAGDocument ────────────────────────────────────────────────
+        var ragDoc = new RAGDocument
+        {
+            JobId = job.Id,
+            ChromaDocumentId = "AI",
+            ChunkType = "solution",
+            EmbeddingModel = "voyage-3",
+            CreatedAt = DateTime.UtcNow
+        };
+        _db.RAGDocuments.Add(ragDoc);
+        await _db.SaveChangesAsync();
+
+        // ── 5. Ingest في Qdrant ───────────────────────────────────────────
+        int upserted = await _solution.IngestSingleJobSolutionAsync(job.Id);
+        _logger.LogInformation("[SubmitSolution] ✓ Qdrant upserted={N}", upserted);
+
+        return Ok(new
+        {
+            jobId = job.Id,
+            upserted,
+            originalSteps = dto.Steps,
+            fixedSteps
+        });
+    }
+
 }
