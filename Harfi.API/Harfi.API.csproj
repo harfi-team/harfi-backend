@@ -22,4 +22,9 @@
     <ProjectReference Include="..\Harfi.DTOs\Harfi.DTOs.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="wwwroot\AiChat\images\" />
+    <Folder Include="wwwroot\AiChat\audio\" />
+  </ItemGroup>
+
 </Project>

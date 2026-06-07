@@ -82,6 +82,13 @@ public class Chat3Request
     public int ProblemClarificationAttempts { get; set; } = 0;
     public SolutionFollowUpState FollowUpState { get; set; } = SolutionFollowUpState.None;
     public string? LastProblemDescription { get; set; }
+
+
+    public int? UserId { get; set; }   // ← ضيف ده
+    public string? SessionId { get; set; }   // ← ضيف ده
+
+
+
     public List<string> SolutionSteps { get; set; } = new();  // ← جديد
 }
 public class ChatMsg
@@ -196,4 +203,68 @@ public class AnalyzeMediaDto
     public string? ExtractedService { get; set; }
     public string? ExtractedCity { get; set; }
     public int? ExtractedCount { get; set; }
+
+
+
+
+
+
+
+
+    public int? UserId { get; set; }   // ← ضيف ده
+    public string? SessionId { get; set; }   // ← ضيف ده
 }
+
+
+
+
+// ════════════════════════════════════════════════════════════════
+//  AI Session DTOs
+// ════════════════════════════════════════════════════════════════
+
+public class AiSessionSummaryDto
+{
+    public string SessionId { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string LastMessage { get; set; } = "";
+    public DateTime LastActivity { get; set; }
+    public int MessageCount { get; set; }
+}
+
+public class AiSessionMessageDto
+{
+    public int Id { get; set; }
+    public string Role { get; set; } = "";
+    public string Content { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public List<string> Images { get; set; } = new();
+    public string? Audio { get; set; }
+}
+
+public class AiSessionDetailDto
+{
+    public string SessionId { get; set; } = "";
+    public string Title { get; set; } = "";
+    public List<AiSessionMessageDto> Messages { get; set; } = new();
+}
+
+public class SaveMessageFormDto
+{
+    public int UserId { get; set; }
+    public string SessionId { get; set; } = "";
+    public string Role { get; set; } = "";       // "user" | "assistant"
+    public string? Content { get; set; }
+    public string? ToolUsed { get; set; }
+    public List<IFormFile>? Images { get; set; }
+    public IFormFile? Audio { get; set; }
+}
+public class CraftsmanSolutionDto
+{
+    public int UserId { get; set; }          // ← أضف ده
+
+    public string ServiceType { get; set; } = "";           // "سباك" / "كهربائي"
+    public string? ProblemDescription { get; set; }         // وصف المشكلة
+    public List<string> Steps { get; set; } = [];           // الخطوات الخام
+    public int CraftsmanId { get; set; }                    // اختياري
+}
+
