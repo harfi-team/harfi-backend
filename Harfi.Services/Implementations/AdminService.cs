@@ -68,7 +68,8 @@ public class AdminService : IAdminService
     public async Task<PagedResult<PendingCraftsmanDto>> GetPendingCraftsmenAsync(
         int page, int pageSize, string? city, string? serviceType)
     {
-        var query = _craftsmanRepo.GetAllWithUserQuery()
+        // Admin context: must include soft-deleted users' craftsmen for pending-list review
+        var query = _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
             .Where(c => !c.IsApproved && !c.IsDeleted);
 
         if (!string.IsNullOrEmpty(city))
@@ -109,7 +110,8 @@ public class AdminService : IAdminService
     public async Task<PagedResult<ApprovedCraftsmanDto>> GetApprovedCraftsmenAsync(
         int page, int pageSize, string? city, string? serviceType, decimal? minRating)
     {
-        var query = _craftsmanRepo.GetAllWithUserQuery()
+        // Admin context: must include soft-deleted users' craftsmen for approved-list review
+        var query = _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
             .Where(c => c.IsApproved && !c.IsDeleted);
 
         if (!string.IsNullOrEmpty(city))
@@ -152,7 +154,8 @@ public class AdminService : IAdminService
 
     public async Task<PagedResult<RejectedCraftsmanDto>> GetRejectedCraftsmenAsync(int page, int pageSize)
     {
-        var query = _craftsmanRepo.GetAllWithUserQuery()
+        // Admin context: must bypass !c.IsDeleted filter to find rejected (soft-deleted) craftsmen
+        var query = _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
             .Where(c => c.IsDeleted);
 
         var total = await query.CountAsync();
@@ -185,7 +188,8 @@ public class AdminService : IAdminService
 
     public async Task<CraftsmanDetailDto> GetCraftsmanByIdAsync(int id)
     {
-        var craftsman = await _craftsmanRepo.GetAllWithUserQuery()
+        // Admin context: must include soft-deleted craftsmen and their related data for investigation
+        var craftsman = await _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
             .Include(c => c.Jobs)
             .Include(c => c.Reviews)
             .FirstOrDefaultAsync(c => c.Id == id)
@@ -223,7 +227,8 @@ public class AdminService : IAdminService
     public async Task<AdminActionResponse> ApproveCraftsmanAsync(
         int id, string? notifyMessage, int adminId, string? ipAddress)
     {
-        var craftsman = await _craftsmanRepo.GetAllWithUserQuery()
+        // Admin context: must find craftsman by ID regardless of soft-delete status
+        var craftsman = await _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.Id == id)
             ?? throw new KeyNotFoundException("الحرفي غير موجود.");
 
@@ -246,7 +251,8 @@ public class AdminService : IAdminService
     public async Task<AdminActionResponse> RejectCraftsmanAsync(
         int id, string reason, int adminId, string? ipAddress)
     {
-        var craftsman = await _craftsmanRepo.GetAllWithUserQuery()
+        // Admin context: must find craftsman by ID regardless of soft-delete status
+        var craftsman = await _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.Id == id)
             ?? throw new KeyNotFoundException("الحرفي غير موجود.");
 
@@ -270,7 +276,8 @@ public class AdminService : IAdminService
     public async Task<AdminActionResponse> SuspendCraftsmanAsync(
         int id, string reason, int adminId, string? ipAddress)
     {
-        var craftsman = await _craftsmanRepo.GetAllWithUserQuery()
+        // Admin context: must find craftsman by ID regardless of soft-delete status
+        var craftsman = await _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.Id == id)
             ?? throw new KeyNotFoundException("الحرفي غير موجود.");
 
@@ -290,7 +297,8 @@ public class AdminService : IAdminService
     public async Task<AdminActionResponse> SoftDeleteCraftsmanAsync(
         int id, string reason, int adminId, string? ipAddress)
     {
-        var craftsman = await _craftsmanRepo.GetAllWithUserQuery()
+        // Admin context: must find craftsman by ID regardless of soft-delete status
+        var craftsman = await _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
             .FirstOrDefaultAsync(c => c.Id == id)
             ?? throw new KeyNotFoundException("الحرفي غير موجود.");
 
@@ -315,7 +323,8 @@ public class AdminService : IAdminService
     public async Task<PagedResult<UserAdminDto>> GetUsersAsync(
         string? role, int page, int pageSize, bool? isActive, string? search)
     {
-        var query = _userRepo.GetQueryable();
+        // Admin context: must include soft-deleted users for account management
+        var query = _userRepo.GetQueryable().IgnoreQueryFilters();
 
         if (!string.IsNullOrEmpty(role))
             query = query.Where(u => u.Role == role);
@@ -354,7 +363,8 @@ public class AdminService : IAdminService
 
     public async Task<UserAdminDetailDto> GetUserByIdAsync(int id)
     {
-        var user = await _userManager.Users
+        // Admin context: must include soft-deleted users for investigation
+        var user = await _userManager.Users.IgnoreQueryFilters()
             .Include(u => u.CraftsmanProfile)
             .FirstOrDefaultAsync(u => u.Id == id)
             ?? throw new KeyNotFoundException("المستخدم غير موجود.");
@@ -379,7 +389,9 @@ public class AdminService : IAdminService
 
     public async Task<IEnumerable<UserActivityDto>> GetUserActivityAsync(int id)
     {
-        var user = await _userManager.FindByIdAsync(id.ToString())
+        // Admin context: must include soft-deleted users for audit trail
+        var user = await _userManager.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == id)
             ?? throw new KeyNotFoundException("المستخدم غير موجود.");
 
         var activities = new List<UserActivityDto>();
@@ -401,7 +413,9 @@ public class AdminService : IAdminService
     public async Task<AdminActionResponse> DeactivateUserAsync(
         int id, string reason, int adminId, string? ipAddress)
     {
-        var user = await _userManager.FindByIdAsync(id.ToString())
+        // Admin context: must find user by ID regardless of soft-delete status
+        var user = await _userManager.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == id)
             ?? throw new KeyNotFoundException("المستخدم غير موجود.");
 
         if (user.Role == "admin")
@@ -421,7 +435,9 @@ public class AdminService : IAdminService
     public async Task<AdminActionResponse> ReactivateUserAsync(
         int id, int adminId, string? ipAddress)
     {
-        var user = await _userManager.FindByIdAsync(id.ToString())
+        // Admin context: must find user by ID regardless of soft-delete status
+        var user = await _userManager.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == id)
             ?? throw new KeyNotFoundException("المستخدم غير موجود.");
 
         user.IsActive = true;
@@ -436,7 +452,9 @@ public class AdminService : IAdminService
     public async Task<AdminActionResponse> SoftDeleteUserAsync(
         int id, string reason, int adminId, string? ipAddress)
     {
-        var user = await _userManager.FindByIdAsync(id.ToString())
+        // Admin context: must find user by ID regardless of soft-delete status
+        var user = await _userManager.Users.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Id == id)
             ?? throw new KeyNotFoundException("المستخدم غير موجود.");
 
         if (user.Role == "admin")
@@ -464,7 +482,8 @@ public class AdminService : IAdminService
     public async Task<PagedResult<JobAdminDto>> GetJobsAsync(
         string? status, int? craftsmanId, int? customerId, int page, int pageSize, DateTime? from, DateTime? to)
     {
-        IQueryable<Job> query = _jobRepo.GetQueryable()
+        // Admin context: must include soft-deleted customers/craftsmen for job management
+        IQueryable<Job> query = _jobRepo.GetQueryable().IgnoreQueryFilters()
             .Include(j => j.Customer)
             .Include(j => j.Craftsman!).ThenInclude(c => c.User);
 
@@ -511,7 +530,8 @@ public class AdminService : IAdminService
 
     public async Task<JobDetailDto> GetJobByIdAsync(int id)
     {
-        var job = await _jobRepo.GetQueryable()
+        // Admin context: must include soft-deleted customers/craftsmen for job detail view
+        var job = await _jobRepo.GetQueryable().IgnoreQueryFilters()
             .Include(j => j.Customer)
             .Include(j => j.Craftsman!).ThenInclude(c => c.User)
             .FirstOrDefaultAsync(j => j.Id == id)
@@ -601,7 +621,8 @@ public class AdminService : IAdminService
 
     public async Task<ChatMetadataDto> GetJobChatMetadataAsync(int id)
     {
-        var job = await _jobRepo.GetQueryable()
+        // Admin context: must bypass Conversation/Customer/Craftsman filters for dispute resolution
+        var job = await _jobRepo.GetQueryable().IgnoreQueryFilters()
             .Include(j => j.Customer)
             .Include(j => j.Craftsman!).ThenInclude(c => c.User)
             .Include(j => j.Conversation)
@@ -626,7 +647,8 @@ public class AdminService : IAdminService
     public async Task<IEnumerable<MessageDto>> GetJobMessagesForAdminAsync(
         int jobId, int adminId, string? ipAddress)
     {
-        var job = await _jobRepo.GetQueryable()
+        // Admin context: must bypass Conversation filter to access disputed job messages
+        var job = await _jobRepo.GetQueryable().IgnoreQueryFilters()
             .Include(j => j.Conversation)
             .FirstOrDefaultAsync(j => j.Id == jobId)
             ?? throw new KeyNotFoundException("الوظيفة غير موجودة.");
@@ -637,7 +659,8 @@ public class AdminService : IAdminService
         if (job.Conversation == null)
             return Enumerable.Empty<MessageDto>();
 
-        var messages = await _msgRepo.GetQueryable()
+        // Admin context: must include soft-deleted message senders for dispute investigation
+        var messages = await _msgRepo.GetQueryable().IgnoreQueryFilters()
             .Where(m => m.ConversationId == job.Conversation.Id)
             .Include(m => m.Sender)
             .OrderBy(m => m.SentAt)
@@ -667,7 +690,8 @@ public class AdminService : IAdminService
     public async Task<PagedResult<ReviewAdminDto>> GetReviewsAsync(
         int? craftsmanId, int? minStars, int? maxStars, int page, int pageSize)
     {
-        IQueryable<Review> query = _reviewRepo.GetQueryable()
+        // Admin context: must include soft-deleted reviews and their users for moderation
+        IQueryable<Review> query = _reviewRepo.GetQueryable().IgnoreQueryFilters()
             .Include(r => r.Customer)
             .Include(r => r.Craftsman).ThenInclude(c => c.User);
 
@@ -708,7 +732,8 @@ public class AdminService : IAdminService
 
     public async Task<ReviewAdminDetailDto> GetReviewByIdAsync(int id)
     {
-        var review = await _reviewRepo.GetQueryable()
+        // Admin context: must include soft-deleted reviews and their users for investigation
+        var review = await _reviewRepo.GetQueryable().IgnoreQueryFilters()
             .Include(r => r.Customer)
             .Include(r => r.Craftsman).ThenInclude(c => c.User)
             .Include(r => r.Job)
@@ -812,7 +837,8 @@ public class AdminService : IAdminService
     public async Task<PagedResult<AiLogDto>> GetAiLogsAsync(
         int page, int pageSize, DateTime? from, DateTime? to)
     {
-        IQueryable<AIChatMessage> query = _aiChatRepo.GetQueryable()
+        // Admin context: must include soft-deleted users' AI chat logs for audit
+        IQueryable<AIChatMessage> query = _aiChatRepo.GetQueryable().IgnoreQueryFilters()
             .Include(a => a.User);
 
         if (from.HasValue)
@@ -856,10 +882,11 @@ public class AdminService : IAdminService
         var now = DateTime.UtcNow;
         var monthStart = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        var allCraftsmen = (await _craftsmanRepo.GetAllAsync()).ToList();
-        var users = (await _userRepo.GetAllAsync()).ToList();
+        // Admin context: analytics must count all records including soft-deleted
+        var allCraftsmen = await _craftsmanRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
+        var users = await _userRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
         var jobs = (await _jobRepo.FindAsync(j => true)).ToList();
-        var reviews = (await _reviewRepo.FindAsync(r => true)).ToList();
+        var reviews = await _reviewRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
         var reports = (await _reportRepo.FindAsync(r => true)).ToList();
 
         return new AdminOverviewDto
@@ -879,7 +906,8 @@ public class AdminService : IAdminService
 
     public async Task<CraftsmanAnalyticsDto> GetCraftsmanAnalyticsAsync()
     {
-        var all = (await _craftsmanRepo.GetAllAsync()).ToList();
+        // Admin context: analytics must count all craftsmen including soft-deleted
+        var all = await _craftsmanRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
 
         return new CraftsmanAnalyticsDto
         {
@@ -935,7 +963,8 @@ public class AdminService : IAdminService
 
     public async Task<ReviewAnalyticsDto> GetReviewAnalyticsAsync()
     {
-        var reviews = (await _reviewRepo.FindAsync(r => true)).ToList();
+        // Admin context: analytics must count all reviews including soft-deleted
+        var reviews = await _reviewRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
 
         var dist = new Dictionary<int, int>();
         for (int i = 1; i <= 5; i++)
@@ -957,12 +986,15 @@ public class AdminService : IAdminService
         switch (type.ToLower())
         {
             case "users":
-                var users = await _userRepo.GetAllAsync();
+                // Admin context: export must include all users including soft-deleted
+                var users = await _userRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
                 lines.Add("Id,Name,Email,Role,IsActive,CreatedAt");
                 lines.AddRange(users.Select(u => $"{u.Id},{u.Name},{u.Email},{u.Role},{u.IsActive},{u.CreatedAt:O}"));
                 break;
             case "craftsmen":
-                var craftsmen = await _craftsmanRepo.GetAllWithUserAsync();
+                // Admin context: export must include all craftsmen including soft-deleted
+                var craftsmen = await _craftsmanRepo.GetAllWithUserQuery()
+                    .IgnoreQueryFilters().ToListAsync();
                 lines.Add("Id,FullName,ServiceType,City,IsApproved,Rating");
                 lines.AddRange(craftsmen.Select(c => $"{c.Id},{c.User?.Name},{c.ServiceType},{c.City},{c.IsApproved},{c.Rating}"));
                 break;
@@ -972,7 +1004,8 @@ public class AdminService : IAdminService
                 lines.AddRange(jobs.Select(j => $"{j.Id},{j.ServiceType},{j.Status},{j.CustomerId},{j.CraftsmanId},{j.CreatedAt:O}"));
                 break;
             case "reviews":
-                var reviews = await _reviewRepo.FindAsync(r => true);
+                // Admin context: export must include all reviews including soft-deleted
+                var reviews = await _reviewRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
                 lines.Add("Id,Stars,Comment,CraftsmanId,CreatedAt");
                 lines.AddRange(reviews.Select(r => $"{r.Id},{r.Stars},\"{r.Comment}\",{r.CraftsmanId},{r.CreatedAt:O}"));
                 break;
@@ -1037,8 +1070,10 @@ public class AdminService : IAdminService
         var entity = await _serviceTypeRepo.GetByIdAsync(id)
             ?? throw new KeyNotFoundException("نوع الخدمة غير موجود.");
 
-        var activeCraftsmen = await _craftsmanRepo.FindAsync(c =>
-            c.ServiceType == entity.NameAr && !c.IsDeleted);
+        // Admin context: must consider all non-deleted craftsmen including those whose User is deleted
+        var activeCraftsmen = await _craftsmanRepo.GetQueryable().IgnoreQueryFilters()
+            .Where(c => c.ServiceType == entity.NameAr && !c.IsDeleted)
+            .ToListAsync();
         if (activeCraftsmen.Any())
             return AdminActionResponse.Fail("لا يمكن حذف نوع الخدمة لأنه مستخدم من قبل حرفيين نشطين.");
 
@@ -1141,7 +1176,8 @@ public class AdminService : IAdminService
     public async Task<PagedResult<AuditLogDto>> GetAuditLogsAsync(
         int? adminId, string? action, string? targetType, DateTime? from, DateTime? to, int page, int pageSize)
     {
-        IQueryable<AdminAuditLog> query = _auditLogRepo.GetQueryable().Include(l => l.Admin);
+        // Admin context: must show admin name even if admin account is soft-deleted
+        IQueryable<AdminAuditLog> query = _auditLogRepo.GetQueryable().Include(l => l.Admin).IgnoreQueryFilters();
 
         if (adminId.HasValue)
             query = query.Where(l => l.AdminId == adminId.Value);
@@ -1183,8 +1219,9 @@ public class AdminService : IAdminService
 
     public async Task<AuditLogDto> GetAuditLogByIdAsync(int id)
     {
+        // Admin context: must show admin name even if admin account is soft-deleted
         var log = await _auditLogRepo.GetQueryable()
-            .Include(l => l.Admin)
+            .Include(l => l.Admin).IgnoreQueryFilters()
             .FirstOrDefaultAsync(l => l.Id == id)
             ?? throw new KeyNotFoundException("سجل التدقيق غير موجود.");
 
