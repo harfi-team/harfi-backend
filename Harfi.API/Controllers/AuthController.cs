@@ -28,6 +28,9 @@ public class AuthController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        if (dto.Role == "admin")
+            return BadRequest(new { message = "لا يمكن تسجيل حساب أدمن من خلال API التسجيل." });
+
         var result = await _authService.RegisterAsync(dto);
         return StatusCode(StatusCodes.Status201Created, result);
     }

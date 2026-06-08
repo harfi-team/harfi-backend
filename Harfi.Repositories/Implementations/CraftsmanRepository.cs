@@ -26,6 +26,14 @@ namespace Harfi.Repositories.Implementations
                 .ToListAsync();
         }
 
+        public IQueryable<Craftsman> GetAllWithUserQuery()
+        {
+            return _context.Craftsmen
+                .Include(c => c.User)
+                .AsNoTracking()
+                .AsQueryable();
+        }
+
         public async Task DeleteAsync(int craftsmanId)
         {
             var craftsman = await _context.Craftsmen.FindAsync(craftsmanId);
