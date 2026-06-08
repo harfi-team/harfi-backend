@@ -27,10 +27,11 @@ builder.Services
 // 1. تسجيل الـ Repository الخاص بالحرفيين
 builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
 
-// 2. تسجيل الـ Services الثلاثة الخاصة بكِ
+// 2. تسجيل الـ Services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ICraftsmanService, CraftsmanService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 
 // 3. Seeder
 builder.Services.AddScoped<DataSeeder>();
