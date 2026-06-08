@@ -275,10 +275,11 @@ public class AppDbContext : IdentityUserContext<User, int>
              .IsRequired(false);
         });
 
-        // ── GLOBAL QUERY FILTERS (soft-delete) ────────────────
+        // ── GLOBAL QUERY FILTERS (soft-delete + required nav guards) ─
         modelBuilder.Entity<User>().HasQueryFilter(u => !u.IsDeleted);
-        modelBuilder.Entity<Craftsman>().HasQueryFilter(c => !c.IsDeleted);
-        modelBuilder.Entity<Review>().HasQueryFilter(r => !r.IsDeleted);
+        modelBuilder.Entity<Craftsman>().HasQueryFilter(c => !c.IsDeleted && !c.User.IsDeleted);
+        modelBuilder.Entity<Review>().HasQueryFilter(r => !r.IsDeleted && !r.Customer.IsDeleted && !r.Craftsman.IsDeleted);
+        modelBuilder.Entity<Conversation>().HasQueryFilter(c => !c.Customer.IsDeleted);
 
         // ── ADMIN AUDIT LOGS ──────────────────────────────────
         modelBuilder.Entity<AdminAuditLog>(e =>
