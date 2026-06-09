@@ -19,7 +19,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddDatabase(builder.Configuration)
     .AddRepositories()
-    .AddApplicationServices()
+    .AddApplicationServices(builder.Environment)
     .AddJwtAuthentication(builder.Configuration)
     .AddSwaggerWithJwt()
     .AddHarfiCors(builder.Configuration)

@@ -21,6 +21,7 @@ public class AuthService : IAuthService
     private readonly IGenericRepository<EmailVerification> _verificationRepo;
     private readonly IGenericRepository<PhoneVerification> _phoneVerificationRepo;
     private readonly IEmailService _emailService;
+    private readonly ISmsService _smsService;
     private readonly IConfiguration _config;
     private readonly ILogger<AuthService> _logger;
 
@@ -31,6 +32,7 @@ public class AuthService : IAuthService
         IGenericRepository<EmailVerification> verificationRepo,
         IGenericRepository<PhoneVerification> phoneVerificationRepo,
         IEmailService emailService,
+        ISmsService smsService,
         IConfiguration config,
         ILogger<AuthService> logger)
     {
@@ -39,6 +41,7 @@ public class AuthService : IAuthService
         _verificationRepo = verificationRepo;
         _phoneVerificationRepo = phoneVerificationRepo;
         _emailService = emailService;
+        _smsService = smsService;
         _config = config;
         _logger = logger;
     }
@@ -100,8 +103,42 @@ public class AuthService : IAuthService
                 user.Email);
         }
 
-        // 6. Return tokens
-        return await BuildAuthResponseAsync(user);
+        // 6. If user provided a phone number, auto-initiate phone verification
+        bool requiresPhoneVerification = false;
+        if (!string.IsNullOrWhiteSpace(dto.Phone))
+        {
+            try
+            {
+                var phoneIdentityToken = await _userManager.GenerateChangePhoneNumberTokenAsync(
+                    user, dto.Phone);
+                var phoneCode = GenerateSecureOtp();
+                await _phoneVerificationRepo.AddAsync(new PhoneVerification
+                {
+                    UserId = user.Id,
+                    PhoneNumber = dto.Phone,
+                    Code = phoneCode,
+                    IdentityToken = phoneIdentityToken,
+                    ExpiresAt = DateTime.UtcNow.AddMinutes(10),
+                    IsUsed = false
+                });
+                await _phoneVerificationRepo.SaveChangesAsync();
+
+                var sent = await _smsService.SendOtpAsync(dto.Phone, phoneCode);
+                if (sent)
+                    requiresPhoneVerification = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Failed to send phone verification for user {Email}. Registration completed anyway.",
+                    user.Email);
+            }
+        }
+
+        // 7. Return tokens
+        var response = await BuildAuthResponseAsync(user);
+        response.RequiresPhoneVerification = requiresPhoneVerification;
+        return response;
     }
 
     // ── LOGIN ─────────────────────────────────────────────────
@@ -276,9 +313,9 @@ public class AuthService : IAuthService
         });
         await _phoneVerificationRepo.SaveChangesAsync();
 
-        // TODO: Replace with actual SMS gateway integration
-        await _emailService.SendVerificationCodeAsync(
-            user.Email!, user.Name, $"📱 كود تفعيل رقم الهاتف: {code}");
+        var sent = await _smsService.SendOtpAsync(phoneNumber, code);
+        if (!sent)
+            throw new InvalidOperationException("فشل إرسال رسالة التحقق، حاول مرة أخرى");
 
         return "تم إرسال الكود بنجاح.";
     }
@@ -354,9 +391,9 @@ public class AuthService : IAuthService
 
         await _phoneVerificationRepo.SaveChangesAsync();
 
-        // TODO: Replace with actual SMS gateway integration
-        await _emailService.SendVerificationCodeAsync(
-            user.Email!, user.Name, $"📱 كود تفعيل رقم الهاتف الجديد: {code}");
+        var sent = await _smsService.SendOtpAsync(phoneNumber, code);
+        if (!sent)
+            throw new InvalidOperationException("فشل إرسال رسالة التحقق، حاول مرة أخرى");
 
         return "تم إعادة إرسال الكود بنجاح.";
     }

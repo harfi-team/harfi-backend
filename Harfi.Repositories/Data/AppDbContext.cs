@@ -285,6 +285,7 @@ public class AppDbContext : IdentityUserContext<User, int>
         modelBuilder.Entity<Craftsman>().HasQueryFilter(c => !c.IsDeleted && !c.User.IsDeleted);
         modelBuilder.Entity<Review>().HasQueryFilter(r => !r.IsDeleted && !r.Customer.IsDeleted && !r.Craftsman.IsDeleted);
         modelBuilder.Entity<Conversation>().HasQueryFilter(c => !c.Customer.IsDeleted);
+        modelBuilder.Entity<Message>().HasQueryFilter(m => !m.Conversation.Customer.IsDeleted);
 
         // ── ADMIN AUDIT LOGS ──────────────────────────────────
         modelBuilder.Entity<AdminAuditLog>(e =>
