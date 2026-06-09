@@ -23,60 +23,38 @@ namespace Harfi.Services.Implementations
             _db = db;
         }
 
-
-        public async Task<IEnumerable<ConversationDto>> GetUserConversationsAsync(int userId)
+       public async Task<ConversationDto> GetOrCreateAsync(int jobId, int customerId, int craftsmanId)
 {
-    var conversations = await _convRepo.GetUserConversationsAsync(userId);
-    
-    // 1. استخراج الـ IDs عشان نجيب الـ Unread Counts في Query واحدة (شغلك الصح)
-    var convIds = conversations.Select(c => c.Id).ToList();
-    var unreadCounts = await _msgService.GetBatchUnreadCountsAsync(convIds, userId); 
-    // ملاحظة: لو GetBatchUnreadCountsAsync موجودة في _msgRepo غيريها لـ _msgRepo حسب الـ Injection عندك
+    var existing = await _db.Conversations
+        .Include(c => c.Messages)
+        .Include(c => c.Customer)
+        .Include(c => c.Craftsman).ThenInclude(cr => cr.User)
+        .FirstOrDefaultAsync(c =>
+            c.JobId == jobId &&
+            c.CustomerId == customerId &&
+            c.CraftsmanId == craftsmanId); // ✅ مباشرة بدون lookup
 
-    // 2. حساب المستخدمين الـ Online (تعديل الـ dev الجديد)
-    var otherUserIds = conversations
-        .Select(c => c.CustomerId == userId ? c.Craftsman.UserId : c.CustomerId)
-        .Distinct()
-        .ToList();
+    if (existing != null)
+        return await MapToDtoAsync(existing, customerId);
 
-    var onlineUserIds = await _db.UserConnections
-        .Where(uc => otherUserIds.Contains(uc.UserId) && uc.IsConnected)
-        .Select(uc => uc.UserId)
-        .Distinct()
-        .ToListAsync();
-
-    var onlineSet = onlineUserIds.ToHashSet();
-
-    // 3. عمل الـ Mapping للـ DTOs مع دمج البيانات الفعالة
-    return conversations.Select(c =>
+    var conversation = new Conversation
     {
-        var isCustomer = c.CustomerId == userId;
-        var otherUserId = isCustomer ? c.Craftsman.UserId : c.CustomerId;
-        var otherUserName = isCustomer 
-            ? (c.Craftsman?.User?.Name ?? string.Empty) 
-            : (c.Customer?.Name ?? string.Empty);
-        var otherUserAvatar = isCustomer 
-            ? c.Craftsman?.User?.ProfileImageUrl 
-            : c.Customer?.ProfileImageUrl;
+        JobId = jobId,
+        CustomerId = customerId,
+        CraftsmanId = craftsmanId, // ✅ Craftsman.Id مباشرة
+        CreatedAt = DateTime.UtcNow
+    };
 
-        var lastMsg = c.Messages.OrderByDescending(m => m.SentAt).FirstOrDefault();
-        
-        // جلب الـ count من الـ dictionary بتاع الـ batch
-        unreadCounts.TryGetValue(c.Id, out var unreadCount);
+    _db.Conversations.Add(conversation);
+    await _db.SaveChangesAsync();
 
-        return new ConversationDto
-        {
-            Id = c.Id,
-            JobId = c.JobId,
-            OtherUserId = otherUserId,
-            OtherUserName = otherUserName,
-            OtherUserAvatar = otherUserAvatar,
-            LastMessage = lastMsg?.Content,
-            LastMessageAt = lastMsg?.SentAt,
-            UnreadCount = unreadCount,
-            IsOnline = onlineSet.Contains(otherUserId)
-        };
-    });
+    var created = await _db.Conversations
+        .Include(c => c.Messages)
+        .Include(c => c.Customer)
+        .Include(c => c.Craftsman).ThenInclude(cr => cr.User)
+        .FirstAsync(c => c.Id == conversation.Id);
+
+    return await MapToDtoAsync(created, customerId);
 }
 
         public Task<bool> IsParticipantAsync(int conversationId, int userId)
@@ -125,13 +103,14 @@ namespace Harfi.Services.Implementations
             return await MapToDtoAsync(c, userId);
         }
 
-        // ── Mapper ────────────────────────────────────────────────
+        // ── Mappers ───────────────────────────────────────────────
         private async Task<ConversationDto> MapToDtoAsync(Conversation c, int userId)
         {
             var isCustomer = c.CustomerId == userId;
             var otherUserId = isCustomer ? c.Craftsman.UserId : c.CustomerId;
             var unreadCount = await _msgRepo.GetUnreadCountAsync(c.Id, userId);
-            var isOnline = await _db.UserConnections.AnyAsync(uc => uc.UserId == otherUserId && uc.IsConnected);
+            var isOnline = await _db.UserConnections
+                .AnyAsync(uc => uc.UserId == otherUserId && uc.IsConnected);
 
             return BuildConversationDto(c, userId, unreadCount, isOnline);
         }
