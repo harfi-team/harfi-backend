@@ -1,7 +1,9 @@
 ﻿using Harfi.DTOs.Chat;
 using Harfi.Models.Entities;
+using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace Harfi.Services.Implementations
 {
@@ -9,13 +11,16 @@ namespace Harfi.Services.Implementations
     {
         private readonly IConversationRepository _convRepo;
         private readonly IMessageRepository _msgRepo;
+        private readonly AppDbContext _db;
 
         public ConversationService(
             IConversationRepository convRepo,
-            IMessageRepository msgRepo)
+            IMessageRepository msgRepo,
+            AppDbContext db)
         {
             _convRepo = convRepo;
             _msgRepo = msgRepo;
+            _db = db;
         }
 
 
@@ -45,35 +50,36 @@ namespace Harfi.Services.Implementations
 
         public async Task<IEnumerable<ConversationDto>> GetUserConversationsAsync(int userId)
         {
-            var conversations = await _convRepo.GetUserConversationsAsync(userId);
-            var convIds = conversations.Select(c => c.Id).ToList();
+            var conversations = (await _convRepo.GetUserConversationsAsync(userId)).ToList();
+            if (conversations.Count == 0) return [];
 
-            // Single query for all unread counts — avoids N+1
-            var unreadCounts = await _msgRepo.GetBatchUnreadCountsAsync(convIds, userId);
+            var conversationIds = conversations.Select(c => c.Id).ToList();
+            var unreadCounts = await _db.Messages
+                .Where(m =>
+                    conversationIds.Contains(m.ConversationId) &&
+                    m.SenderId != userId &&
+                    !m.IsRead)
+                .GroupBy(m => m.ConversationId)
+                .Select(g => new { ConversationId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ConversationId, x => x.Count);
+
+            var otherUserIds = conversations
+                .Select(c => c.CustomerId == userId ? c.Craftsman.UserId : c.CustomerId)
+                .Distinct()
+                .ToList();
+
+            var onlineUserIds = await _db.UserConnections
+                .Where(uc => otherUserIds.Contains(uc.UserId) && uc.IsConnected)
+                .Select(uc => uc.UserId)
+                .Distinct()
+                .ToListAsync();
+            var onlineSet = onlineUserIds.ToHashSet();
 
             return conversations.Select(c =>
             {
-                var isCustomer = c.CustomerId == userId;
-                var otherUserId = isCustomer ? c.Craftsman.UserId : c.CustomerId;
-                var otherUserName = isCustomer
-                    ? (c.Craftsman?.User?.Name ?? string.Empty)
-                    : (c.Customer?.Name ?? string.Empty);
-                var otherUserAvatar = isCustomer
-                    ? c.Craftsman?.User?.ProfileImageUrl
-                    : c.Customer?.ProfileImageUrl;
-                var lastMsg = c.Messages.OrderByDescending(m => m.SentAt).FirstOrDefault();
-
-                return new ConversationDto
-                {
-                    Id = c.Id,
-                    JobId = c.JobId,
-                    OtherUserId = otherUserId,
-                    OtherUserName = otherUserName,
-                    OtherUserAvatar = otherUserAvatar,
-                    LastMessage = lastMsg?.Content,
-                    LastMessageAt = lastMsg?.SentAt,
-                    UnreadCount = unreadCounts.GetValueOrDefault(c.Id, 0)
-                };
+                var otherUserId = c.CustomerId == userId ? c.Craftsman.UserId : c.CustomerId;
+                unreadCounts.TryGetValue(c.Id, out var unreadCount);
+                return BuildConversationDto(c, userId, unreadCount, onlineSet.Contains(otherUserId));
             });
         }
 
@@ -90,6 +96,20 @@ namespace Harfi.Services.Implementations
         {
             var isCustomer = c.CustomerId == userId;
             var otherUserId = isCustomer ? c.Craftsman.UserId : c.CustomerId;
+            var unreadCount = await _msgRepo.GetUnreadCountAsync(c.Id, userId);
+            var isOnline = await _db.UserConnections.AnyAsync(uc => uc.UserId == otherUserId && uc.IsConnected);
+
+            return BuildConversationDto(c, userId, unreadCount, isOnline);
+        }
+
+        private static ConversationDto BuildConversationDto(
+            Conversation c,
+            int userId,
+            int unreadCount,
+            bool isOnline)
+        {
+            var isCustomer = c.CustomerId == userId;
+            var otherUserId = isCustomer ? c.Craftsman.UserId : c.CustomerId;
             var otherUserName = isCustomer
                 ? (c.Craftsman?.User?.Name ?? string.Empty)
                 : (c.Customer?.Name ?? string.Empty);
@@ -98,7 +118,6 @@ namespace Harfi.Services.Implementations
                 : c.Customer?.ProfileImageUrl;
 
             var lastMsg = c.Messages.OrderByDescending(m => m.SentAt).FirstOrDefault();
-            var unreadCount = await _msgRepo.GetUnreadCountAsync(c.Id, userId);
 
             return new ConversationDto
             {
@@ -108,8 +127,12 @@ namespace Harfi.Services.Implementations
                 OtherUserName = otherUserName,
                 OtherUserAvatar = otherUserAvatar,
                 LastMessage = lastMsg?.Content,
-                LastMessageAt = lastMsg?.SentAt,
-                UnreadCount = unreadCount
+                LastMessageType = lastMsg?.MessageType,
+                LastMessageAt = lastMsg?.SentAt is DateTime dt
+                    ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+                    : (DateTime?)null,
+                UnreadCount = unreadCount,
+                IsOnline = isOnline
             };
         }
     }
