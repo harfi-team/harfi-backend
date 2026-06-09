@@ -1,11 +1,9 @@
 ﻿using Harfi.DTOs.Chat;
 using Harfi.Models.Entities;
-using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
 namespace Harfi.API.Hubs
@@ -17,50 +15,51 @@ namespace Harfi.API.Hubs
         private readonly IMessageService _msgService;
         private readonly INotificationService _notifService;
         private readonly IConversationRepository _convRepo;
-        private readonly AppDbContext _db;
+        private readonly IUserConnectionRepository _connRepo;
 
         public ChatHub(
             IConversationService convService,
             IMessageService msgService,
             INotificationService notifService,
             IConversationRepository convRepo,
-            AppDbContext db)
+            IUserConnectionRepository connRepo)
         {
             _convService = convService;
             _msgService = msgService;
             _notifService = notifService;
             _convRepo = convRepo;
-            _db = db;
+            _connRepo = connRepo;
         }
 
         // ── Connection ────────────────────────────────────────────
         public override async Task OnConnectedAsync()
         {
-            _db.UserConnections.Add(new UserConnection
+            await _connRepo.AddAsync(new UserConnection
             {
                 UserId = GetUserId(),
                 ConnectionId = Context.ConnectionId,
                 IsConnected = true
             });
+            await _connRepo.SaveChangesAsync();
 
-            await _db.SaveChangesAsync();
-            await Clients.Others.SendAsync("UserOnline", GetUserId());
+            // NOTE: No global UserOnline broadcast — connection IDs and online
+            // presence must not be shared across unrelated users (privacy).
             await base.OnConnectedAsync();
         }
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            var conn = await _db.UserConnections
-                .FirstOrDefaultAsync(c => c.ConnectionId == Context.ConnectionId);
+            var conn = await _connRepo.GetByConnectionIdAsync(Context.ConnectionId);
 
             if (conn != null)
             {
                 conn.IsConnected = false;
                 conn.DisconnectedAt = DateTime.UtcNow;
-                await _db.SaveChangesAsync();
+                _connRepo.Update(conn);
+                await _connRepo.SaveChangesAsync();
             }
 
-            await Clients.Others.SendAsync("UserOffline", GetUserId());
+            // NOTE: No global UserOffline broadcast — same privacy reason.
             await base.OnDisconnectedAsync(exception);
         }
 

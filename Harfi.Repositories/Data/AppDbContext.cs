@@ -39,6 +39,9 @@ public class AppDbContext : IdentityUserContext<User, int>
         {
             e.ToTable("Users");
             e.HasIndex(u => u.Email).IsUnique();
+            e.HasIndex(u => u.Role).HasDatabaseName("IX_Users_Role");
+            e.HasIndex(u => u.IsDeleted).HasDatabaseName("IX_Users_IsDeleted");
+            e.HasIndex(u => u.IsActive).HasDatabaseName("IX_Users_IsActive");
             e.Property(u => u.IsActive).HasDefaultValue(true);
             e.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });

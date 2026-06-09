@@ -344,6 +344,7 @@ public class AIController : ControllerBase
     // ════════════════════════════════════════════════════════════════════════
 
     [HttpPost("ingest/craftsmen")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> IngestCraftsmen([FromQuery] int fromId = 0)
         => Ok(await _rag.IngestAllCraftsmenAsync(fromId));
 
@@ -352,6 +353,7 @@ public class AIController : ControllerBase
     // ════════════════════════════════════════════════════════════════════════
 
     [HttpPost("ingest/jobs")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> IngestJobs()
         => Ok(new { indexed = await _solution.IngestJobSolutionsAsync() });
 
@@ -360,6 +362,7 @@ public class AIController : ControllerBase
     // ════════════════════════════════════════════════════════════════════════
 
     [HttpGet("vectors/count")]
+    [Authorize(Roles = "admin")]
     public async Task<IActionResult> GetVectorCount()
         => Ok(new { totalVectors = await _vectorDb.CountAsync() });
 

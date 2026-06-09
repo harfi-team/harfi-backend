@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Harfi.DTOs.Admin;
 
 public class UserAdminDto
@@ -42,10 +44,16 @@ public class UserActivityDto
 
 public class DeactivateUserRequest
 {
+    [Required(ErrorMessage = "سبب التعطيل مطلوب")]
+    [MinLength(10, ErrorMessage = "يجب أن يكون سبب التعطيل 10 أحرف على الأقل")]
+    [MaxLength(500)]
     public string Reason { get; set; } = string.Empty;
 }
 
 public class DeleteUserRequest
 {
+    [Required(ErrorMessage = "سبب الحذف مطلوب")]
+    [MinLength(10, ErrorMessage = "يجب أن يكون سبب الحذف 10 أحرف على الأقل")]
+    [MaxLength(500)]
     public string Reason { get; set; } = string.Empty;
 }

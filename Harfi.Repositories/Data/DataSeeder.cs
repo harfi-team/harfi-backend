@@ -1,4 +1,4 @@
-﻿using Harfi.Models.Constants;
+using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -6,11 +6,20 @@ using Microsoft.Extensions.Logging;
 
 namespace Harfi.Repositories.Data;
 
+/// <summary>
+/// Seeds realistic Arabic production-ready test data covering ALL business states.
+/// Runs once on startup when the Users table is empty.
+/// Seeds in strict FK dependency order.
+/// </summary>
 public class DataSeeder
 {
     private readonly AppDbContext _context;
     private readonly UserManager<User> _userManager;
     private readonly ILogger<DataSeeder> _logger;
+
+    // ── Base timestamps spread over last 6 months ──────────────
+    private static readonly DateTime BaseDate =
+        DateTime.UtcNow.AddMonths(-6);
 
     public DataSeeder(
         AppDbContext context,
@@ -22,552 +31,1264 @@ public class DataSeeder
         _logger = logger;
     }
 
+    // ═══════════════════════════════════════════════════════════
+    //  ENTRY POINT
+    // ═══════════════════════════════════════════════════════════
     public async Task SeedAsync()
     {
-        if (await _context.Users.AnyAsync())
+        if (await _context.Users.IgnoreQueryFilters().AnyAsync())
+        {
+            _logger.LogInformation("Seed skipped — data already exists.");
             return;
+        }
 
+        _logger.LogInformation("Starting full data seed...");
+
+        // 1. Reference data (no FK dependencies)
+        await SeedRolesAsync();
+        await SeedServiceTypesAsync();
+        await SeedCitiesAsync();
+        await SeedFeatureFlagsAsync();
+
+        // 2. Users
         await SeedAdminAsync();
-        await SeedCraftsmanUsersAsync();
         await SeedCustomerUsersAsync();
+        await SeedCraftsmanUsersAsync();
+
+        // 3. Craftsman profiles (depends on Users)
         await SeedCraftsmanProfilesAsync();
+
+        // 4. Jobs (depends on Users + Craftsmen)
         await SeedJobsAsync();
+
+        // 5. Content (depends on Jobs + Users + Craftsmen)
         await SeedReviewsAsync();
         await RecalculateRatingsAsync();
         await SeedConversationsAsync();
         await SeedMessagesAsync();
+        await SeedNotificationsAsync();
+        await SeedAdminAuditLogsAsync();
+        await SeedReportsAsync();
+
+        _logger.LogInformation("✅ Full seed completed successfully.");
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  CLEAR ALL DATA (FK-safe order, children first)
-    // ───────────────────────────────────────────────────────────
-    private async Task ClearAllDataAsync()
+    // ═══════════════════════════════════════════════════════════
+    //  1. ROLES (ASP.NET Core Identity)
+    // ═══════════════════════════════════════════════════════════
+    private Task SeedRolesAsync()
     {
-        _logger.LogInformation("Clearing all existing data...");
-
-        await _context.Messages.ExecuteDeleteAsync();
-        await _context.Conversations.ExecuteDeleteAsync();
-        await _context.Reviews.ExecuteDeleteAsync();
-        await _context.RAGDocuments.ExecuteDeleteAsync();
-        await _context.Jobs.ExecuteDeleteAsync();
-        await _context.Craftsmen.ExecuteDeleteAsync();
-
-        // Use UserManager for Identity users to respect all ASP.NET Identity cascade rules
-        var allUsers = await _context.Users.ToListAsync();
-        foreach (var user in allUsers)
-            await _userManager.DeleteAsync(user);
-
-        _logger.LogInformation("All data cleared. Starting fresh seed...");
+        // Harfi uses a custom Role string on User, not IdentityRole.
+        // Nothing to seed here — kept for future if AddRoles<> is enabled.
+        return Task.CompletedTask;
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  ADMIN
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  2. SERVICE TYPES (6+)
+    // ═══════════════════════════════════════════════════════════
+    private async Task SeedServiceTypesAsync()
+    {
+        var serviceTypes = new[]
+        {
+            new ServiceType { NameAr = "سباكة",       NameEn = "Plumbing",       Icon = "🔧", IsActive = true },
+            new ServiceType { NameAr = "كهرباء",      NameEn = "Electrical",     Icon = "⚡", IsActive = true },
+            new ServiceType { NameAr = "نجارة",       NameEn = "Carpentry",      Icon = "🪚", IsActive = true },
+            new ServiceType { NameAr = "دهانات",      NameEn = "Painting",       Icon = "🎨", IsActive = true },
+            new ServiceType { NameAr = "تكييف",       NameEn = "AC & Cooling",   Icon = "❄️", IsActive = true },
+            new ServiceType { NameAr = "تبليط",       NameEn = "Tiling",         Icon = "🪟", IsActive = true },
+            new ServiceType { NameAr = "حدادة",       NameEn = "Ironwork",       Icon = "⚒️", IsActive = true },
+            new ServiceType { NameAr = "صيانة عامة",  NameEn = "General Maintenance", Icon = "🛠️", IsActive = false }
+        };
+
+        await _context.ServiceTypes.AddRangeAsync(serviceTypes);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Service types seeded: {N}", serviceTypes.Length);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  3. CITIES (8 Egyptian cities)
+    // ═══════════════════════════════════════════════════════════
+    private async Task SeedCitiesAsync()
+    {
+        var cities = new[]
+        {
+            new City { NameAr = "القاهرة",      NameEn = "Cairo",        Governorate = "القاهرة",     IsActive = true },
+            new City { NameAr = "الإسكندرية",   NameEn = "Alexandria",   Governorate = "الإسكندرية",  IsActive = true },
+            new City { NameAr = "الجيزة",       NameEn = "Giza",         Governorate = "الجيزة",      IsActive = true },
+            new City { NameAr = "المنصورة",     NameEn = "Mansoura",     Governorate = "الدقهلية",    IsActive = true },
+            new City { NameAr = "طنطا",         NameEn = "Tanta",        Governorate = "الغربية",     IsActive = true },
+            new City { NameAr = "أسيوط",        NameEn = "Assiut",       Governorate = "أسيوط",       IsActive = true },
+            new City { NameAr = "الإسماعيلية",  NameEn = "Ismailia",     Governorate = "الإسماعيلية", IsActive = true },
+            new City { NameAr = "الأقصر",       NameEn = "Luxor",        Governorate = "الأقصر",      IsActive = true }
+        };
+
+        await _context.Cities.AddRangeAsync(cities);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Cities seeded: {N}", cities.Length);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  4. FEATURE FLAGS
+    // ═══════════════════════════════════════════════════════════
+    private async Task SeedFeatureFlagsAsync()
+    {
+        var flags = new[]
+        {
+            new FeatureFlag { Key = "SelfFixGuideEnabled",  IsEnabled = true,  UpdatedAt = BaseDate.AddMonths(3) },
+            new FeatureFlag { Key = "VoiceSearchEnabled",   IsEnabled = false, UpdatedAt = BaseDate.AddMonths(2) },
+            new FeatureFlag { Key = "AIMatchingEnabled",    IsEnabled = true,  UpdatedAt = BaseDate.AddMonths(1) }
+        };
+
+        await _context.FeatureFlags.AddRangeAsync(flags);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Feature flags seeded.");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  5. ADMIN USER
+    // ═══════════════════════════════════════════════════════════
     private async Task SeedAdminAsync()
     {
         var admin = new User
         {
-            UserName = "admin@harfi.com",
-            Name = "Harfi Admin",
-            Email = "admin@harfi.com",
-            Role = "admin",
-            Phone = "01000000000",
-            IsActive = true,
+            UserName  = "admin@harfi.com",
+            Email     = "admin@harfi.com",
+            Name      = "مدير النظام",
+            Role      = "admin",
+            Phone     = "01000000000",
+            IsActive  = true,
             IsVerified = true,
             EmailConfirmed = true,
-            CreatedAt = DateTime.UtcNow.AddMonths(-6)
+            CreatedAt = BaseDate
         };
 
-        var result = await _userManager.CreateAsync(admin, "Admin@1234");
-        if (result.Succeeded)
-            _logger.LogInformation("Admin seeded: admin@harfi.com / Admin@1234");
-        else
-            _logger.LogWarning("Failed to seed admin: {Errors}",
+        var result = await _userManager.CreateAsync(admin, "Admin@Harfi2024!");
+        if (!result.Succeeded)
+            _logger.LogWarning("Admin seed failed: {E}",
                 string.Join("; ", result.Errors.Select(e => e.Description)));
+        else
+            _logger.LogInformation("Admin seeded: admin@harfi.com");
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  CRAFTSMAN USERS (10)
-    // ───────────────────────────────────────────────────────────
-    private async Task SeedCraftsmanUsersAsync()
-    {
-        var craftsmanData = new[]
-        {
-            (name: "أحمد علي",        phone: "01012345678", email: "ahmed.ali@gmail.com"),
-            (name: "محمد حسن",        phone: "01123456789", email: "mohamed.hassan@gmail.com"),
-            (name: "عبدالله خالد",    phone: "01234567890", email: "abdallah.khaled@gmail.com"),
-            (name: "مصطفى محمود",     phone: "01512345678", email: "mostafa.mahmoud@gmail.com"),
-            (name: "حسين رضا",        phone: "01098765432", email: "hussien.reda@gmail.com"),
-            (name: "كريم سامي",       phone: "01156789012", email: "kareem.samy@gmail.com"),
-            (name: "يوسف عادل",       phone: "01234561234", email: "youssef.adel@gmail.com"),
-            (name: "إبراهيم نصر",     phone: "01567890123", email: "ibrahim.nasr@gmail.com"),
-            (name: "عمرو شريف",       phone: "01023456789", email: "amr.sherif@gmail.com"),
-            (name: "خالد أحمد",       phone: "01134567890", email: "khaled.ahmed@gmail.com")
-        };
-
-        var baseDate = DateTime.UtcNow.AddMonths(-6);
-
-        for (int i = 0; i < craftsmanData.Length; i++)
-        {
-            var d = craftsmanData[i];
-            var user = new User
-            {
-                UserName = d.email,
-                Name = d.name,
-                Email = d.email,
-                Role = "craftsman",
-                Phone = d.phone,
-                IsActive = true,
-                IsVerified = true,
-                EmailConfirmed = true,
-                CreatedAt = baseDate.AddDays(i * 18)
-            };
-
-            var result = await _userManager.CreateAsync(user, "Harfi@2024");
-            if (!result.Succeeded)
-                _logger.LogWarning("Failed to create craftsman user {Email}: {Errors}",
-                    d.email, string.Join("; ", result.Errors.Select(e => e.Description)));
-        }
-
-        _logger.LogInformation("10 craftsman users seeded.");
-    }
-
-    // ───────────────────────────────────────────────────────────
-    //  CUSTOMER USERS (5)
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  6. CUSTOMER USERS (5 covering all states)
+    // ═══════════════════════════════════════════════════════════
     private async Task SeedCustomerUsersAsync()
     {
-        var customerData = new[]
+        // Business states:
+        // C1 — active, verified
+        // C2 — active, verified
+        // C3 — inactive / deactivated by admin
+        // C4 — soft-deleted by admin
+        // C5 — new, unverified (just registered, no email confirmation yet)
+        var customers = new[]
         {
-            (name: "سارة أحمد",       phone: "01245678901", email: "sara.ahmed@gmail.com"),
-            (name: "نورهان محمد",     phone: "01567890124", email: "nourhan.mohamed@gmail.com"),
-            (name: "مريم علي",        phone: "01067890123", email: "maryam.ali@gmail.com"),
-            (name: "فاطمة حسن",       phone: "01178901234", email: "fatma.hassan@gmail.com"),
-            (name: "منة الله خالد",   phone: "01289012345", email: "mennatallah.khaled@gmail.com")
+            new {
+                Email="sara.ahmed@gmail.com",     Name="سارة أحمد",
+                Phone="01245678901", IsActive=true,  IsVerified=true,
+                IsDeleted=false, EmailConfirmed=true,
+                CreatedAt=BaseDate.AddDays(5)
+            },
+            new {
+                Email="nourhan.mohamed@gmail.com", Name="نورهان محمد",
+                Phone="01567890124", IsActive=true,  IsVerified=true,
+                IsDeleted=false, EmailConfirmed=true,
+                CreatedAt=BaseDate.AddDays(15)
+            },
+            new {
+                Email="maryam.ali@gmail.com",     Name="مريم علي",
+                Phone="01067890123", IsActive=false, IsVerified=true,
+                IsDeleted=false, EmailConfirmed=true,
+                CreatedAt=BaseDate.AddDays(20)
+            },
+            new {
+                Email="fatma.hassan@gmail.com",   Name="فاطمة حسن",
+                Phone="01178901234", IsActive=false, IsVerified=true,
+                IsDeleted=true,  EmailConfirmed=true,
+                CreatedAt=BaseDate.AddDays(25)
+            },
+            new {
+                Email="mennatallah.khaled@gmail.com", Name="منة الله خالد",
+                Phone="01289012345", IsActive=true,  IsVerified=false,
+                IsDeleted=false, EmailConfirmed=false,
+                CreatedAt=BaseDate.AddMonths(5).AddDays(10)
+            }
         };
 
-        var baseDate = DateTime.UtcNow.AddMonths(-5).AddDays(15);
-
-        for (int i = 0; i < customerData.Length; i++)
+        foreach (var d in customers)
         {
-            var d = customerData[i];
             var user = new User
             {
-                UserName = d.email,
-                Name = d.name,
-                Email = d.email,
-                Role = "customer",
-                Phone = d.phone,
-                IsActive = true,
-                IsVerified = true,
-                EmailConfirmed = true,
-                CreatedAt = baseDate.AddDays(i * 14)
+                UserName       = d.Email,
+                Email          = d.Email,
+                Name           = d.Name,
+                Role           = "customer",
+                Phone          = d.Phone,
+                IsActive       = d.IsActive,
+                IsVerified     = d.IsVerified,
+                IsDeleted      = d.IsDeleted,
+                EmailConfirmed = d.EmailConfirmed,
+                CreatedAt      = d.CreatedAt
             };
 
-            var result = await _userManager.CreateAsync(user, "Harfi@2024");
+            if (d.IsDeleted)
+            {
+                user.DeletedAt         = d.CreatedAt.AddMonths(2);
+                user.DeletionReason    = "انتهاك شروط الاستخدام - تقارير متعددة من حرفيين";
+                user.DeletedByAdminId  = 1;
+            }
+
+            var result = await _userManager.CreateAsync(user, "Customer@2024");
             if (!result.Succeeded)
-                _logger.LogWarning("Failed to create customer user {Email}: {Errors}",
-                    d.email, string.Join("; ", result.Errors.Select(e => e.Description)));
+                _logger.LogWarning("Customer seed failed {E}: {Err}",
+                    d.Email, string.Join("; ", result.Errors.Select(e => e.Description)));
         }
 
         _logger.LogInformation("5 customer users seeded.");
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  CRAFTSMAN PROFILES (10)
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  7. CRAFTSMAN USERS (8 covering all states)
+    // ═══════════════════════════════════════════════════════════
+    private async Task SeedCraftsmanUsersAsync()
+    {
+        var craftsmen = new[]
+        {
+            // CM1 — pending approval
+            new { Email="ahmed.ali@gmail.com",        Name="أحمد علي",       Phone="01012345678", CreatedAt=BaseDate.AddDays(10) },
+            // CM2 — approved + available (high rating)
+            new { Email="mohamed.hassan@gmail.com",   Name="محمد حسن",       Phone="01123456789", CreatedAt=BaseDate.AddDays(8)  },
+            // CM3 — approved + available (low rating)
+            new { Email="abdallah.khaled@gmail.com",  Name="عبدالله خالد",   Phone="01234567890", CreatedAt=BaseDate.AddDays(30) },
+            // CM4 — approved + suspended (IsAvailable=false)
+            new { Email="mostafa.mahmoud@gmail.com",  Name="مصطفى محمود",    Phone="01512345678", CreatedAt=BaseDate.AddDays(7)  },
+            // CM5 — rejected (IsApproved=false, IsDeleted=true)
+            new { Email="hussien.reda@gmail.com",     Name="حسين رضا",       Phone="01098765432", CreatedAt=BaseDate.AddDays(40) },
+            // CM6 — soft-deleted after being active
+            new { Email="kareem.samy@gmail.com",      Name="كريم سامي",      Phone="01156789012", CreatedAt=BaseDate.AddDays(6)  },
+            // CM7 — approved + available (no reviews yet)
+            new { Email="youssef.adel@gmail.com",     Name="يوسف عادل",      Phone="01234561234", CreatedAt=BaseDate.AddMonths(5).AddDays(1)  },
+            // CM8 — approved + available (standard)
+            new { Email="ibrahim.nasr@gmail.com",     Name="إبراهيم نصر",    Phone="01567890123", CreatedAt=BaseDate.AddDays(12) },
+        };
+
+        foreach (var d in craftsmen)
+        {
+            var user = new User
+            {
+                UserName       = d.Email,
+                Email          = d.Email,
+                Name           = d.Name,
+                Role           = "craftsman",
+                Phone          = d.Phone,
+                IsActive       = true,
+                IsVerified     = true,
+                EmailConfirmed = true,
+                CreatedAt      = d.CreatedAt
+            };
+
+            var result = await _userManager.CreateAsync(user, "Craftsman@2024");
+            if (!result.Succeeded)
+                _logger.LogWarning("Craftsman user seed failed {E}: {Err}",
+                    d.Email, string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+
+        _logger.LogInformation("8 craftsman users seeded.");
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  8. CRAFTSMAN PROFILES (8 — one per business state)
+    // ═══════════════════════════════════════════════════════════
     private async Task SeedCraftsmanProfilesAsync()
     {
         var users = await _context.Users
+            .IgnoreQueryFilters()
             .Where(u => u.Role == "craftsman")
             .OrderBy(u => u.CreatedAt)
             .ToListAsync();
 
-        var profiles = new (int userId, string serviceType, string city, string? neighborhood,
-            decimal? min, decimal? max, int exp, decimal rating, string? bio, string photoId)[]
+        if (users.Count < 8)
         {
-            (users[0].Id, "سباك",        "مدينة نصر",   null,            150m, 300m, 8,  4.7m,
-             "سباك محترف خبرة 8 سنوات في تركيب وصيانة جميع أنواع السباكة", "1"),
-            (users[1].Id, "سباك",        "المعادي",     "المعادي",       200m, 400m, 12, 4.5m,
-             "معلم سباكة خبرة 12 سنة في حل مشاكل التسربات وتركيب السخانات", "2"),
-            (users[2].Id, "سباك",        "الزيتون",     "الزيتون",       100m, 250m, 5,  4.2m,
-             "سباك عام بأسعار مناسبة وجودة عالية في الشغل", "3"),
-            (users[3].Id, "كهربائي",     "شبرا",        "شبرا",          200m, 500m, 10, 4.8m,
-             "مهندس كهربائي خبرة 10 سنوات في توصيلات الكهرباء والصيانة", "4"),
-            (users[4].Id, "كهربائي",     "مصر الجديدة", "مصر الجديدة",   250m, 450m, 7,  4.3m,
-             "فني كهرباء منازل ومحلات - تركيب وصيانة جميع الأعمال الكهربائية", "5"),
-            (users[5].Id, "نجار",        "العباسية",    null,            300m, 600m, 15, 4.9m,
-             "نجار موبيليا وباركيه خبرة 15 سنة في صناعة وتركيب الأثاث", "6"),
-            (users[6].Id, "نجار",        "المقطم",      "المقطم",        200m, 500m, 6,  4.0m,
-             "نجار عام - تركيب مطابخ وغرف نوم وأبواب وشبابيك", "7"),
-            (users[7].Id, "فني تكييف",   "حلوان",       "حلوان",         300m, 700m, 9,  4.6m,
-             "فني تكييف متخصص في تركيب وصيانة جميع أنواع المكيفات", "8"),
-            (users[8].Id, "فني تكييف",   "الدقي",       "الدقي",         350m, 800m, 11, 4.4m,
-             "متخصص في صيانة وتركيب التكييفات بأسعار تنافسية", "9"),
-            (users[9].Id, "نقاش",        "الهرم",       "الهرم",         150m, 400m, 4,  3.8m,
-             "نقاش دهانات وجبس بورد - شغل نضيف وبسعر معقول", "10")
-        };
-
-        foreach (var p in profiles)
-        {
-            _context.Craftsmen.Add(new Craftsman
-            {
-                UserId = p.userId,
-                ServiceType = p.serviceType,
-                City = p.city,
-                Neighborhood = p.neighborhood,
-                PriceRangeMin = p.min,
-                PriceRangeMax = p.max,
-                Experience = p.exp,
-                IsApproved = true,
-                IsAvailable = true,
-                Rating = p.rating,
-                Bio = p.bio,
-                NationalIdUrl = $"/uploads/ids/id_{p.photoId}.jpg",
-                CreatedAt = DateTime.UtcNow.AddMonths(-5)
-            });
+            _logger.LogWarning("Expected 8 craftsman users, found {N}", users.Count);
+            return;
         }
 
+        // Helper: look up by email
+        User U(string email) => users.First(u => u.Email == email);
+
+        var profiles = new Craftsman[]
+        {
+            // CM1 — Pending approval (submitted, not yet reviewed)
+            new()
+            {
+                UserId         = U("ahmed.ali@gmail.com").Id,
+                ServiceType    = "سباكة",
+                City           = "القاهرة",
+                Neighborhood   = "مدينة نصر",
+                PriceRangeMin  = 150m,
+                PriceRangeMax  = 400m,
+                Experience     = 3,
+                IsApproved     = false,
+                IsAvailable    = true,
+                IsDeleted      = false,
+                Rating         = 0m,
+                Bio            = "سباك متخصص في تركيب وصيانة شبكات المياه والصرف الصحي",
+                NationalIdUrl  = "/uploads/ids/id_1.jpg",
+                CreatedAt      = U("ahmed.ali@gmail.com").CreatedAt
+            },
+
+            // CM2 — Approved + Available (high rating 4.8)
+            new()
+            {
+                UserId         = U("mohamed.hassan@gmail.com").Id,
+                ServiceType    = "كهرباء",
+                City           = "الإسكندرية",
+                Neighborhood   = "سيدي بشر",
+                PriceRangeMin  = 200m,
+                PriceRangeMax  = 600m,
+                Experience     = 12,
+                IsApproved     = true,
+                IsAvailable    = true,
+                IsDeleted      = false,
+                Rating         = 4.8m,
+                Bio            = "مهندس كهربائي خبرة 12 سنة في تمديد الكهرباء والصيانة الشاملة للمنازل والمصانع",
+                NationalIdUrl  = "/uploads/ids/id_2.jpg",
+                CreatedAt      = U("mohamed.hassan@gmail.com").CreatedAt
+            },
+
+            // CM3 — Approved + Available (low rating 2.1)
+            new()
+            {
+                UserId         = U("abdallah.khaled@gmail.com").Id,
+                ServiceType    = "دهانات",
+                City           = "الجيزة",
+                Neighborhood   = "الهرم",
+                PriceRangeMin  = 100m,
+                PriceRangeMax  = 300m,
+                Experience     = 2,
+                IsApproved     = true,
+                IsAvailable    = true,
+                IsDeleted      = false,
+                Rating         = 2.1m,
+                Bio            = "نقاش دهانات بسعر مناسب",
+                NationalIdUrl  = "/uploads/ids/id_3.jpg",
+                CreatedAt      = U("abdallah.khaled@gmail.com").CreatedAt
+            },
+
+            // CM4 — Approved + Suspended (IsAvailable=false, hidden from search)
+            new()
+            {
+                UserId         = U("mostafa.mahmoud@gmail.com").Id,
+                ServiceType    = "نجارة",
+                City           = "القاهرة",
+                Neighborhood   = "العباسية",
+                PriceRangeMin  = 300m,
+                PriceRangeMax  = 800m,
+                Experience     = 8,
+                IsApproved     = true,
+                IsAvailable    = false,    // ← suspended
+                IsDeleted      = false,
+                Rating         = 4.2m,
+                Bio            = "نجار موبيليا وباركيه خبرة 8 سنوات",
+                NationalIdUrl  = "/uploads/ids/id_4.jpg",
+                CreatedAt      = U("mostafa.mahmoud@gmail.com").CreatedAt
+            },
+
+            // CM5 — Rejected (IsApproved=false, IsDeleted=true, Arabic rejection reason)
+            new()
+            {
+                UserId         = U("hussien.reda@gmail.com").Id,
+                ServiceType    = "تكييف",
+                City           = "طنطا",
+                Neighborhood   = null,
+                PriceRangeMin  = 250m,
+                PriceRangeMax  = 700m,
+                Experience     = 1,
+                IsApproved     = false,
+                IsAvailable    = false,
+                IsDeleted      = true,     // ← rejected = soft-deleted
+                DeletedAt      = U("hussien.reda@gmail.com").CreatedAt.AddDays(3),
+                DeletedByAdminId = 1,
+                RejectionReason  = "بيانات الهوية الوطنية غير واضحة وغير مطابقة للاسم المسجل",
+                DeletionReason   = "رفض طلب التسجيل: بيانات غير صحيحة",
+                Rating         = 0m,
+                Bio            = "فني تكييف",
+                NationalIdUrl  = "/uploads/ids/id_5.jpg",
+                CreatedAt      = U("hussien.reda@gmail.com").CreatedAt
+            },
+
+            // CM6 — Approved then soft-deleted by admin (misconduct)
+            new()
+            {
+                UserId         = U("kareem.samy@gmail.com").Id,
+                ServiceType    = "سباكة",
+                City           = "المنصورة",
+                Neighborhood   = "المنصورة",
+                PriceRangeMin  = 180m,
+                PriceRangeMax  = 500m,
+                Experience     = 6,
+                IsApproved     = true,
+                IsAvailable    = false,
+                IsDeleted      = true,     // ← deleted AFTER approval
+                DeletedAt      = U("kareem.samy@gmail.com").CreatedAt.AddMonths(2),
+                DeletedByAdminId = 1,
+                DeletionReason   = "تلقي شكاوى متعددة من العملاء ورفض الرد على طلبات التواصل",
+                RejectionReason  = null,
+                Rating         = 3.5m,
+                Bio            = "سباك عام",
+                NationalIdUrl  = "/uploads/ids/id_6.jpg",
+                CreatedAt      = U("kareem.samy@gmail.com").CreatedAt
+            },
+
+            // CM7 — Approved + Available (no reviews yet, new craftsman)
+            new()
+            {
+                UserId         = U("youssef.adel@gmail.com").Id,
+                ServiceType    = "تبليط",
+                City           = "الإسماعيلية",
+                Neighborhood   = "الإسماعيلية",
+                PriceRangeMin  = 200m,
+                PriceRangeMax  = 600m,
+                Experience     = 5,
+                IsApproved     = true,
+                IsAvailable    = true,
+                IsDeleted      = false,
+                Rating         = 0m,       // ← no reviews yet
+                Bio            = "فني تبليط متخصص في السيراميك والرخام والبورسلين",
+                NationalIdUrl  = "/uploads/ids/id_7.jpg",
+                CreatedAt      = U("youssef.adel@gmail.com").CreatedAt
+            },
+
+            // CM8 — Approved + Available (standard, many reviews)
+            new()
+            {
+                UserId         = U("ibrahim.nasr@gmail.com").Id,
+                ServiceType    = "كهرباء",
+                City           = "الأقصر",
+                Neighborhood   = "الأقصر",
+                PriceRangeMin  = 150m,
+                PriceRangeMax  = 450m,
+                Experience     = 9,
+                IsApproved     = true,
+                IsAvailable    = true,
+                IsDeleted      = false,
+                Rating         = 4.5m,
+                Bio            = "كهربائي معتمد خبرة 9 سنوات في المنازل والمحلات التجارية",
+                NationalIdUrl  = "/uploads/ids/id_8.jpg",
+                CreatedAt      = U("ibrahim.nasr@gmail.com").CreatedAt
+            }
+        };
+
+        await _context.Craftsmen.AddRangeAsync(profiles);
         await _context.SaveChangesAsync();
-        _logger.LogInformation("10 craftsman profiles seeded.");
+        _logger.LogInformation("8 craftsman profiles seeded.");
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  JOBS (20) — all completed
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  9. JOBS (one per status + dispute states)
+    // ═══════════════════════════════════════════════════════════
     private async Task SeedJobsAsync()
     {
-        var craftsmen = await _context.Craftsmen.OrderBy(c => c.Id).ToListAsync();
-        var customers = await _context.Users
-            .Where(u => u.Role == "customer")
-            .OrderBy(u => u.CreatedAt)
+        // Load active (non-deleted) craftsmen and customers
+        var craftsmen = await _context.Craftsmen
+            .IgnoreQueryFilters()
+            .Include(c => c.User)
             .ToListAsync();
 
-        var baseDate = DateTime.UtcNow.AddMonths(-3);
+        var customers = await _context.Users
+            .IgnoreQueryFilters()
+            .Where(u => u.Role == "customer")
+            .ToListAsync();
 
-        var jobData = new (int craftsmanIdx, int customerIdx, string description, string address,
-            string? problemDesc, string? solutionDesc)[]
+        Craftsman CM(string email) => craftsmen.First(c => c.User.Email == email);
+        User CU(string email)      => customers.First(u => u.Email == email);
+
+        var approvedCM2 = CM("mohamed.hassan@gmail.com");  // كهربائي — high rating
+        var approvedCM3 = CM("abdallah.khaled@gmail.com");  // دهانات — low rating
+        var approvedCM8 = CM("ibrahim.nasr@gmail.com");      // كهربائي — standard
+        var suspendedCM4 = CM("mostafa.mahmoud@gmail.com");  // نجار — suspended
+
+        var C1 = CU("sara.ahmed@gmail.com");
+        var C2 = CU("nourhan.mohamed@gmail.com");
+        var C3 = CU("maryam.ali@gmail.com");         // inactive
+        var C4 = CU("fatma.hassan@gmail.com");        // deleted
+        var C5 = CU("mennatallah.khaled@gmail.com"); // unverified
+
+        var jobs = new List<Job>
         {
-            (0, 0, "الحنفية بتنقط في الحمام وفيه تسريب تحت الحوض",
-             "15 شارع الجيش، مدينة نصر، القاهرة",
-             "تسريب مياه من الحنفية وتحت الحوض", "تم تغيير الحنفية وإصلاح التسريب"),
+            // J1 — Open (created, waiting for craftsman acceptance)
+            new()
+            {
+                CustomerId       = C5.Id,
+                CraftsmanId      = approvedCM2.Id,
+                Status           = JobStatusConstants.Open,
+                ServiceType      = "كهرباء",
+                Description      = "المفاتيح في الصالة بتشرر وفيه رائحة احتراق",
+                Address          = "15 شارع التحرير، الإسكندرية",
+                PreferredDate    = DateTime.UtcNow.AddDays(2),
+                ProblemDescription = "شرار من المفاتيح الكهربائية مع رائحة بلاستيك محترق",
+                CreatedAt        = BaseDate.AddMonths(5).AddDays(15),
+                UpdatedAt        = BaseDate.AddMonths(5).AddDays(15)
+            },
 
-            (0, 1, "المواسير في المطبخ مسدودة والمياه مش بتصرف",
-             "8 شارع الطيران، مدينة نصر، القاهرة",
-             "انسداد كامل في مواسير المطبخ", "تم تسليك المواسير بالضغط العالي"),
+            // J2 — InProgress (accepted by craftsman)
+            new()
+            {
+                CustomerId       = C1.Id,
+                CraftsmanId      = approvedCM2.Id,
+                Status           = JobStatusConstants.InProgress,
+                ServiceType      = "كهرباء",
+                Description      = "لوحة الكهرباء الرئيسية عاطلة والكهربا مقطوعة على الشقة كلها",
+                Address          = "8 شارع الجيش، مدينة نصر، القاهرة",
+                ProblemDescription = "انقطاع تام في التيار الكهربائي بعد شرارة من اللوحة الرئيسية",
+                CreatedAt        = BaseDate.AddMonths(5).AddDays(20),
+                UpdatedAt        = BaseDate.AddMonths(5).AddDays(21)
+            },
 
-            (1, 2, "سخان المياه مش بيسخن كويس وبيطفي فجأة",
-             "22 شارع 9، المعادي، القاهرة",
-             "السخان لا يعمل بكفاءة وينطفئ", "تم تنظيف الترموستات واستبدال الهيتر"),
+            // J3 — Completed (finished, review submitted)
+            new()
+            {
+                CustomerId       = C2.Id,
+                CraftsmanId      = approvedCM2.Id,
+                Status           = JobStatusConstants.Done,
+                ServiceType      = "كهرباء",
+                Description      = "تركيب نقاط إضاءة جديدة في ثلاث غرف",
+                Address          = "22 شارع أبو قير، الإسكندرية",
+                ProblemDescription = "الغرف بدون إضاءة مناسبة - محتاج تركيب سبوت لايت",
+                SolutionDescription = "تم تركيب 12 سبوت لايت LED موفر للطاقة مع توصيلات كاملة",
+                CompletedAt      = BaseDate.AddMonths(3).AddDays(5),
+                CreatedAt        = BaseDate.AddMonths(3),
+                UpdatedAt        = BaseDate.AddMonths(3).AddDays(5)
+            },
 
-            (1, 3, "طرمبة المياه في العمارة عطلانة والمياه مش بتوصل للدور الرابع",
-             "4 شارع النصر، المعادي، القاهرة",
-             "طرمبة المياه لا تعمل نهائياً", "تم تغيير الطرمبة بأخري جديدة"),
+            // J4 — Completed (finished, NO review yet)
+            new()
+            {
+                CustomerId       = C1.Id,
+                CraftsmanId      = approvedCM8.Id,
+                Status           = JobStatusConstants.Done,
+                ServiceType      = "كهرباء",
+                Description      = "صيانة دورية شاملة للتوصيلات الكهربائية في الشقة",
+                Address          = "3 شارع النصر، الأقصر",
+                ProblemDescription = "مطلوب فحص وصيانة وقائية لجميع التوصيلات",
+                SolutionDescription = "تم فحص وتجديد التوصيلات وتغيير القواطع القديمة",
+                CompletedAt      = BaseDate.AddMonths(4).AddDays(2),
+                CreatedAt        = BaseDate.AddMonths(4),
+                UpdatedAt        = BaseDate.AddMonths(4).AddDays(2)
+            },
 
-            (2, 4, "فيه ريحة في الحمام والمياه بتتسرب من السيفون",
-             "12 شارع أبو بكر، الزيتون، القاهرة",
-             "تسريب من سيفون الحمام", "تم تغيير السيفون بالكامل"),
+            // J5 — Rejected by craftsman
+            new()
+            {
+                CustomerId       = C3.Id,
+                CraftsmanId      = approvedCM2.Id,
+                Status           = JobStatusConstants.Rejected,
+                ServiceType      = "كهرباء",
+                Description      = "محتاج تمديدات كهربائية خارجية على واجهة المبنى",
+                Address          = "55 شارع السوق، الجيزة",
+                ProblemDescription = "تمديدات خارجية خطرة تحتاج ترخيص",
+                CreatedAt        = BaseDate.AddMonths(4).AddDays(10),
+                UpdatedAt        = BaseDate.AddMonths(4).AddDays(10)
+            },
 
-            (2, 0, "بانيو الحمام مسدود والمياه واقفة",
-             "3 شارع الترعة، الزيتون، القاهرة",
-             "انسداد في مصرف البانيو", "تم تسليك البانيو وإزالة الدهون المتراكمة"),
+            // J6 — Disputed (IsDisputed=true, active dispute)
+            new()
+            {
+                CustomerId       = C2.Id,
+                CraftsmanId      = approvedCM8.Id,
+                Status           = JobStatusConstants.Done,
+                ServiceType      = "كهرباء",
+                Description      = "إصلاح عطل في دائرة الطاقة للمكيف",
+                Address          = "18 شارع الجمهورية، الأقصر",
+                ProblemDescription = "المكيف لا يعمل بسبب مشكلة في الكهرباء",
+                SolutionDescription = "تم استبدال القاطع المخصص للمكيف",
+                IsDisputed       = true,
+                DisputeRaisedAt  = BaseDate.AddMonths(5),
+                CompletedAt      = BaseDate.AddMonths(4).AddDays(25),
+                CreatedAt        = BaseDate.AddMonths(4).AddDays(20),
+                UpdatedAt        = BaseDate.AddMonths(5)
+            },
 
-            (3, 1, "المفاتيح في الأوضة الكبيرة وقفت وفيه شرارة في اللوحة",
-             "18 شارع شبرا، شبرا، القاهرة",
-             "تماس كهربائي في المفاتيح واللوحة", "تم تغيير المفاتيح وتجديد اللوحة"),
+            // J7 — Dispute resolved, favored party = Customer
+            new()
+            {
+                CustomerId       = C1.Id,
+                CraftsmanId      = approvedCM3.Id,
+                Status           = JobStatusConstants.Done,
+                ServiceType      = "دهانات",
+                Description      = "دهان كامل لشقة 3 غرف وصالة",
+                Address          = "12 شارع الهرم، الجيزة",
+                ProblemDescription = "دهانات قديمة متشققة ومتقشرة",
+                SolutionDescription = "تم دهان الشقة بالكامل لكن بجودة أقل من المتفق عليه",
+                IsDisputed       = false,
+                DisputeRaisedAt  = BaseDate.AddMonths(3).AddDays(20),
+                DisputeResolvedAt = BaseDate.AddMonths(4),
+                DisputeResolution = "Resolution: إعادة دهان الأجزاء المخالفة أو استرداد 30% من المبلغ. Favored: Customer",
+                CompletedAt      = BaseDate.AddMonths(3).AddDays(15),
+                CreatedAt        = BaseDate.AddMonths(3).AddDays(10),
+                UpdatedAt        = BaseDate.AddMonths(4)
+            },
 
-            (3, 2, "اللمبات في الشقة كلها بتطفي وتفضل لماعة",
-             "7 شارع أحمد حلمي، شبرا، القاهرة",
-             "عطل في الدائرة الكهربائية العامة", "تم إصلاح العطل وتغيير القواطع"),
+            // J8 — Dispute resolved, favored party = Craftsman
+            new()
+            {
+                CustomerId       = C2.Id,
+                CraftsmanId      = approvedCM3.Id,
+                Status           = JobStatusConstants.Done,
+                ServiceType      = "دهانات",
+                Description      = "دهان حوائط الصالة بالكامل",
+                Address          = "7 شارع الطيران، الجيزة",
+                ProblemDescription = "العميل يدعي أن جودة الدهان سيئة رغم استخدام مواد جيدة",
+                SolutionDescription = "تم تنفيذ الدهان بمواد عالية الجودة حسب الاتفاق",
+                IsDisputed       = false,
+                DisputeRaisedAt  = BaseDate.AddMonths(2).AddDays(5),
+                DisputeResolvedAt = BaseDate.AddMonths(2).AddDays(20),
+                DisputeResolution = "Resolution: الشغل مطابق للاتفاق والمواد المستخدمة معتمدة. Favored: Craftsman",
+                CompletedAt      = BaseDate.AddMonths(2),
+                CreatedAt        = BaseDate.AddMonths(2).AddDays(-5),
+                UpdatedAt        = BaseDate.AddMonths(2).AddDays(20)
+            },
 
-            (4, 3, "المراوح في البيت مش بتشتغل وفصل التيار باستمرار",
-             "25 شارع الحجاز، مصر الجديدة، القاهرة",
-             "انقطاع متكرر في التيار الكهربائي", "تم تغيير الأسلاك وتدعيم الدائرة"),
+            // J9 — Completed, used for 5-star review
+            new()
+            {
+                CustomerId       = C2.Id,
+                CraftsmanId      = approvedCM8.Id,
+                Status           = JobStatusConstants.Done,
+                ServiceType      = "كهرباء",
+                Description      = "تركيب لوحة توزيع كهرباء جديدة",
+                Address          = "33 شارع النيل، الأقصر",
+                ProblemDescription = "اللوحة الأصلية قديمة وخطيرة",
+                SolutionDescription = "تم تركيب لوحة توزيع حديثة مع قواطع ذات حساسية عالية",
+                CompletedAt      = BaseDate.AddMonths(1).AddDays(5),
+                CreatedAt        = BaseDate.AddMonths(1),
+                UpdatedAt        = BaseDate.AddMonths(1).AddDays(5)
+            },
 
-            (4, 4, "تكييف الهواء مش شغال في الصالة والمفتاح الكهربائي سخن",
-             "10 شارع الميرغني، مصر الجديدة، القاهرة",
-             "ارتفاع درجة حرارة المفتاح الكهربائي للتكييف", "تم استبدال المفتاح الكهربائي"),
+            // J10 — Completed, used for 1-star review (complaint)
+            new()
+            {
+                CustomerId       = C1.Id,
+                CraftsmanId      = approvedCM3.Id,
+                Status           = JobStatusConstants.Done,
+                ServiceType      = "دهانات",
+                Description      = "دهان حجرة النوم",
+                Address          = "10 شارع فيصل، الجيزة",
+                ProblemDescription = "دهان قديم يحتاج تجديد",
+                SolutionDescription = "تم الدهان لكن مع اختلاف اللون عن المتفق عليه",
+                CompletedAt      = BaseDate.AddDays(45),
+                CreatedAt        = BaseDate.AddDays(40),
+                UpdatedAt        = BaseDate.AddDays(45)
+            },
 
-            (5, 0, "باب الأوضة كسر من المفصلة وعايز تغيير كامل",
-             "6 شارع العباسية، العباسية، القاهرة",
-             "باب خشب مكسور من المفصلات", "تم تركيب باب جديد بمفصلات قوية"),
+            // J11 — Job on suspended craftsman (historical)
+            new()
+            {
+                CustomerId       = C1.Id,
+                CraftsmanId      = suspendedCM4.Id,
+                Status           = JobStatusConstants.Done,
+                ServiceType      = "نجارة",
+                Description      = "تركيب دواليب مطبخ",
+                Address          = "6 شارع رمسيس، القاهرة",
+                SolutionDescription = "تم تركيب دواليب المطبخ بالكامل",
+                CompletedAt      = BaseDate.AddMonths(2).AddDays(10),
+                CreatedAt        = BaseDate.AddMonths(2).AddDays(5),
+                UpdatedAt        = BaseDate.AddMonths(2).AddDays(10)
+            },
 
-            (5, 1, "دولاب المطبخ واقع من الحائط والأدراج مكسورة",
-             "14 شارع رمسيس، العباسية، القاهرة",
-             "سقوط الدولاب من الحائط", "تم تثبيت الدولاب على الحائط وتغيير الأدراج"),
-
-            (6, 2, "السرير في الغرفة النوم مكسور من القاعدة",
-             "30 شارع المقطم، المقطم، القاهرة",
-             "قاعدة السرير الخشبية مكسورة", "تم تصنيع قاعدة جديدة وتركيبها"),
-
-            (6, 3, "الشباك خشب متآكل وعايز تغيير الإطارات",
-             "5 شارع اللبيني، المقطم، القاهرة",
-             "إطارات الشبابيك متآكلة بسبب الرطوبة", "تم تغيير إطارات الشبابيك بالكامل"),
-
-            (7, 4, "التكييف مش بيبرد وبيعمل صوت عالي أثناء الشغل",
-             "20 شارع حلوان، حلوان، القاهرة",
-             "التكييف لا يبرد ويصدر ضوضاء", "تم تنظيف الفلاتر وشحن الفريون"),
-
-            (7, 0, "التكييف بيشقط مية من الوحدة الداخلية",
-             "11 شارع الملك فيصل، حلوان، القاهرة",
-             "تسريب مياه من الوحدة الداخلية للتكييف", "تم تنظيف صرف التكييف وإزالة الانسداد"),
-
-            (8, 1, "الريموت بتاع التكييف مش شغال والتكييف مش بيستجيب",
-             "9 شارع التحرير، الدقي، القاهرة",
-             "عدم استجابة التكييف للريموت", "تم استبدال الريموت وإصلاح وحدة التحكم"),
-
-            (8, 2, "تكييفين في الشقة محتاجين صيانة وتنظيف شاملة",
-             "16 شارع الدقي، الدقي، القاهرة",
-             "تراكم الأتربة في الفلاتر", "تم عمل صيانة شاملة وتنظيف التكييفين"),
-
-            (9, 3, "عايز دهان كامل للشقة 3 أوض وريسبشن",
-             "28 شارع الهرم، الهرم، الجيزة",
-             "دهانات قديمة متشققة ومتقشرة", "تم دهان الشقة بالكامل بدهان حديث"),
-
-            (9, 4, "حوائط الصالة فيها تشققات وعايزه تليس ودهان جديد",
-             "35 شارع فيصل، الهرم، الجيزة",
-             "تشققات في حوائط الصالة", "تم تلييس ودهان الصالة بالكامل")
+            // J12 — Cancelled by customer
+            new()
+            {
+                CustomerId       = C3.Id,
+                CraftsmanId      = approvedCM2.Id,
+                Status           = JobStatusConstants.Cancelled,
+                ServiceType      = "كهرباء",
+                Description      = "تركيب نجفة كبيرة في الصالة",
+                Address          = "44 شارع المحطة، الجيزة",
+                CreatedAt        = BaseDate.AddMonths(4).AddDays(5),
+                UpdatedAt        = BaseDate.AddMonths(4).AddDays(6)
+            }
         };
 
-        for (int i = 0; i < jobData.Length; i++)
-        {
-            var j = jobData[i];
-            var jobDate = baseDate.AddDays(i * 4);
-            var completedDays = (i % 7) + 1;
-
-            _context.Jobs.Add(new Job
-            {
-                CustomerId = customers[j.customerIdx].Id,
-                CraftsmanId = craftsmen[j.craftsmanIdx].Id,
-                Status = JobStatusConstants.Done,
-                ServiceType = craftsmen[j.craftsmanIdx].ServiceType,
-                Description = j.description,
-                Address = j.address,
-                ProblemDescription = j.problemDesc,
-                SolutionDescription = j.solutionDesc,
-                CreatedAt = jobDate,
-                CompletedAt = jobDate.AddDays(completedDays)
-            });
-        }
-
+        await _context.Jobs.AddRangeAsync(jobs);
         await _context.SaveChangesAsync();
-        _logger.LogInformation("20 jobs seeded.");
+        _logger.LogInformation("{N} jobs seeded.", jobs.Count);
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  REVIEWS (15 — one per job, for first 15 jobs)
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  10. REVIEWS
+    // ═══════════════════════════════════════════════════════════
     private async Task SeedReviewsAsync()
     {
-        var jobs = await _context.Jobs
-            .Where(j => j.Status == JobStatusConstants.Done)
-            .OrderBy(j => j.Id)
-            .Take(15)
-            .ToListAsync();
+        var jobs = await _context.Jobs.ToListAsync();
 
-        var reviewData = new (int stars, string comment)[]
+        // Helper: find job by description fragment
+        Job J(string fragment) => jobs.First(j => j.Description.Contains(fragment));
+
+        var reviews = new List<Review>
         {
-            (5, "شغل ممتاز ونظيف جداً، الأستاذ محترم وسريع في الشغل"),
-            (4, "شغل كويس بس أتأخر شوية على الموعد"),
-            (5, "أحسن سباك تعاملت معاه، شغل نضيف وفي الموعد"),
-            (4, "الأستاذ خلص الشغل زي ما اتفقنا، جودة ممتازة"),
-            (3, "الشغل اتعمل بس كان في بعض المشاكل في الأول"),
-            (5, "ممتاز جداً، أنصح بالتعامل معاه بثقة"),
-            (4, "شغل محترم وسعر مناسب، هكلمه تاني أكيد"),
-            (5, "فنان في شغله، تعامل محترم ونظيف"),
-            (3, "محتاج يهتم شوية بالتفاصيل لكن في النهاية تمام"),
-            (5, "أخلاق عالية وشغل هايل، ربنا يبارك له"),
-            (4, "ممتاز، التزم بالوقت والسعر المتفق عليه"),
-            (2, "الشغل ماشي لكن في حاجات ناقصة محتاج يرجع يظبطها"),
-            (5, "أفضل حرفي اشتغلت معاه، محترف وشغله نضيف"),
-            (4, "خلص الشغل بسرعة وجودة كويسة الحمد لله"),
-            (5, "شغل فخم الصراحة، أسعاره مناسبة جداً")
+            // 5-star review with detailed Arabic comment
+            new()
+            {
+                JobId       = J("نقاط إضاءة جديدة").Id,
+                CustomerId  = J("نقاط إضاءة جديدة").CustomerId,
+                CraftsmanId = J("نقاط إضاءة جديدة").CraftsmanId!.Value,
+                Stars       = 5,
+                Comment     = "الأستاذ محمد إنسان محترم جداً وشغله نظيف وفي الموعد بالضبط. " +
+                              "ركّب الـ سبوت لايت بأحسن شكل ونضف ورائه الأوضة كاملة. " +
+                              "بوصي بيه بثقة تامة لأي حد محتاج كهربائي.",
+                CreatedAt   = J("نقاط إضاءة جديدة").CompletedAt!.Value.AddDays(1),
+                IsDeleted   = false
+            },
+
+            // 1-star review with complaint
+            new()
+            {
+                JobId       = J("حجرة النوم").Id,
+                CustomerId  = J("حجرة النوم").CustomerId,
+                CraftsmanId = J("حجرة النوم").CraftsmanId!.Value,
+                Stars       = 1,
+                Comment     = "الشغل بيفضح. اللون اللي جابه مختلف تماماً عن اللي اتفقنا عليه " +
+                              "ورفض يصلح. ضيّعت وقتي وفلوسي. مش هينصحه لحد أبداً.",
+                CreatedAt   = J("حجرة النوم").CompletedAt!.Value.AddDays(2),
+                IsDeleted   = false
+            },
+
+            // Review on a completed job (craftsman now suspended — historical)
+            new()
+            {
+                JobId       = J("دواليب مطبخ").Id,
+                CustomerId  = J("دواليب مطبخ").CustomerId,
+                CraftsmanId = J("دواليب مطبخ").CraftsmanId!.Value,
+                Stars       = 4,
+                Comment     = "شغل كويس وبالموعد بس كان في بعض التفاصيل الصغيرة محتاج ينتبهلها.",
+                CreatedAt   = J("دواليب مطبخ").CompletedAt!.Value.AddDays(1),
+                IsDeleted   = false
+            },
+
+            // Review that has been soft-deleted by admin (with deletion reason)
+            new()
+            {
+                JobId       = J("صيانة دورية شاملة").Id,
+                CustomerId  = J("صيانة دورية شاملة").CustomerId,
+                CraftsmanId = J("صيانة دورية شاملة").CraftsmanId!.Value,
+                Stars       = 2,
+                Comment     = "محتوى مخالف للشروط تم حذفه من قبل الإدارة",
+                CreatedAt   = J("صيانة دورية شاملة").CompletedAt!.Value.AddDays(1),
+                IsDeleted   = true,
+                DeletedAt   = J("صيانة دورية شاملة").CompletedAt!.Value.AddDays(3),
+                DeletedByAdminId = 1,
+                DeletionReason   = "التقييم يحتوي على ألفاظ مسيئة وتهديدات شخصية تخالف شروط الاستخدام"
+            },
+
+            // 5-star review on CM8 (لوحة توزيع)
+            new()
+            {
+                JobId       = J("لوحة توزيع كهرباء جديدة").Id,
+                CustomerId  = J("لوحة توزيع كهرباء جديدة").CustomerId,
+                CraftsmanId = J("لوحة توزيع كهرباء جديدة").CraftsmanId!.Value,
+                Stars       = 5,
+                Comment     = "فنان في شغله! ركّب اللوحة وشرحلي إيه اللي اتغير وليه. محترف جداً.",
+                CreatedAt   = J("لوحة توزيع كهرباء جديدة").CompletedAt!.Value.AddDays(1),
+                IsDeleted   = false
+            },
+
+            // Review on J7 (dispute resolved — customer favored)
+            new()
+            {
+                JobId       = J("دهان كامل لشقة 3 غرف").Id,
+                CustomerId  = J("دهان كامل لشقة 3 غرف").CustomerId,
+                CraftsmanId = J("دهان كامل لشقة 3 غرف").CraftsmanId!.Value,
+                Stars       = 2,
+                Comment     = "اضطررت أفتح نزاع مع الإدارة لأن الشغل كان بجودة أقل من المتفق عليه. " +
+                              "الإدارة حلّت الموضوع وأسترجعت جزء من فلوسي.",
+                CreatedAt   = J("دهان كامل لشقة 3 غرف").CompletedAt!.Value.AddDays(10),
+                IsDeleted   = false
+            }
         };
 
-        for (int i = 0; i < jobs.Count; i++)
-        {
-            var job = jobs[i];
-            var review = reviewData[i];
-
-            _context.Reviews.Add(new Review
-            {
-                JobId = job.Id,
-                CustomerId = job.CustomerId,
-                CraftsmanId = job.CraftsmanId!.Value,
-                Stars = review.stars,
-                Comment = review.comment,
-                CreatedAt = job.CompletedAt ?? job.CreatedAt.AddDays(1)
-            });
-        }
-
+        await _context.Reviews.AddRangeAsync(reviews);
         await _context.SaveChangesAsync();
-        _logger.LogInformation("15 reviews seeded.");
+        _logger.LogInformation("{N} reviews seeded.", reviews.Count);
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  RECALCULATE RATINGS
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  11. RECALCULATE RATINGS (from actual reviews)
+    // ═══════════════════════════════════════════════════════════
     private async Task RecalculateRatingsAsync()
     {
         var craftsmen = await _context.Craftsmen
+            .IgnoreQueryFilters()
             .Include(c => c.Reviews)
             .ToListAsync();
 
-        foreach (var craftsman in craftsmen)
+        foreach (var c in craftsmen)
         {
-            craftsman.Rating = craftsman.Reviews.Count != 0
-                ? (decimal)Math.Round(craftsman.Reviews.Average(r => r.Stars), 2)
-                : 0m;
+            var activeReviews = c.Reviews.Where(r => !r.IsDeleted).ToList();
+            c.Rating = activeReviews.Count > 0
+                ? Math.Round((decimal)activeReviews.Average(r => r.Stars), 2)
+                : c.Rating; // preserve seeded rating if no reviews
         }
 
         await _context.SaveChangesAsync();
         _logger.LogInformation("Ratings recalculated.");
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  CONVERSATIONS (10 — one per job for first 10 jobs)
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  12. CONVERSATIONS
+    // ═══════════════════════════════════════════════════════════
     private async Task SeedConversationsAsync()
     {
-        var jobs = await _context.Jobs
+        // Only create conversations for jobs that have a CraftsmanId
+        var eligibleJobs = await _context.Jobs
+            .IgnoreQueryFilters()
+            .Where(j => j.CraftsmanId != null
+                     && j.Status != JobStatusConstants.Cancelled)
             .OrderBy(j => j.Id)
-            .Take(10)
+            .Take(8)
             .ToListAsync();
 
-        foreach (var job in jobs)
+        foreach (var job in eligibleJobs)
         {
             _context.Conversations.Add(new Conversation
             {
-                JobId = job.Id,
-                CustomerId = job.CustomerId,
-                CraftsmanId = job.CraftsmanId!.Value,
-                CreatedAt = job.CreatedAt,
-                LastMessageAt = job.CreatedAt.AddHours(2)
+                JobId        = job.Id,
+                CustomerId   = job.CustomerId,
+                CraftsmanId  = job.CraftsmanId!.Value,
+                CreatedAt    = job.CreatedAt.AddMinutes(5),
+                LastMessageAt = job.CreatedAt.AddMinutes(60),
+                UpdatedAt    = job.CreatedAt.AddMinutes(60)
             });
         }
 
         await _context.SaveChangesAsync();
-        _logger.LogInformation("10 conversations seeded.");
+        _logger.LogInformation("Conversations seeded.");
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  MESSAGES (40 across 10 conversations, 4 each)
-    // ───────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════
+    //  13. MESSAGES (realistic Arabic chat per conversation)
+    // ═══════════════════════════════════════════════════════════
     private async Task SeedMessagesAsync()
     {
         var conversations = await _context.Conversations
-            .OrderBy(c => c.Id)
+            .IgnoreQueryFilters()
             .Include(c => c.Job)
+            .Include(c => c.Craftsman)
+            .OrderBy(c => c.Id)
             .ToListAsync();
 
         var craftsmanUserIds = await _context.Craftsmen
-            .Where(c => conversations.Select(cv => cv.CraftsmanId).Contains(c.Id))
+            .IgnoreQueryFilters()
             .ToDictionaryAsync(c => c.Id, c => c.UserId);
 
-        var messageData = new Dictionary<int, (string content, int minutesOffset)[]>
+        // Conversation message scripts — index matches conversation order
+        var scripts = new (string content, bool fromCustomer, int minutesOffset)[][]
         {
-            [0] = new[]
-            {
-                ("أهلاً، محتاج حد يصلح تسريب في الحمام", 0),
-                ("أهلاً بيك، امتى تقدر أستقبل؟", 10),
-                ("بكرة الصبح مناسب؟", 25),
-                ("تمام، هكون عندك الساعة 10 الصبح", 40),
-            },
-            [1] = new[]
-            {
-                ("المواسير في المطبخ مسدودة خالص من الصبح", 5),
-                ("طب جربت تسليكها بالخلطة العادية؟", 20),
-                ("جربت كذا حاجة ومفيش فايدة", 35),
-                ("تمام، هجيلك النهارده بعد العصر", 50),
-            },
-            [2] = new[]
-            {
-                ("السخان مش بيسخن من النهارده الصبح", 10),
-                ("ممكن يكون الهيتر عطلان، هحتاج أشوفه", 30),
-                ("طب امتى تقدر تجي؟", 45),
-                ("أنا في منطقة تاني النهارده، بكره الصبح إن شاء الله", 60),
-            },
-            [3] = new[]
-            {
-                ("طرمبة المياه في العمارة وقفت من النهارده", 2),
-                ("عايز أكشف على الطرمبة والمحرك", 20),
-                ("طيب كام تكلفة الكشف؟", 40),
-                ("الكشف ببلاش والتكلفة حسب العطل", 55),
-            },
-            [4] = new[]
-            {
-                ("فيه ريحة كريهة في الحمام والمياه بتتسرب", 5),
-                ("الأغلب السيفون بايظ، هحتاج أغير", 18),
-                ("كام هتكلف؟", 35),
-                ("هكشف الأول وبعدين أقولك التكلفة بالظبط", 50),
-            },
-            [5] = new[]
-            {
-                ("البانيو مسدود والمياه مش بتصرف خالص", 3),
-                ("جربت تسليك البانيو بمادة كيميائية؟", 20),
-                ("جربت كل حاجة ومفيش نتيجة", 40),
-                ("هحتاج أستخدم الضغط العالي، هجيلك إن شاء الله", 55),
-            },
-            [6] = new[]
-            {
-                ("المفاتيح في البيت بتشرر والنور قطع", 8),
-                ("فصل الكهربا فوراً متلمسش حاجة", 15),
-                ("فصلت الكهرباء زي ما قلت", 22),
-                ("كويس، هجيلك في خلال ساعة إن شاء الله", 35),
-            },
-            [7] = new[]
-            {
-                ("اللمبات كلها بتطفي وتفضل لماعة في الشقة", 5),
-                ("العطل في الدائرة العامة للشقة", 18),
-                ("طيب هتستغرق وقت في التصليح؟", 32),
-                ("ساعتين تلاتة حسب العطل بالظبط", 50),
-            },
-            [8] = new[]
-            {
-                ("المراوح كلها وقفت والتيار بينقطع كل شوية", 3),
-                ("مشكلة في الدائرة العامة للشقة، هحتاج أفحص", 20),
-                ("كام تكلفة الإصلاح تقريباً؟", 40),
-                ("حسب العطل، هقولك بعد الكشف", 55),
-            },
-            [9] = new[]
-            {
-                ("مفتاح التكييف سخن والنور فصل في الصالة", 8),
-                ("متدورش على المفتاح تاني خالص، ممكن يحرق", 18),
-                ("طيب هجيلك امتى؟", 32),
-                ("هاروحلك النهارده بعد المغرب إن شاء الله", 50),
-            },
+            // Conversation 0 — open job, initial contact
+            [
+                ("أهلاً، أنا بحتاج حد يصلح التسريب في الحمام بسرعة", true, 0),
+                ("أهلاً بيك، أنا شفت الطلب. امتى تقدر تستقبلني؟", false, 8),
+                ("النهارده بعد الضهر مناسب؟", true, 20),
+                ("تمام خد عندك. هكون عندك الساعة 4 العصر.", false, 35),
+                ("أوكي، شكراً جزيلاً", true, 40)
+            ],
+            // Conversation 1 — inProgress
+            [
+                ("أحتاج إصلاح لوحة الكهرباء الرئيسية، الكهرباء مقطوعة خالص", true, 0),
+                ("فهمت المشكلة، لازم أشوف اللوحة قبل ما أعطيك سعر", false, 15),
+                ("طيب امتى تقدر تجي؟", true, 25),
+                ("بكره الصبح الساعة 9، ينفع؟", false, 30),
+                ("ينفع تمام، شكراً", true, 45),
+                ("أنا هنا دلوقتي، نزل افتح", false, 840)
+            ],
+            // Conversation 2 — completed job, active chat
+            [
+                ("محتاج تركيب سبوت لايت في 3 غرف", true, 0),
+                ("كام غرفة وكام نقطة تقريباً؟", false, 10),
+                ("3 غرف، تقريباً 12 نقطة", true, 18),
+                ("تمام السعر هيكون 600 جنيه شامل المواد", false, 25),
+                ("مقبول. يوم الخميس ينفع؟", true, 35),
+                ("ينفع تمام", false, 40),
+                ("الشغل اتعمل زي الفل، شكراً جداً", true, 2880)
+            ],
+            // Conversation 3 — simple exchange
+            [
+                ("مرحبا، مطلوب صيانة دورية", true, 0),
+                ("هل عندك وقت الأسبوع الجاي؟", false, 15),
+                ("أيوه أي يوم من الأحد للأربع", true, 30),
+                ("هيجي فني يوم الأثنين الساعة 11", false, 45)
+            ],
+            // Conversation 4 — disputed job, locked conversation
+            [
+                ("الشغل خلص لكن مش تمام", true, 0),
+                ("إيه المشكلة بالظبط؟", false, 20),
+                ("المكيف لسه مش بيبرد زي ما قبل", true, 35),
+                ("أنا كنت عندك واشتغلت، محتاج تاني كشف", false, 50),
+                ("هفتح نزاع لو مش اتحل", true, 120),
+                ("خلي إدارة حرفي تشوف المشكلة", false, 135)
+            ],
+            // Conversation 5 — resolved dispute
+            [
+                ("الدهان اللي عملته مش بالمواصفات المتفق عليها", true, 0),
+                ("الشغل اتعمل صح والمواد زي المتفق", false, 30),
+                ("اللون مختلف تماماً", true, 45),
+                ("هتكلم الإدارة يشوفوا", false, 60)
+            ],
+            // Conversation 6 — unread messages (customer hasn't read yet)
+            [
+                ("محتاج أعمل معك لوحة توزيع جديدة", true, 0),
+                ("أنا متاح، كام كيلو واط محتاج؟", false, 12),
+                ("مش عارف، ممكن تيجي تكشف؟", true, 25),
+                ("أيوه تمام، بكره الصبح", false, 40),
+                ("ممتاز! بنتظرك", true, 50)
+            ],
+            // Conversation 7 — another completed job
+            [
+                ("نجار محتاج تركيب دواليب مطبخ", true, 0),
+                ("أنا متخصص في ده، كام متر المطبخ؟", false, 10),
+                ("4 متر تقريباً", true, 20),
+                ("السعر هيكون 1500 جنيه كل متر", false, 30),
+                ("تمام متفقين", true, 45)
+            ]
         };
 
-        var messagesCount = 0;
+        var allMessages = new List<Message>();
 
-        foreach (var (convIdx, messages) in messageData)
+        for (int i = 0; i < Math.Min(conversations.Count, scripts.Length); i++)
         {
-            var conv = conversations[convIdx];
-            var custId = conv.CustomerId;
-            var craftUserId = craftsmanUserIds[conv.CraftsmanId];
+            var conv = conversations[i];
+            var craftUserId = craftsmanUserIds.GetValueOrDefault(conv.CraftsmanId, 0);
+            var script = scripts[i];
+            DateTime? lastMsgTime = null;
 
-            for (int mIdx = 0; mIdx < messages.Length; mIdx++)
+            foreach (var (content, fromCustomer, minutesOffset) in script)
             {
-                var msg = messages[mIdx];
-                var senderId = mIdx % 2 == 0 ? custId : craftUserId;
+                var senderId = fromCustomer ? conv.CustomerId : craftUserId;
+                var sentAt   = conv.CreatedAt.AddMinutes(minutesOffset);
+                lastMsgTime  = sentAt;
 
-                _context.Messages.Add(new Message
+                // For conversation 6 (unread messages): craftsman messages are unread
+                bool isRead = (i == 6 && !fromCustomer) ? false : true;
+
+                allMessages.Add(new Message
                 {
                     ConversationId = conv.Id,
-                    SenderId = senderId,
-                    Content = msg.content,
-                    MessageType = "text",
-                    IsRead = true,
-                    SentAt = conv.CreatedAt.AddMinutes(msg.minutesOffset)
+                    SenderId       = senderId,
+                    Content        = content,
+                    MessageType    = "text",
+                    IsRead         = isRead,
+                    SentAt         = sentAt
                 });
-
-                messagesCount++;
             }
 
-            conv.LastMessageAt = conv.CreatedAt.AddMinutes(messages[^1].minutesOffset);
+            if (lastMsgTime.HasValue)
+            {
+                conv.LastMessageAt = lastMsgTime;
+                conv.UpdatedAt     = lastMsgTime.Value;
+            }
         }
 
+        await _context.Messages.AddRangeAsync(allMessages);
         await _context.SaveChangesAsync();
-        _logger.LogInformation("{Count} messages seeded.", messagesCount);
+        _logger.LogInformation("{N} messages seeded.", allMessages.Count);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  14. NOTIFICATIONS
+    // ═══════════════════════════════════════════════════════════
+    private async Task SeedNotificationsAsync()
+    {
+        var craftsmen = await _context.Craftsmen
+            .IgnoreQueryFilters()
+            .Include(c => c.User)
+            .ToListAsync();
+
+        var customers = await _context.Users
+            .IgnoreQueryFilters()
+            .Where(u => u.Role == "customer")
+            .ToListAsync();
+
+        var jobs = await _context.Jobs.IgnoreQueryFilters().ToListAsync();
+
+        User CU(string email)    => customers.First(u => u.Email == email);
+        Craftsman CM(string email) => craftsmen.First(c => c.User.Email == email);
+        Job J(string fragment)   => jobs.First(j => j.Description.Contains(fragment));
+
+        var notifications = new List<Notification>
+        {
+            // Unread notification — craftsman approval
+            new()
+            {
+                UserId       = CM("ahmed.ali@gmail.com").UserId,
+                Title        = "طلب التسجيل قيد المراجعة",
+                Body         = "تم استلام طلب تسجيلك كحرفي وهو قيد المراجعة من قبل الإدارة. سنُبلغك بالنتيجة خلال 48 ساعة.",
+                Type         = "registration_pending",
+                RelatedJobId = null,
+                IsRead       = false,
+                CreatedAt    = CM("ahmed.ali@gmail.com").CreatedAt.AddMinutes(10)
+            },
+
+            // Read notification — job accepted
+            new()
+            {
+                UserId       = CU("sara.ahmed@gmail.com").Id,
+                Title        = "تم قبول طلبك",
+                Body         = "قام الحرفي إبراهيم نصر بقبول طلب الخدمة الخاص بك. سيحضر في الموعد المتفق عليه.",
+                Type         = "job_accepted",
+                RelatedJobId = J("صيانة دورية شاملة").Id,
+                IsRead       = true,
+                CreatedAt    = J("صيانة دورية شاملة").CreatedAt.AddHours(2)
+            },
+
+            // Notification for approved craftsman
+            new()
+            {
+                UserId       = CM("mohamed.hassan@gmail.com").UserId,
+                Title        = "تم اعتمادك كحرفي",
+                Body         = "مبروك! تم اعتماد طلبك بنجاح. يمكنك الآن استقبال طلبات العملاء والبدء في العمل على المنصة.",
+                Type         = "approved",
+                RelatedJobId = null,
+                IsRead       = true,
+                CreatedAt    = CM("mohamed.hassan@gmail.com").CreatedAt.AddDays(2)
+            },
+
+            // Notification for rejected craftsman
+            new()
+            {
+                UserId       = CM("hussien.reda@gmail.com").UserId,
+                Title        = "تم رفض طلب التسجيل",
+                Body         = "نأسف لإبلاغك بأنه تم رفض طلب تسجيلك. السبب: بيانات الهوية الوطنية غير واضحة وغير مطابقة للاسم المسجل. يمكنك إعادة التقديم بعد تصحيح البيانات.",
+                Type         = "rejected",
+                RelatedJobId = null,
+                IsRead       = false,
+                CreatedAt    = CM("hussien.reda@gmail.com").CreatedAt.AddDays(3)
+            },
+
+            // Notification — job completed (customer to review)
+            new()
+            {
+                UserId       = CU("nourhan.mohamed@gmail.com").Id,
+                Title        = "تم إنجاز طلبك",
+                Body         = "أنهى الحرفي العمل. يمكنك الآن تقييم الخدمة ومشاركة تجربتك مع العملاء الآخرين.",
+                Type         = "job_completed",
+                RelatedJobId = J("نقاط إضاءة جديدة").Id,
+                IsRead       = true,
+                CreatedAt    = J("نقاط إضاءة جديدة").CompletedAt!.Value.AddMinutes(30)
+            },
+
+            // Notification — new message (unread)
+            new()
+            {
+                UserId       = CU("mennatallah.khaled@gmail.com").Id,
+                Title        = "رسالة جديدة من محمد حسن",
+                Body         = "أهلاً بيك، أنا شفت الطلب. امتى تقدر تستقبلني؟",
+                Type         = "new_message",
+                RelatedJobId = null,
+                IsRead       = false,
+                CreatedAt    = BaseDate.AddMonths(5).AddDays(15).AddMinutes(13)
+            },
+
+            // Notification — dispute opened
+            new()
+            {
+                UserId       = CM("ibrahim.nasr@gmail.com").UserId,
+                Title        = "تم فتح نزاع على طلبك",
+                Body         = "قامت إدارة حرفي بفتح نزاع على طلب الخدمة رقم 6. سيتواصل معك فريق الدعم خلال 24 ساعة.",
+                Type         = "dispute_opened",
+                RelatedJobId = J("إصلاح عطل في دائرة الطاقة").Id,
+                IsRead       = false,
+                CreatedAt    = J("إصلاح عطل في دائرة الطاقة").DisputeRaisedAt!.Value.AddMinutes(5)
+            },
+
+            // Notification — dispute resolved
+            new()
+            {
+                UserId       = CU("sara.ahmed@gmail.com").Id,
+                Title        = "تم حل النزاع لصالحك",
+                Body         = "تم حل النزاع الخاص بطلب الدهان. القرار: إعادة دهان الأجزاء المخالفة أو استرداد 30% من المبلغ.",
+                Type         = "dispute_resolved",
+                RelatedJobId = J("دهان كامل لشقة 3 غرف").Id,
+                IsRead       = true,
+                CreatedAt    = J("دهان كامل لشقة 3 غرف").DisputeResolvedAt!.Value.AddMinutes(30)
+            }
+        };
+
+        await _context.Notifications.AddRangeAsync(notifications);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("{N} notifications seeded.", notifications.Count);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  15. ADMIN AUDIT LOGS
+    // ═══════════════════════════════════════════════════════════
+    private async Task SeedAdminAuditLogsAsync()
+    {
+        var adminUser = await _context.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.Role == "admin");
+
+        if (adminUser is null)
+        {
+            _logger.LogWarning("Admin not found for audit log seeding.");
+            return;
+        }
+
+        var craftsmen = await _context.Craftsmen.IgnoreQueryFilters()
+            .Include(c => c.User).ToListAsync();
+        var users     = await _context.Users.IgnoreQueryFilters().ToListAsync();
+        var reviews   = await _context.Reviews.IgnoreQueryFilters().ToListAsync();
+        var jobs      = await _context.Jobs.IgnoreQueryFilters().ToListAsync();
+
+        Craftsman CM(string email) => craftsmen.First(c => c.User.Email == email);
+        User CU(string email)      => users.First(u => u.Email == email);
+
+        var logs = new List<AdminAuditLog>
+        {
+            // Log: craftsman approval
+            new()
+            {
+                AdminId    = adminUser.Id,
+                Action     = "approve_craftsman",
+                TargetType = "Craftsman",
+                TargetId   = CM("mohamed.hassan@gmail.com").Id,
+                Notes      = "Approved craftsman محمد حسن after verifying national ID",
+                IpAddress  = "197.58.112.44",
+                CreatedAt  = CM("mohamed.hassan@gmail.com").CreatedAt.AddDays(2)
+            },
+            // Log: craftsman rejection
+            new()
+            {
+                AdminId    = adminUser.Id,
+                Action     = "reject_craftsman",
+                TargetType = "Craftsman",
+                TargetId   = CM("hussien.reda@gmail.com").Id,
+                Notes      = "Rejected craftsman حسين رضا. Reason: بيانات الهوية الوطنية غير واضحة وغير مطابقة للاسم المسجل",
+                IpAddress  = "197.58.112.44",
+                CreatedAt  = CM("hussien.reda@gmail.com").CreatedAt.AddDays(3)
+            },
+            // Log: user deactivation
+            new()
+            {
+                AdminId    = adminUser.Id,
+                Action     = "deactivate_user",
+                TargetType = "User",
+                TargetId   = CU("maryam.ali@gmail.com").Id,
+                Notes      = "Deactivated user مريم علي. Reason: إساءة استخدام المنصة وتقديم بيانات مزورة",
+                IpAddress  = "197.58.112.44",
+                CreatedAt  = BaseDate.AddMonths(3)
+            },
+            // Log: review deletion
+            new()
+            {
+                AdminId    = adminUser.Id,
+                Action     = "delete_review",
+                TargetType = "Review",
+                TargetId   = reviews.First(r => r.IsDeleted).Id,
+                Notes      = "Soft-deleted review. Reason: التقييم يحتوي على ألفاظ مسيئة وتهديدات شخصية تخالف شروط الاستخدام",
+                IpAddress  = "197.58.112.44",
+                CreatedAt  = reviews.First(r => r.IsDeleted).DeletedAt!.Value
+            },
+            // Log: dispute flagging
+            new()
+            {
+                AdminId    = adminUser.Id,
+                Action     = "flag_dispute",
+                TargetType = "Job",
+                TargetId   = jobs.First(j => j.IsDisputed).Id,
+                Notes      = "Flagged dispute. Reason: طلب المستخدم مراجعة جودة العمل المنجز",
+                IpAddress  = "197.58.112.44",
+                CreatedAt  = jobs.First(j => j.IsDisputed).DisputeRaisedAt!.Value
+            },
+            // Log: dispute resolution
+            new()
+            {
+                AdminId    = adminUser.Id,
+                Action     = "resolve_dispute",
+                TargetType = "Job",
+                TargetId   = jobs.First(j => j.DisputeResolution != null && j.DisputeResolution.Contains("Customer")).Id,
+                Notes      = "Resolved dispute. Resolution: استرداد 30% من المبلغ. Favored: Customer",
+                IpAddress  = "197.58.112.44",
+                CreatedAt  = jobs.First(j => j.DisputeResolution != null && j.DisputeResolution.Contains("Customer")).DisputeResolvedAt!.Value
+            },
+            // Log: craftsman suspension
+            new()
+            {
+                AdminId    = adminUser.Id,
+                Action     = "suspend_craftsman",
+                TargetType = "Craftsman",
+                TargetId   = CM("mostafa.mahmoud@gmail.com").Id,
+                Notes      = "Suspended craftsman مصطفى محمود. Reason: شكاوى متكررة من العملاء",
+                IpAddress  = "197.58.112.44",
+                CreatedAt  = BaseDate.AddMonths(4)
+            },
+            // Log: deleted craftsman after approval
+            new()
+            {
+                AdminId    = adminUser.Id,
+                Action     = "delete_craftsman",
+                TargetType = "Craftsman",
+                TargetId   = CM("kareem.samy@gmail.com").Id,
+                Notes      = "Soft-deleted craftsman كريم سامي. Reason: تلقي شكاوى متعددة من العملاء ورفض الرد على طلبات التواصل",
+                IpAddress  = "197.58.112.44",
+                CreatedAt  = CM("kareem.samy@gmail.com").DeletedAt!.Value
+            }
+        };
+
+        await _context.AdminAuditLogs.AddRangeAsync(logs);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("{N} admin audit logs seeded.", logs.Count);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  16. REPORTS
+    // ═══════════════════════════════════════════════════════════
+    private async Task SeedReportsAsync()
+    {
+        var customers = await _context.Users
+            .IgnoreQueryFilters()
+            .Where(u => u.Role == "customer")
+            .ToListAsync();
+
+        var craftsmen = await _context.Craftsmen
+            .IgnoreQueryFilters()
+            .Include(c => c.User)
+            .ToListAsync();
+
+        var adminUser = await _context.Users.IgnoreQueryFilters()
+            .FirstAsync(u => u.Role == "admin");
+
+        User CU(string email)    => customers.First(u => u.Email == email);
+        Craftsman CM(string email) => craftsmen.First(c => c.User.Email == email);
+
+        var reports = new List<Report>
+        {
+            // Pending report — customer reporting suspended craftsman
+            new()
+            {
+                ReportedByUserId = CU("sara.ahmed@gmail.com").Id,
+                TargetType       = "Craftsman",
+                TargetId         = CM("mostafa.mahmoud@gmail.com").Id,
+                Reason           = "الحرفي تأخر كثيراً ولم يُبلغ بالتأخير وطلب مبلغاً إضافياً غير متفق عليه",
+                Status           = "pending",
+                CreatedAt        = BaseDate.AddMonths(3).AddDays(20)
+            },
+            // Resolved report
+            new()
+            {
+                ReportedByUserId  = CU("nourhan.mohamed@gmail.com").Id,
+                TargetType        = "Craftsman",
+                TargetId          = CM("abdallah.khaled@gmail.com").Id,
+                Reason            = "الحرفي استخدم مواد رديئة الجودة وخالف شروط العقد",
+                Status            = "resolved",
+                ResolvedByAdminId = adminUser.Id,
+                ResolutionNotes   = "تم التحقق من الشكوى وتوجيه تحذير رسمي للحرفي. (Action: warning_issued)",
+                CreatedAt         = BaseDate.AddMonths(2),
+                ResolvedAt        = BaseDate.AddMonths(2).AddDays(5)
+            }
+        };
+
+        await _context.Reports.AddRangeAsync(reports);
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("{N} reports seeded.", reports.Count);
     }
 }

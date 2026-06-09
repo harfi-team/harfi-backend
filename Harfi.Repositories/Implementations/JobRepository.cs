@@ -1,4 +1,5 @@
-﻿using Harfi.Models.Entities;
+﻿using Harfi.Models.Constants;
+using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -15,6 +16,10 @@ public class JobRepository : IJobRepository
     }
     public async Task<Craftsman?> GetCraftsmanByUserIdAsync(int userId)
     => await _context.Craftsmen.FirstOrDefaultAsync(c => c.UserId == userId);
+
+    public async Task<bool> CraftsmanBelongsToUserAsync(int craftsmanId, int userId)
+        => await _context.Craftsmen
+            .AnyAsync(c => c.Id == craftsmanId && c.UserId == userId);
 
     public async Task<Job?> GetByIdAsync(int id)
         => await _context.Jobs.FirstOrDefaultAsync(j => j.Id == id);
@@ -44,6 +49,24 @@ public class JobRepository : IJobRepository
         _context.Jobs.Update(job);
         await _context.SaveChangesAsync();
         return job;
+    }
+
+    public async Task<IEnumerable<Job>> GetCompletedJobsWithSolutionsAsync()
+    {
+        return await _context.Jobs
+            .Include(j => j.Review)
+            .Include(j => j.Craftsman)
+            .Where(j => j.Status == JobStatusConstants.Done && j.SolutionDescription != null)
+            .AsNoTracking()
+            .ToListAsync();
+    }
+
+    public async Task<Job?> GetJobWithReviewAndCraftsmanAsync(int jobId)
+    {
+        return await _context.Jobs
+            .Include(j => j.Review)
+            .Include(j => j.Craftsman)
+            .FirstOrDefaultAsync(j => j.Id == jobId);
     }
 
 }

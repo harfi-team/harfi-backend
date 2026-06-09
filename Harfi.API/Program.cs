@@ -1,3 +1,4 @@
+using Harfi.API.BackgroundServices;
 using Harfi.API.Extensions;
 using Harfi.API.Hubs;
 using Harfi.API.Middleware;
@@ -7,6 +8,7 @@ using Harfi.Repositories.Implementations;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
+using AspNetCoreRateLimit;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,18 +24,13 @@ builder.Services
     .AddJwtAuthentication(builder.Configuration)
     .AddSwaggerWithJwt()
     .AddHarfiCors(builder.Configuration)
+    .AddHarfiRateLimiting(builder.Configuration)
     .AddControllers();
 
-// 1. تسجيل الـ Repository الخاص بالحرفيين
-builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
+// Background services
+builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
-// 2. تسجيل الـ Services
-builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<ICraftsmanService, CraftsmanService>();
-builder.Services.AddScoped<IAdminService, AdminService>();
-builder.Services.AddScoped<IAuditLogService, AuditLogService>();
-
-// 3. Seeder
+// Seeder
 builder.Services.AddScoped<DataSeeder>();
 
 var app = builder.Build();
@@ -42,6 +39,7 @@ var app = builder.Build();
 //  MIDDLEWARE PIPELINE — ORDER MATTERS
 // ═══════════════════════════════════════════════════════════
 app.UseMiddleware<GlobalExceptionMiddleware>(); // 1st — catches everything
+app.UseIpRateLimiting();
 
 if (app.Environment.IsDevelopment())
 {

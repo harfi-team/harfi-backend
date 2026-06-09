@@ -1,6 +1,5 @@
 ﻿using Harfi.DTOs.Chat;
 using Harfi.Models.Constants;
-using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -16,16 +15,13 @@ namespace Harfi.API.Controllers
     {
         private readonly IConversationService _convService;
         private readonly IMessageService _msgService;
-        private readonly IJobRepository _jobRepo;
 
         public ConversationsController(
             IConversationService convService,
-            IMessageService msgService,
-            IJobRepository jobRepo)
+            IMessageService msgService)
         {
             _convService = convService;
             _msgService = msgService;
-            _jobRepo = jobRepo;
         }
 
         // POST /api/conversations
@@ -40,12 +36,19 @@ namespace Harfi.API.Controllers
             if (customerId == dto.CraftsmanId)
                 return BadRequest("لا يمكنك إنشاء محادثة مع نفسك.");
 
-            var job = await _jobRepo.GetByIdAsync(dto.JobId);
-            if (job == null)
-                return NotFound("الوظيفة غير موجودة.");
-
-            if (job.Status == JobStatusConstants.Rejected || job.Status == JobStatusConstants.Cancelled)
-                return BadRequest( $"لا يمكن بدء محادثة على وظيفة {job.Status}.");
+            try
+            {
+                await _convService.ValidateJobForConversationAsync(
+                    dto.JobId, dto.CraftsmanId);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(ex.Message);
+            }
 
             var conversation = await _convService
                 .GetOrCreateAsync(dto.JobId, customerId, dto.CraftsmanId);

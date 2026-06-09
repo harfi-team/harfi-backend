@@ -10,5 +10,6 @@ namespace Harfi.Repositories.Interfaces
         Task<IEnumerable<Conversation>> GetUserConversationsAsync(int userId);
         Task<bool> IsParticipantAsync(int conversationId, int userId);
         IQueryable<Conversation> GetAllConversationsQuery();
+        IQueryable<Conversation> GetAllConversationsQueryIgnoreFilters();
     }
 }

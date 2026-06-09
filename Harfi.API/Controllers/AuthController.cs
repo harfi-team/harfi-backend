@@ -2,6 +2,7 @@ using Harfi.DTOs.Auth;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace Harfi.API.Controllers;
 
@@ -90,6 +91,21 @@ public class AuthController : ControllerBase
     public IActionResult CraftsmanOnly()
         => Ok(new { message = "أهلاً بالحرفي 🔧" });
 
+    // ── GET /api/auth/me ──────────────────────────────────────
+    /// <summary>إرجاع بيانات المستخدم الحالي من الـ JWT</summary>
+    [HttpGet("me")]
+    [Authorize]
+    public IActionResult Me()
+    {
+        return Ok(new
+        {
+            id    = User.FindFirstValue(ClaimTypes.NameIdentifier),
+            name  = User.FindFirstValue(ClaimTypes.Name),
+            email = User.FindFirstValue(ClaimTypes.Email),
+            role  = User.FindFirstValue(ClaimTypes.Role)
+        });
+    }
+
 
     [HttpPost("verify-email")]
     [AllowAnonymous]
@@ -112,7 +128,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> SendPhoneCode([FromBody] SendPhoneVerificationDto dto)
     {
-        var message = await _authService.SendPhoneVerificationCodeAsync(dto);
+        var email = User.FindFirstValue(ClaimTypes.Email)!;
+        var message = await _authService.SendPhoneVerificationCodeAsync(email, dto.PhoneNumber);
         return Ok(new { success = true, message });
     }
 
@@ -121,7 +138,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> VerifyPhone([FromBody] VerifyPhoneDto dto)
     {
-        var message = await _authService.VerifyPhoneAsync(dto);
+        var email = User.FindFirstValue(ClaimTypes.Email)!;
+        var message = await _authService.VerifyPhoneAsync(email, dto.PhoneNumber, dto.Code);
         return Ok(new { success = true, message });
     }
 
@@ -130,7 +148,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> ResendPhoneCode([FromBody] ResendPhoneCodeDto dto)
     {
-        var message = await _authService.ResendPhoneVerificationCodeAsync(dto);
+        var email = User.FindFirstValue(ClaimTypes.Email)!;
+        var message = await _authService.ResendPhoneVerificationCodeAsync(email, dto.PhoneNumber);
         return Ok(new { success = true, message });
     }
 }

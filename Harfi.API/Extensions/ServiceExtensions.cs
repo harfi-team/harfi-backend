@@ -4,6 +4,7 @@ using Harfi.Repositories.Implementations;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
+using AspNetCoreRateLimit;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Razor.TagHelpers;
@@ -46,11 +47,9 @@ public static class ServiceExtensions
         // TODO (Hadeer - Phase 2): add ICraftsmanRepository
         // TODO (Habiba - Phase 3): add IJobRepository
         services.AddScoped<IJobRepository, JobRepository>();
-        services.AddScoped<INotificationRepository, NotificationRepository>();
 
         // TODO (Mazen  - Phase 4): add IReviewRepository
         // ── Repositories ──────────────────────────────────────────────────────
-        // Scoped = one instance per HTTP request
         services.AddScoped<IReviewRepository, ReviewRepository>();
         services.AddScoped<IJobFeedbackRepository, JobFeedbackRepository>();
         // ── Services ──────────────────────────────────────────────────────────
@@ -61,6 +60,7 @@ public static class ServiceExtensions
         services.AddScoped<IConversationRepository, ConversationRepository>();
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
+        services.AddScoped<IUserConnectionRepository, UserConnectionRepository>();
 
         return services;
     }
@@ -100,6 +100,12 @@ public static class ServiceExtensions
         var secretKey = jwtSettings["SecretKey"]
             ?? throw new InvalidOperationException(
                 "JwtSettings:SecretKey is missing from appsettings.json");
+
+        if (secretKey == "SET_VIA_USER_SECRETS" ||
+            System.Text.Encoding.UTF8.GetByteCount(secretKey) < 32)
+            throw new InvalidOperationException(
+                "JwtSettings:SecretKey must be configured via User Secrets " +
+                "and must be at least 32 characters long.");
 
         // ── ASP.NET Core Identity (no cookie auth) ────────────
         services
@@ -220,7 +226,18 @@ public static class ServiceExtensions
                   .AllowCredentials())); // required for SignalR
         services.AddRagHttpClients(config);
 
+        return services;
+    }
 
+    // ── RATE LIMITING ─────────────────────────────────────────
+    public static IServiceCollection AddHarfiRateLimiting(
+        this IServiceCollection services,
+        IConfiguration config)
+    {
+        services.AddMemoryCache();
+        services.Configure<IpRateLimitOptions>(config.GetSection("IpRateLimiting"));
+        services.AddInMemoryRateLimiting();
+        services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
         return services;
     }
 }
