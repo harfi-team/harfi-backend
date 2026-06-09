@@ -9,13 +9,16 @@ namespace Harfi.Services.Implementations
     {
         private readonly IMessageRepository _msgRepo;
         private readonly IConversationRepository _convRepo;
+        private readonly IImageservice _imageService;
 
         public MessageService(
             IMessageRepository msgRepo,
-            IConversationRepository convRepo)
+            IConversationRepository convRepo,
+            IImageservice imageService)
         {
             _msgRepo = msgRepo;
             _convRepo = convRepo;
+            _imageService = imageService;
         }
 
         public async Task<MessageDto> SaveMessageAsync(
@@ -54,8 +57,47 @@ namespace Harfi.Services.Implementations
             return messages.Select(MapToDto);
         }
 
-        public Task MarkConversationAsReadAsync(int conversationId, int userId)
+                public Task MarkConversationAsReadAsync(int conversationId, int userId)
             => _msgRepo.MarkConversationAsReadAsync(conversationId, userId);
+
+        public async Task<bool> DeleteMessageAsync(int conversationId, int messageId, int userId)
+        {
+            var message = await _msgRepo.FirstOrDefaultAsync(m =>
+                m.Id == messageId &&
+                m.ConversationId == conversationId);
+
+            if (message == null) return false;
+            if (message.SenderId != userId) return false;
+
+            _msgRepo.Remove(message);
+            await _msgRepo.SaveChangesAsync();
+
+            DeleteAttachmentIfExists(message);
+            return true;
+        }
+
+        private void DeleteAttachmentIfExists(Message message)
+        {
+            if (string.IsNullOrWhiteSpace(message.Content))
+                return;
+
+            if (!message.Content.StartsWith('/'))
+                return;
+
+            var type = message.MessageType?.Trim().ToLowerInvariant();
+
+            if (type == "image")
+            {
+                _imageService.DeleteImage(message.Content, "chat");
+                return;
+            }
+
+            if (type == "voice")
+            {
+                _imageService.DeleteImage(message.Content, "chat-voices");
+            }
+        }
+
 
         // ── Mapper ────────────────────────────────────────────────
         private static MessageDto MapToDto(Message m) => new()
@@ -68,7 +110,7 @@ namespace Harfi.Services.Implementations
             Content = m.Content,
             MessageType = m.MessageType,
             IsRead = m.IsRead,
-            SentAt = m.SentAt
+            SentAt = DateTime.SpecifyKind(m.SentAt, DateTimeKind.Utc)
         };
     }
 }

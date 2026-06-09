@@ -24,4 +24,9 @@
     <ProjectReference Include="..\Harfi.DTOs\Harfi.DTOs.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="wwwroot\chat-voices\" />
+    <Folder Include="wwwroot\profiles\" />
+  </ItemGroup>
+
 </Project>

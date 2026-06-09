@@ -165,6 +165,11 @@ public class AppDbContext : IdentityUserContext<User, int>
              .HasForeignKey(n => n.RelatedJobId)
              .OnDelete(DeleteBehavior.SetNull);
 
+            e.HasOne(n => n.Conversation)
+             .WithMany()
+             .HasForeignKey(n => n.ConversationId)
+             .OnDelete(DeleteBehavior.SetNull);
+
             e.Property(n => n.IsRead).HasDefaultValue(false);
             e.Property(n => n.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });

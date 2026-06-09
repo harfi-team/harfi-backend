@@ -60,9 +60,11 @@ namespace Harfi.Repositories.Implementations
                 .Include(c => c.Customer)
                 .Include(c => c.Craftsman)
                    .ThenInclude(cr => cr.User)
-                .Include(c => c.Messages)
-            .Where(c => c.CustomerId == userId || c.Craftsman.UserId == userId)
-            .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt)
+                .Include(c => c.Messages
+                    .OrderByDescending(m => m.SentAt)
+                    .Take(1))
+                .Where(c => c.CustomerId == userId || c.Craftsman.UserId == userId)
+                .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt)
                 .ToListAsync();
 
         public async Task<bool> IsParticipantAsync(int conversationId, int userId)
