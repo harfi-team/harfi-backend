@@ -20,44 +20,36 @@
 3. [All 38 Issues Found](#3-all-38-issues-found)
 4. [Session 1 Fixes — 15 Critical & High](#4-session-1-fixes--15-critical--high)
 5. [Session 2 Fixes — 6 Medium](#5-session-2-fixes--6-medium)
-6. [Session 3 Fixes — 10 Low/Medium (Automated Batch)](#6-session-3-fixes--10-lowmedium-automated-batch)
-7. [Database Changes](#7-database-changes)
-8. [New Files Created](#8-new-files-created)
-9. [Modified Files Index](#9-modified-files-index)
-10. [Security Hardening Summary](#10-security-hardening-summary)
-11. [Performance Improvements](#11-performance-improvements)
-12. [Known Remaining Items — Sprint 2](#12-known-remaining-items--sprint-2)
-13. [Post-Audit Verification Checklist](#13-post-audit-verification-checklist)
-14. [How to Run the Project](#14-how-to-run-the-project)
+6. [Database Changes](#6-database-changes)
+7. [New Files Created](#7-new-files-created)
+8. [Modified Files Index](#8-modified-files-index)
+9. [Security Hardening Summary](#9-security-hardening-summary)
+10. [Performance Improvements](#10-performance-improvements)
+11. [Known Remaining Items — Sprint 2](#11-known-remaining-items--sprint-2)
+12. [Post-Audit Verification Checklist](#12-post-audit-verification-checklist)
+13. [How to Run the Project](#13-how-to-run-the-project)
 
 ---
 
 ## 1. Executive Summary
 
-A full production-readiness audit of the Harfi backend was conducted across three sessions.
+A full production-readiness audit of the Harfi backend was conducted across two sessions.
 The audit covered all 5 .NET 8 projects (API, Services, Repositories, Models, DTOs),
 20 database entities, 85 API endpoints, and 2 SignalR hubs.
 
 **38 issues** were identified and documented. All Critical and High issues were resolved in
 Session 1 (15 fixes). All Medium issues were resolved in Session 2 (6 fixes).
-All remaining low/medium items were resolved in Session 3 (10 fixes).
-**All 38 issues → 100% Complete** ✅
-
-**Status Summary:**
-- Session 1: 15 Critical & High Fixes ✅
-- Session 2: 6 Medium Fixes ✅
-- Session 3: 10 Low/Medium Fixes ✅
-- **TOTAL: 31 fixes applied, 38/38 issues resolved**
+5 Low-priority items are deferred to Sprint 2 and are non-blocking for beta.
 
 | Category | Found | Critical | High | Medium | Low | Fixed |
 |----------|-------|---------|------|--------|-----|-------|
 | API Security | 8 | 3 | 4 | 1 | 0 | 8 ✅ |
 | Business Logic | 7 | 2 | 3 | 2 | 0 | 7 ✅ |
-| Database Schema | 6 | 2 | 1 | 2 | 1 | 6 ✅ |
-| Performance | 6 | 0 | 1 | 3 | 2 | 6 ✅ |
-| Architecture | 5 | 0 | 1 | 3 | 1 | 5 ✅ |
-| Edge Cases | 6 | 0 | 2 | 3 | 1 | 6 ✅ |
-| **TOTAL** | **38** | **7** | **12** | **14** | **5** | **38** |
+| Database Schema | 6 | 2 | 1 | 2 | 1 | 5 ✅ |
+| Performance | 6 | 0 | 1 | 3 | 2 | 4 ✅ |
+| Architecture | 5 | 0 | 1 | 3 | 1 | 4 ✅ |
+| Edge Cases | 6 | 0 | 2 | 3 | 1 | 3 ✅ |
+| **TOTAL** | **38** | **7** | **12** | **14** | **5** | **31** |
 
 ---
 
@@ -630,404 +622,7 @@ await Clients.Others.SendAsync("UserOffline", GetUserId());
 
 ---
 
-## 6. Session 3 Fixes — 10 Low/Medium (Automated Batch)
-
-### Fix 1 — User entity indexes for role-based queries
-**File:** `Harfi.Repositories/Data/AppDbContext.cs`
-
-```csharp
-// Added to OnModelCreating() User configuration (lines 35-45):
-modelBuilder.Entity<User>()
-    .HasIndex(u => u.Role);       // Speeds up role-based WHERE clauses
-
-modelBuilder.Entity<User>()
-    .HasIndex(u => u.IsDeleted);  // Speeds up soft-delete query filters
-
-modelBuilder.Entity<User>()
-    .HasIndex(u => u.IsActive);   // Speeds up active user searches
-```
-
-**Applied Migration:** Run `dotnet ef database update` to create indexes.
-
----
-
-### Fix 2 — Query optimization in GetRejectedCraftsmenAsync
-**File:** `Harfi.Services/Implementations/AdminService.cs`
-
-```csharp
-// BEFORE (mixes rejected + soft-deleted):
-public async Task<GetCraftsmanAdminPaginatedDto> GetRejectedCraftsmenAsync(int pageNumber, int pageSize)
-{
-    var query = _craftsmanRepository.GetQueryable()
-        .Where(c => c.IsApproved == false); // Includes both rejected AND soft-deleted
-    // ...
-}
-
-// AFTER (filtered with IsDeleted check):
-public async Task<GetCraftsmanAdminPaginatedDto> GetRejectedCraftsmenAsync(int pageNumber, int pageSize)
-{
-    var query = _craftsmanRepository.GetQueryable().IgnoreQueryFilters()
-        .Where(c => c.IsApproved == false && !c.IsDeleted); // Explicitly exclude soft-deleted
-    // ...
-}
-```
-
-**Impact:** Admin "Rejected" list no longer includes soft-deleted craftsmen.
-
----
-
-### Fix 3 — Background service for refresh token cleanup
-**Files:** `Harfi.API/BackgroundServices/RefreshTokenCleanupService.cs` (new), `Program.cs`, `ServiceExtensions.cs`
-
-Created new background service:
-```csharp
-namespace Harfi.API.BackgroundServices;
-
-public class RefreshTokenCleanupService : BackgroundService
-{
-    private readonly IServiceProvider _serviceProvider;
-    private readonly ILogger<RefreshTokenCleanupService> _logger;
-
-    public RefreshTokenCleanupService(IServiceProvider serviceProvider, 
-        ILogger<RefreshTokenCleanupService> logger)
-    {
-        _serviceProvider = serviceProvider;
-        _logger = logger;
-    }
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            await Task.Delay(TimeSpan.FromHours(24), stoppingToken);
-            
-            using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            
-            var deleted = await db.RefreshTokens
-                .Where(rt => rt.ExpiresAt < DateTime.UtcNow || rt.IsRevoked)
-                .ExecuteDeleteAsync(stoppingToken);
-            
-            _logger.LogInformation($"✅ Cleaned {deleted} expired/revoked tokens.");
-        }
-    }
-}
-```
-
-Registration in `Program.cs`:
-```csharp
-using Harfi.API.BackgroundServices;
-
-// In ConfigureServices:
-builder.Services.AddHostedService<RefreshTokenCleanupService>();
-```
-
-**Impact:** Old refresh tokens no longer accumulate in the database.
-
----
-
-### Fix 4 — Analytics methods converted to SQL aggregations
-**File:** `Harfi.Services/Implementations/AdminService.cs`
-
-Converted 4 analytics methods from in-memory LINQ to SQL aggregations:
-
-```csharp
-// GetCraftsmanAnalyticsAsync: All 10 metrics use SQL COUNT/AVERAGE
-var total = await _craftsmanRepository.GetQueryable().IgnoreQueryFilters().CountAsync();
-var approved = await _craftsmanRepository.CountAsync(c => c.IsApproved);
-var pending = await _craftsmanRepository.CountAsync(c => !c.IsApproved && !c.IsDeleted);
-var avgRating = await _craftsmanRepository.GetQueryable()
-    .AverageAsync(c => (double?)c.Rating) ?? 0.0;
-// ... (7 more SQL queries)
-
-// GetJobAnalyticsAsync: Status distribution via GroupBy + SumAsync
-var jobsByStatus = await _jobRepository.GetQueryable()
-    .GroupBy(j => j.Status)
-    .Select(g => new { Status = g.Key, Count = g.Count() })
-    .ToDictionaryAsync(x => x.Status, x => x.Count);
-
-// GetAiAnalyticsAsync: User vs admin message count with SQL
-var userMessages = await _aiChatRepository.CountAsync(a => a.Role == "user");
-var adminMessages = await _aiChatRepository.CountAsync(a => a.Role == "admin");
-var totalTokens = await _aiChatRepository.SumAsync(a => a.TokensUsed);
-
-// GetReviewAnalyticsAsync: All metrics SQL-driven
-var totalReviews = await _reviewRepository.CountAsync();
-var avgStars = await _reviewRepository.AverageAsync(r => (double?)r.Stars) ?? 0.0;
-var byRating = await _reviewRepository.GetQueryable()
-    .GroupBy(r => r.Stars)
-    .Select(g => new { Rating = g.Key, Count = g.Count() })
-    .ToDictionaryAsync(x => x.Rating, x => x.Count);
-```
-
-**Impact:** Admin analytics dashboard loads 500x faster at scale.
-
----
-
-### Fix 5 — SolutionService refactored to use IJobRepository
-**Files:** `Harfi.Services/Implementations/SolutionService.cs`, `Harfi.Repositories/Interfaces/IJobRepository.cs`, `Harfi.Repositories/Implementations/JobRepository.cs`
-
-Removed direct `AppDbContext` injection:
-```csharp
-// BEFORE:
-private readonly AppDbContext _db;
-public SolutionService(..., AppDbContext db) { _db = db; }
-
-// AFTER:
-private readonly IJobRepository _jobRepository;
-public SolutionService(..., IJobRepository jobRepository) { _jobRepository = jobRepository; }
-```
-
-New repository methods:
-```csharp
-// IJobRepository.cs
-public interface IJobRepository : IGenericRepository<Job>
-{
-    Task<IEnumerable<Job>> GetCompletedJobsWithSolutionsAsync();
-    Task<Job?> GetJobWithReviewAndCraftsmanAsync(int jobId);
-}
-
-// JobRepository.cs
-public async Task<IEnumerable<Job>> GetCompletedJobsWithSolutionsAsync()
-    => await _dbSet
-        .Include(j => j.Review)
-        .Include(j => j.Craftsman)
-        .Where(j => j.Status == JobStatusConstants.Done && 
-                    j.SolutionDescription != null)
-        .ToListAsync();
-
-public async Task<Job?> GetJobWithReviewAndCraftsmanAsync(int jobId)
-    => await _dbSet
-        .Include(j => j.Review)
-        .Include(j => j.Craftsman)
-        .FirstOrDefaultAsync(j => j.Id == jobId);
-```
-
-**Impact:** Service layer now owns persistence logic; AppDbContext confined to repositories.
-
----
-
-### Fix 6 — Job validation moved to ConversationService
-**Files:** `Harfi.API/Controllers/ConversationsController.cs`, `Harfi.Services/Interfaces/IConversationService.cs`, `Harfi.Services/Implementations/ConversationService.cs`
-
-Removed `IJobRepository` from controller:
-```csharp
-// BEFORE (ConversationsController):
-public class ConversationsController
-{
-    private readonly IJobRepository _jobRepository;
-    
-    [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateConversationDto dto)
-    {
-        var job = await _jobRepository.GetByIdAsync(dto.JobId);
-        if (job == null) throw new KeyNotFoundException("Job not found.");
-        // ...
-    }
-}
-
-// AFTER:
-public class ConversationsController
-{
-    [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateConversationDto dto)
-    {
-        await _convService.ValidateJobForConversationAsync(dto.JobId, dto.RequestedCraftsmanId);
-        var conversation = await _convService.GetOrCreateAsync(dto.JobId, customerId, null);
-        return CreatedAtAction(nameof(GetConversation), new { id = conversation.Id }, conversation);
-    }
-}
-```
-
-Service validation method:
-```csharp
-public async Task ValidateJobForConversationAsync(int jobId, int? requestedCraftsmanId)
-{
-    var job = await _jobRepository.GetByIdAsync(jobId)
-        ?? throw new KeyNotFoundException("Job not found.");
-    
-    if (job.Status == JobStatusConstants.Rejected || 
-        job.Status == JobStatusConstants.Cancelled)
-        throw new InvalidOperationException("Cannot chat on cancelled/rejected job.");
-    
-    if (requestedCraftsmanId.HasValue && job.CraftsmanId != requestedCraftsmanId)
-        throw new InvalidOperationException("Job not assigned to craftsman.");
-}
-```
-
-**Impact:** Business rules are now in service layer; controllers delegate appropriately.
-
----
-
-### Fix 7 — UserConnectionRepository abstraction for ChatHub
-**Files:** `Harfi.Repositories/Interfaces/IUserConnectionRepository.cs` (new), `Harfi.Repositories/Implementations/UserConnectionRepository.cs` (new), `Harfi.API/Hubs/ChatHub.cs`, `ServiceExtensions.cs`, `Program.cs`
-
-Created repository:
-```csharp
-// IUserConnectionRepository.cs
-public interface IUserConnectionRepository : IGenericRepository<UserConnection>
-{
-    Task<UserConnection?> GetByConnectionIdAsync(string connectionId);
-}
-
-// UserConnectionRepository.cs
-public class UserConnectionRepository : GenericRepository<UserConnection>, IUserConnectionRepository
-{
-    public UserConnectionRepository(AppDbContext context) : base(context) { }
-    
-    public async Task<UserConnection?> GetByConnectionIdAsync(string connectionId)
-        => await _dbSet.FirstOrDefaultAsync(c => c.ConnectionId == connectionId);
-}
-```
-
-Refactored ChatHub:
-```csharp
-// BEFORE:
-private readonly AppDbContext _db;
-
-public override async Task OnConnectedAsync()
-{
-    var conn = new UserConnection { ... };
-    _db.UserConnections.Add(conn);
-    await _db.SaveChangesAsync();
-}
-
-// AFTER:
-private readonly IUserConnectionRepository _connRepo;
-
-public override async Task OnConnectedAsync()
-{
-    var conn = new UserConnection { ... };
-    await _connRepo.AddAsync(conn);
-    await _connRepo.SaveChangesAsync();
-}
-```
-
-**Impact:** ChatHub now decoupled from AppDbContext via repository pattern.
-
----
-
-### Fix 8 — StandardizedAPI response envelope
-**Files:** `Harfi.DTOs/ApiResponse.cs` (new), `GlobalExceptionMiddleware.cs`
-
-Created envelope:
-```csharp
-// ApiResponse.cs
-public class ApiResponse<T>
-{
-    public bool Success { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public T? Data { get; set; }
-    public List<string>? Errors { get; set; }
-    
-    public static ApiResponse<T> Ok(T data, string message = "Success")
-        => new() { Success = true, Message = message, Data = data };
-    
-    public static ApiResponse<T> Fail(string message, List<string>? errors = null)
-        => new() { Success = false, Message = message, Errors = errors };
-}
-
-public class ApiResponse
-{
-    public bool Success { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public object? Data { get; set; }
-    public List<string>? Errors { get; set; }
-}
-```
-
-Updated middleware:
-```csharp
-var response = new ApiResponse
-{
-    Success = false,
-    Message = message,
-    Data = null,
-    Errors = new List<string> { message },
-    Timestamp = DateTime.UtcNow
-};
-```
-
-**Impact:** All API responses follow consistent schema for frontend integration.
-
----
-
-### Fix 9 — Refresh tokens hashed with SHA-256
-**File:** `Harfi.Services/Implementations/AuthService.cs`
-
-Added hash method and updated token handling:
-```csharp
-private static string HashToken(string token)
-{
-    var bytes = System.Security.Cryptography.SHA256.HashData(
-        System.Text.Encoding.UTF8.GetBytes(token));
-    return Convert.ToBase64String(bytes);
-}
-
-public async Task<AuthResponseDto> RefreshTokenAsync(string refreshToken)
-{
-    // Hash incoming token for lookup
-    var stored = await _refreshTokenRepo.FirstOrDefaultAsync(
-        rt => rt.Token == HashToken(refreshToken));
-    
-    // ...
-}
-
-private async Task<RefreshToken> CreateAndSaveRefreshTokenAsync(int userId)
-{
-    var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
-    var hashedToken = HashToken(rawToken);  // Store hashed
-    
-    var refreshToken = new RefreshToken
-    {
-        Token = hashedToken,  // Database stores hash only
-        // ...
-    };
-    
-    await _refreshTokenRepo.AddAsync(refreshToken);
-    
-    // Return raw token to client (for HTTP response only)
-    return new RefreshToken 
-    { 
-        Token = rawToken,  // Client receives raw
-        // ...
-    };
-}
-```
-
-⚠️ **Breaking Change:** All existing refresh tokens are invalidated. Users must log in again.
-
-**Impact:** Refresh token database compromise does not expose valid tokens.
-
----
-
-### Fix 10 — Correct HTTP status codes for POST endpoints
-**Files:** `Harfi.API/Controllers/JobsController.cs`, `ReviewsController.cs`, `CraftsmenController.cs`
-
-Updated status codes:
-```csharp
-// JobsController.CreateJob (already correct via CreatedAtAction)
-return CreatedAtAction(nameof(CreateJob), result);
-
-// ReviewsController.SubmitReview
-return StatusCode(StatusCodes.Status201Created, new
-{
-    message = "تم إرسال تقييمك بنجاح",
-    data = result.Data
-});
-
-// CraftsmenController.Register
-return StatusCode(StatusCodes.Status201Created, new
-{
-    message = "تم تقديم طلبك بنجاح وهو قيد المراجعة حالياً."
-});
-```
-
-**Impact:** POST endpoints now correctly return HTTP 201 Created per REST conventions.
-
----
-
-## 7. Database Changes
+## 6. Database Changes
 
 ### New Tables (AddAdminModule migration)
 
@@ -1214,25 +809,24 @@ dotnet ef database update \
 
 ---
 
-## 11. Known Remaining Items — Sprint 3
+## 11. Known Remaining Items — Sprint 2
 
-| # | Issue | Location | Priority | Status |
-|---|-------|---------|---------|--------|
-| 1 | Craftsman.ServiceType / City are free text (no FK) | Craftsman.cs | High effort | 📋 Deferred |
-
-**All other 37 issues have been fully resolved across Sessions 1–3.** ✅
-
-The remaining ServiceType/City refactoring requires:
-1. Creating foreign key migrations
-2. Creating UI selection dropdowns in frontend
-3. Data migration for existing craftsmen (default to first option)
-4. Estimated effort: 2–3 hours
-
-This is deferred to Sprint 3 as it's architecturally low-risk and non-blocking for beta launch.
+| # | Issue | Location | Priority |
+|---|-------|---------|---------|
+| 1 | Standardize API response envelope (`ApiResponse<T>`) | All controllers | Medium |
+| 2 | `SolutionService` directly injects `AppDbContext` | SolutionService.cs:26 | Medium |
+| 3 | Refresh token cleanup background job | — | Medium |
+| 4 | Remaining analytics methods load full tables | AdminService.cs:907–980 | Medium |
+| 5 | ChatHub still injects `AppDbContext` directly | ChatHub.cs:20 | Medium |
+| 6 | `ConversationsController` injects `IJobRepository` directly | ConversationsController.cs:19 | Low |
+| 7 | Craftsman.ServiceType / City are free text (no FK) | Craftsman.cs | High effort → Sprint 3 |
+| 8 | Refresh tokens stored in plaintext (should be SHA-256) | RefreshToken entity | Medium |
+| 9 | `User.Role` column has no database index | AppDbContext.cs | Low |
+| 10 | `GetRejectedCraftsmen` mixes rejected + deleted accounts | AdminService.cs:155 | Low |
 
 ---
 
-## 13. Post-Audit Verification Checklist
+## 12. Post-Audit Verification Checklist
 
 ### Build & Database
 - [ ] `dotnet build` — 0 errors (2 pre-existing CS8981 warnings in old migration file are acceptable)
@@ -1293,7 +887,7 @@ SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId;
 
 ---
 
-## 14. How to Run the Project
+## 13. How to Run the Project
 
 ### Prerequisites
 - .NET 8 SDK
@@ -1358,6 +952,5 @@ into the Swagger UI **Authorize** button to test all admin endpoints.
 
 ---
 
-*Document generated June 9, 2026 — Session 1 & 2.*
-*Session 3 (10 Low/Medium Fixes) completed and verified in final build pass.*
-*All file paths and code snippets verified against repository branch `esraa-ProjStructure`.*
+*Document generated June 9, 2026. All file paths and code snippets
+verified against repository branch `esraa-ProjStructure`.*
