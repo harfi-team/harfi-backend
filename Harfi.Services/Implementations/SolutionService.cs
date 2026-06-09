@@ -2,7 +2,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Harfi.Models.Constants;
-using Harfi.Repositories.Interfaces;
+using Harfi.Repositories.Data;
 using Harfi.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -17,14 +17,14 @@ public class SolutionService : ISolutionService
     private readonly ILogger<SolutionService> _logger;
     private readonly EmbeddingService _embedder;
     private readonly VectorDbService _vectorDb;
-    private readonly IJobRepository _jobRepository;
+    private readonly AppDbContext _db;
 
     public SolutionService(
         IConfiguration config,
         ILogger<SolutionService> logger,
         EmbeddingService embedder,
         VectorDbService vectorDb,
-        IJobRepository jobRepository,
+        AppDbContext db,
         GroqRotatingClient groqRotating)
     {
         _groqRotating = groqRotating;
@@ -32,7 +32,7 @@ public class SolutionService : ISolutionService
         _logger = logger;
         _embedder = embedder;
         _vectorDb = vectorDb;
-        _jobRepository = jobRepository;
+        _db = db;
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -65,9 +65,10 @@ public class SolutionService : ISolutionService
             {
                 int jobId = GetInt(hit.payload, "problem_id");
 
-                var job = await _jobRepository.GetJobWithReviewAndCraftsmanAsync(jobId);
-                if (job?.Status != JobStatusConstants.Done) 
-                    continue;
+                var job = await _db.Jobs
+                    .Include(j => j.Review)
+                    .Include(j => j.Craftsman)
+                    .FirstOrDefaultAsync(j => j.Id == jobId && j.Status == JobStatusConstants.Done);
 
                 if (job is null) continue;
 
@@ -286,7 +287,12 @@ public class SolutionService : ISolutionService
     {
         await _vectorDb.EnsureProblemsCollectionAsync();
 
-        var jobs = (await _jobRepository.GetCompletedJobsWithSolutionsAsync()).ToList();
+        var jobs = await _db.Jobs
+            .Include(j => j.Review)
+            .Include(j => j.Craftsman)
+            .Where(j => j.Status == JobStatusConstants.Done && j.SolutionDescription != null)
+            .AsNoTracking()
+            .ToListAsync();
 
         _logger.LogInformation("[Jobs.Ingest] {N} completed jobs to index", jobs.Count);
 

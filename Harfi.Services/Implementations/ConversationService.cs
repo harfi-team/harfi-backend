@@ -1,5 +1,4 @@
 ﻿using Harfi.DTOs.Chat;
-using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
@@ -10,16 +9,13 @@ namespace Harfi.Services.Implementations
     {
         private readonly IConversationRepository _convRepo;
         private readonly IMessageRepository _msgRepo;
-        private readonly IJobRepository _jobRepository;
 
         public ConversationService(
             IConversationRepository convRepo,
-            IMessageRepository msgRepo,
-            IJobRepository jobRepository)
+            IMessageRepository msgRepo)
         {
             _convRepo = convRepo;
             _msgRepo = msgRepo;
-            _jobRepository = jobRepository;
         }
 
 
@@ -87,24 +83,6 @@ namespace Harfi.Services.Implementations
             if (c == null) return null;
             if (c.CustomerId != userId && c.Craftsman?.UserId != userId) return null;
             return await MapToDtoAsync(c, userId);
-        }
-
-        public async Task ValidateJobForConversationAsync(
-            int jobId, int? requestedCraftsmanId)
-        {
-            var job = await _jobRepository.GetByIdAsync(jobId)
-                ?? throw new KeyNotFoundException("الوظيفة غير موجودة.");
-
-            if (job.Status == JobStatusConstants.Rejected ||
-                job.Status == JobStatusConstants.Cancelled)
-                throw new InvalidOperationException(
-                    $"لا يمكن بدء محادثة على وظيفة {job.Status}.");
-
-            if (job.CraftsmanId.HasValue &&
-                requestedCraftsmanId.HasValue &&
-                job.CraftsmanId != requestedCraftsmanId)
-                throw new InvalidOperationException(
-                    "الحرفي المحدد لا ينتمي لهذه الوظيفة.");
         }
 
         // ── Mapper ────────────────────────────────────────────────

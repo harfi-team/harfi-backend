@@ -160,7 +160,7 @@ public class AdminService : IAdminService
     {
         // Admin context: must bypass !c.IsDeleted filter to find rejected (soft-deleted) craftsmen
         var query = _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
-            .Where(c => c.IsDeleted && c.RejectionReason != null && !c.IsApproved);
+            .Where(c => c.IsDeleted);
 
         var total = await query.CountAsync();
         var items = await query
@@ -934,117 +934,75 @@ public class AdminService : IAdminService
     public async Task<CraftsmanAnalyticsDto> GetCraftsmanAnalyticsAsync()
     {
         // Admin context: analytics must count all craftsmen including soft-deleted
-        var queryable = _craftsmanRepo.GetQueryable().IgnoreQueryFilters();
-        
-        var totalCraftsmen = await queryable.CountAsync();
-        var pendingApproval = await queryable.CountAsync(c => !c.IsApproved && !c.IsDeleted);
-        var approved = await queryable.CountAsync(c => c.IsApproved && !c.IsDeleted);
-        var rejected = await queryable.CountAsync(c => c.IsDeleted);
-        var suspended = await queryable.CountAsync(c => !c.IsAvailable && c.IsApproved && !c.IsDeleted);
-        
-        var averageRating = await queryable
-            .Where(c => c.Rating > 0)
-            .AverageAsync(c => (double)c.Rating);
-        
-        var byServiceType = await queryable
-            .Where(c => !c.IsDeleted)
-            .GroupBy(c => c.ServiceType)
-            .Select(g => new { g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Key, x => x.Count);
-        
-        var byCity = await queryable
-            .Where(c => !c.IsDeleted)
-            .GroupBy(c => c.City)
-            .Select(g => new { g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Key, x => x.Count);
+        var all = await _craftsmanRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
 
         return new CraftsmanAnalyticsDto
         {
-            TotalCraftsmen = totalCraftsmen,
-            PendingApproval = pendingApproval,
-            Approved = approved,
-            Rejected = rejected,
-            Suspended = suspended,
-            AverageRating = averageRating,
-            ByServiceType = byServiceType,
-            ByCity = byCity
+            TotalCraftsmen = all.Count,
+            PendingApproval = all.Count(c => !c.IsApproved && !c.IsDeleted),
+            Approved = all.Count(c => c.IsApproved && !c.IsDeleted),
+            Rejected = all.Count(c => c.IsDeleted),
+            Suspended = all.Count(c => !c.IsAvailable && c.IsApproved && !c.IsDeleted),
+            AverageRating = all.Where(c => c.Rating > 0).Select(c => (double)c.Rating).DefaultIfEmpty(0).Average(),
+            ByServiceType = all.Where(c => !c.IsDeleted).GroupBy(c => c.ServiceType)
+                .ToDictionary(g => g.Key, g => g.Count()),
+            ByCity = all.Where(c => !c.IsDeleted).GroupBy(c => c.City)
+                .ToDictionary(g => g.Key, g => g.Count())
         };
     }
 
     public async Task<JobAnalyticsDto> GetJobAnalyticsAsync()
     {
-        var queryable = _jobRepo.GetQueryable();
-        
-        var total = await queryable.CountAsync();
-        var open = await queryable.CountAsync(j => j.Status == JobStatusConstants.Open);
-        var inProgress = await queryable.CountAsync(j => j.Status == JobStatusConstants.InProgress);
-        var completed = await queryable.CountAsync(j => j.Status == JobStatusConstants.Done);
-        var rejected = await queryable.CountAsync(j => j.Status == JobStatusConstants.Rejected);
-        var disputed = await queryable.CountAsync(j => j.IsDisputed);
-        
-        var byType = await queryable
-            .GroupBy(j => j.ServiceType)
-            .Select(g => new { g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Key, x => x.Count);
-        
-        var completionDays = await queryable
+        var jobs = (await _jobRepo.FindAsync(j => true)).ToList();
+
+        var completionDays = jobs
             .Where(j => j.CompletedAt.HasValue && j.CreatedAt != default)
             .Select(j => (j.CompletedAt.GetValueOrDefault() - j.CreatedAt).TotalDays)
-            .ToListAsync();
+            .ToList();
 
         return new JobAnalyticsDto
         {
-            TotalJobs = total,
-            Open = open,
-            InProgress = inProgress,
-            Completed = completed,
-            Rejected = rejected,
-            Disputed = disputed,
-            ByServiceType = byType,
+            TotalJobs = jobs.Count,
+            Open = jobs.Count(j => j.Status == JobStatusConstants.Open),
+            InProgress = jobs.Count(j => j.Status == JobStatusConstants.InProgress),
+            Completed = jobs.Count(j => j.Status == JobStatusConstants.Done),
+            Rejected = jobs.Count(j => j.Status == JobStatusConstants.Rejected),
+            Disputed = jobs.Count(j => j.IsDisputed),
+            ByServiceType = jobs.GroupBy(j => j.ServiceType)
+                .ToDictionary(g => g.Key, g => g.Count()),
             AverageCompletionDays = completionDays.Any() ? completionDays.Average() : 0
         };
     }
 
     public async Task<AiAnalyticsDto> GetAiAnalyticsAsync()
     {
-        var queryable = _aiChatRepo.GetQueryable();
-        
-        var totalChats = await queryable.CountAsync(a => a.Role == "user");
-        var totalTokensUsed = await queryable.SumAsync(c => c.TokensUsed ?? 0);
-        var averageTokens = await queryable
-            .Where(c => c.Role == "user")
-            .AverageAsync(c => (double)(c.TokensUsed ?? 0));
+        var chats = (await _aiChatRepo.FindAsync(a => a.Role == "user")).ToList();
 
         return new AiAnalyticsDto
         {
-            TotalChats = totalChats,
-            TotalTokensUsed = totalTokensUsed,
+            TotalChats = chats.Count,
+            TotalTokensUsed = chats.Sum(c => c.TokensUsed ?? 0),
             TotalCraftsmenIngested = 0,
             TotalSolutionsIngested = 0,
-            AverageTokensPerChat = averageTokens
+            AverageTokensPerChat = chats.Any() ? chats.Average(c => c.TokensUsed ?? 0) : 0
         };
     }
 
     public async Task<ReviewAnalyticsDto> GetReviewAnalyticsAsync()
     {
         // Admin context: analytics must count all reviews including soft-deleted
-        var queryable = _reviewRepo.GetQueryable().IgnoreQueryFilters();
-        
-        var total = await queryable.CountAsync();
-        var deleted = await queryable.CountAsync(r => r.IsDeleted);
-        var averageStars = await queryable.AverageAsync(r => (double)r.Stars);
-        
-        var dist = await queryable
-            .GroupBy(r => r.Stars)
-            .Select(g => new { Stars = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Stars, x => x.Count);
+        var reviews = await _reviewRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
+
+        var dist = new Dictionary<int, int>();
+        for (int i = 1; i <= 5; i++)
+            dist[i] = reviews.Count(r => r.Stars == i);
 
         return new ReviewAnalyticsDto
         {
-            TotalReviews = total,
-            AverageStars = averageStars,
+            TotalReviews = reviews.Count,
+            AverageStars = reviews.Any() ? reviews.Average(r => r.Stars) : 0,
             StarDistribution = dist,
-            DeletedReviews = deleted
+            DeletedReviews = reviews.Count(r => r.IsDeleted)
         };
     }
 

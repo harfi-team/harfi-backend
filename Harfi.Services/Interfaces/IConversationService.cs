@@ -8,6 +8,5 @@ namespace Harfi.Services.Interfaces
         Task<bool> IsParticipantAsync(int conversationId, int userId);
         Task<IEnumerable<ConversationDto>> GetUserConversationsAsync(int userId);
         Task<ConversationDto?> GetByIdAsync(int conversationId, int userId);
-        Task ValidateJobForConversationAsync(int jobId, int? requestedCraftsmanId);
     }
 }
