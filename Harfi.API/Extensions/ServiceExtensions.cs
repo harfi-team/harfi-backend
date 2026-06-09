@@ -67,10 +67,16 @@ public static class ServiceExtensions
 
     // ── SERVICES ──────────────────────────────────────────────
     public static IServiceCollection AddApplicationServices(
-        this IServiceCollection services)
+        this IServiceCollection services, IWebHostEnvironment env)
     {
         // Phase 1 — Auth (Esraa)
         services.AddScoped<IAuthService, AuthService>();
+
+        // SMS — Console in dev, Twilio in production
+        if (env.IsDevelopment())
+            services.AddScoped<ISmsService, ConsoleSmsService>();
+        else
+            services.AddScoped<ISmsService, TwilioSmsService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IAdminService, AdminService>();
 
