@@ -22,20 +22,40 @@ namespace Harfi.Services.Implementations
             _webHostEnvironment = webHostEnvironment;
         }
 
-        public async Task<string> SaveImageAsync(IFormFile image, string folder)
+                public Task<string> SaveImageAsync(IFormFile image, string folder)
         {
-            if (image == null || image.Length == 0)
+            return SaveFileAsync(
+                image,
+                folder,
+                AllowedExtensions,
+                5 * 1024 * 1024,
+                "تنسيق الصورة غير مدعوم.",
+                "حجم الصورة لا يمكن أن يتجاوز 5 ميغابايت.");
+        }
+
+        public async Task<string> SaveFileAsync(
+            IFormFile file,
+            string folder,
+            string[] allowedExtensions,
+            long maxSizeBytes,
+            string invalidTypeMessage,
+            string invalidSizeMessage)
+        {
+            if (file == null || file.Length == 0)
                 throw new ArgumentException("لا يوجد ملف مرفوع.");
 
-            var extension = Path.GetExtension(image.FileName).ToLowerInvariant();
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+            var normalizedExtensions = allowedExtensions
+                .Select(e => e.ToLowerInvariant())
+                .ToArray();
 
-            if (!AllowedExtensions.Contains(extension))
-                throw new ArgumentException("تنسيق الصورة غير مدعوم.");
+            if (!normalizedExtensions.Contains(extension))
+                throw new ArgumentException(invalidTypeMessage);
 
-            if (image.Length > 5 * 1024 * 1024)
-                throw new ArgumentException("حجم الصورة لا يمكن أن يتجاوز 5 ميغابايت.");
+            if (file.Length > maxSizeBytes)
+                throw new ArgumentException(invalidSizeMessage);
 
-            var imageName = $"{Guid.NewGuid()}{extension}";
+            var fileName = $"{Guid.NewGuid()}{extension}";
 
             var webRootPath =
                 _webHostEnvironment.WebRootPath ??
@@ -45,14 +65,14 @@ namespace Harfi.Services.Implementations
 
             Directory.CreateDirectory(folderPath);
 
-            var fullPath = Path.Combine(folderPath, imageName);
+            var fullPath = Path.Combine(folderPath, fileName);
 
             await using (var stream = new FileStream(fullPath, FileMode.Create))
             {
-                await image.CopyToAsync(stream);
+                await file.CopyToAsync(stream);
             }
 
-            return $"/{folder}/{imageName}";
+            return $"/{folder}/{fileName}";
         }
 
         public void DeleteImage(string imagePath, string folder)
