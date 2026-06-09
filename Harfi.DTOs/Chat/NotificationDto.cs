@@ -13,6 +13,7 @@ namespace Harfi.DTOs.Chat
         public string Body { get; set; } = string.Empty;
         public string? Type { get; set; }
         public int? RelatedJobId { get; set; }
+        public int? ConversationId { get; set; }
         public bool IsRead { get; set; }
         public DateTime CreatedAt { get; set; }
     }

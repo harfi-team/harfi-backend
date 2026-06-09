@@ -50,7 +50,7 @@ namespace Harfi.API.Controllers
             return Ok(new { message = "تم تحديث الإشعار بنجاح" });
         }
 
-        // PUT /api/notifications/read-all
+                // PUT /api/notifications/read-all
         [HttpPut("read-all")]
         public async Task<IActionResult> MarkAllAsRead()
         {
@@ -58,7 +58,30 @@ namespace Harfi.API.Controllers
             return NoContent();
         }
 
+        // DELETE /api/notifications/{id}
+                [HttpDelete("{id:int}")]
+
+        public async Task<IActionResult> Delete(int id)
+        {
+            if (id <= 0) return BadRequest("معرف الإشعار غير صالح.");
+
+            var deleted = await _notifService.DeleteAsync(id, GetUserId());
+            if (!deleted)
+                return NotFound("الإشعار غير موجود أو لا ينتمي إليك.");
+
+            return NoContent();
+        }
+
+        // DELETE /api/notifications/clear
+        [HttpDelete("clear")]
+        public async Task<IActionResult> DeleteAll()
+        {
+            await _notifService.DeleteAllAsync(GetUserId());
+            return NoContent();
+        }
+
         private int GetUserId() =>
             int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+
     }
 }
