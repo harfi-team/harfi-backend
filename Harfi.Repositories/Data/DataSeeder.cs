@@ -36,7 +36,20 @@ public class DataSeeder
     // ═══════════════════════════════════════════════════════════
     public async Task SeedAsync()
     {
-        if (await _context.Users.IgnoreQueryFilters().AnyAsync())
+        bool hasUsers = await _context.Users.IgnoreQueryFilters().AnyAsync();
+
+        // Config tables — always seed independently, never skip
+        if (!await _context.ServiceTypes.AnyAsync())
+            await SeedServiceTypesAsync();
+
+        if (!await _context.Cities.AnyAsync())
+            await SeedCitiesAsync();
+
+        if (!await _context.FeatureFlags.AnyAsync())
+            await SeedFeatureFlagsAsync();
+
+        // Main data — skip if users already exist
+        if (hasUsers)
         {
             _logger.LogInformation("Seed skipped — data already exists.");
             return;
@@ -44,24 +57,12 @@ public class DataSeeder
 
         _logger.LogInformation("Starting full data seed...");
 
-        // 1. Reference data (no FK dependencies)
         await SeedRolesAsync();
-        await SeedServiceTypesAsync();
-        await SeedCitiesAsync();
-        await SeedFeatureFlagsAsync();
-
-        // 2. Users
         await SeedAdminAsync();
         await SeedCustomerUsersAsync();
         await SeedCraftsmanUsersAsync();
-
-        // 3. Craftsman profiles (depends on Users)
         await SeedCraftsmanProfilesAsync();
-
-        // 4. Jobs (depends on Users + Craftsmen)
         await SeedJobsAsync();
-
-        // 5. Content (depends on Jobs + Users + Craftsmen)
         await SeedReviewsAsync();
         await RecalculateRatingsAsync();
         await SeedConversationsAsync();
@@ -151,12 +152,12 @@ public class DataSeeder
     {
         var admin = new User
         {
-            UserName  = "admin@harfi.com",
-            Email     = "admin@harfi.com",
-            Name      = "مدير النظام",
-            Role      = "admin",
-            Phone     = "01000000000",
-            IsActive  = true,
+            UserName = "admin@harfi.com",
+            Email = "admin@harfi.com",
+            Name = "مدير النظام",
+            Role = "admin",
+            Phone = "01000000000",
+            IsActive = true,
             IsVerified = true,
             EmailConfirmed = true,
             CreatedAt = BaseDate
@@ -219,23 +220,23 @@ public class DataSeeder
         {
             var user = new User
             {
-                UserName       = d.Email,
-                Email          = d.Email,
-                Name           = d.Name,
-                Role           = "customer",
-                Phone          = d.Phone,
-                IsActive       = d.IsActive,
-                IsVerified     = d.IsVerified,
-                IsDeleted      = d.IsDeleted,
+                UserName = d.Email,
+                Email = d.Email,
+                Name = d.Name,
+                Role = "customer",
+                Phone = d.Phone,
+                IsActive = d.IsActive,
+                IsVerified = d.IsVerified,
+                IsDeleted = d.IsDeleted,
                 EmailConfirmed = d.EmailConfirmed,
-                CreatedAt      = d.CreatedAt
+                CreatedAt = d.CreatedAt
             };
 
             if (d.IsDeleted)
             {
-                user.DeletedAt         = d.CreatedAt.AddMonths(2);
-                user.DeletionReason    = "انتهاك شروط الاستخدام - تقارير متعددة من حرفيين";
-                user.DeletedByAdminId  = 1;
+                user.DeletedAt = d.CreatedAt.AddMonths(2);
+                user.DeletionReason = "انتهاك شروط الاستخدام - تقارير متعددة من حرفيين";
+                user.DeletedByAdminId = 1;
             }
 
             var result = await _userManager.CreateAsync(user, "Customer@2024");
@@ -276,15 +277,15 @@ public class DataSeeder
         {
             var user = new User
             {
-                UserName       = d.Email,
-                Email          = d.Email,
-                Name           = d.Name,
-                Role           = "craftsman",
-                Phone          = d.Phone,
-                IsActive       = true,
-                IsVerified     = true,
+                UserName = d.Email,
+                Email = d.Email,
+                Name = d.Name,
+                Role = "craftsman",
+                Phone = d.Phone,
+                IsActive = true,
+                IsVerified = true,
                 EmailConfirmed = true,
-                CreatedAt      = d.CreatedAt
+                CreatedAt = d.CreatedAt
             };
 
             var result = await _userManager.CreateAsync(user, "Craftsman@2024");
@@ -501,7 +502,7 @@ public class DataSeeder
             .ToListAsync();
 
         Craftsman CM(string email) => craftsmen.First(c => c.User.Email == email);
-        User CU(string email)      => customers.First(u => u.Email == email);
+        User CU(string email) => customers.First(u => u.Email == email);
 
         var approvedCM2 = CM("mohamed.hassan@gmail.com");  // كهربائي — high rating
         var approvedCM3 = CM("abdallah.khaled@gmail.com");  // دهانات — low rating
@@ -852,12 +853,12 @@ public class DataSeeder
         {
             _context.Conversations.Add(new Conversation
             {
-                JobId        = job.Id,
-                CustomerId   = job.CustomerId,
-                CraftsmanId  = job.CraftsmanId!.Value,
-                CreatedAt    = job.CreatedAt.AddMinutes(5),
+                JobId = job.Id,
+                CustomerId = job.CustomerId,
+                CraftsmanId = job.CraftsmanId!.Value,
+                CreatedAt = job.CreatedAt.AddMinutes(5),
                 LastMessageAt = job.CreatedAt.AddMinutes(60),
-                UpdatedAt    = job.CreatedAt.AddMinutes(60)
+                UpdatedAt = job.CreatedAt.AddMinutes(60)
             });
         }
 
@@ -964,8 +965,8 @@ public class DataSeeder
             foreach (var (content, fromCustomer, minutesOffset) in script)
             {
                 var senderId = fromCustomer ? conv.CustomerId : craftUserId;
-                var sentAt   = conv.CreatedAt.AddMinutes(minutesOffset);
-                lastMsgTime  = sentAt;
+                var sentAt = conv.CreatedAt.AddMinutes(minutesOffset);
+                lastMsgTime = sentAt;
 
                 // For conversation 6 (unread messages): craftsman messages are unread
                 bool isRead = (i == 6 && !fromCustomer) ? false : true;
@@ -973,18 +974,18 @@ public class DataSeeder
                 allMessages.Add(new Message
                 {
                     ConversationId = conv.Id,
-                    SenderId       = senderId,
-                    Content        = content,
-                    MessageType    = "text",
-                    IsRead         = isRead,
-                    SentAt         = sentAt
+                    SenderId = senderId,
+                    Content = content,
+                    MessageType = "text",
+                    IsRead = isRead,
+                    SentAt = sentAt
                 });
             }
 
             if (lastMsgTime.HasValue)
             {
                 conv.LastMessageAt = lastMsgTime;
-                conv.UpdatedAt     = lastMsgTime.Value;
+                conv.UpdatedAt = lastMsgTime.Value;
             }
         }
 
@@ -1010,9 +1011,9 @@ public class DataSeeder
 
         var jobs = await _context.Jobs.IgnoreQueryFilters().ToListAsync();
 
-        User CU(string email)    => customers.First(u => u.Email == email);
+        User CU(string email) => customers.First(u => u.Email == email);
         Craftsman CM(string email) => craftsmen.First(c => c.User.Email == email);
-        Job J(string fragment)   => jobs.First(j => j.Description.Contains(fragment));
+        Job J(string fragment) => jobs.First(j => j.Description.Contains(fragment));
 
         var notifications = new List<Notification>
         {
@@ -1135,12 +1136,12 @@ public class DataSeeder
 
         var craftsmen = await _context.Craftsmen.IgnoreQueryFilters()
             .Include(c => c.User).ToListAsync();
-        var users     = await _context.Users.IgnoreQueryFilters().ToListAsync();
-        var reviews   = await _context.Reviews.IgnoreQueryFilters().ToListAsync();
-        var jobs      = await _context.Jobs.IgnoreQueryFilters().ToListAsync();
+        var users = await _context.Users.IgnoreQueryFilters().ToListAsync();
+        var reviews = await _context.Reviews.IgnoreQueryFilters().ToListAsync();
+        var jobs = await _context.Jobs.IgnoreQueryFilters().ToListAsync();
 
         Craftsman CM(string email) => craftsmen.First(c => c.User.Email == email);
-        User CU(string email)      => users.First(u => u.Email == email);
+        User CU(string email) => users.First(u => u.Email == email);
 
         var logs = new List<AdminAuditLog>
         {
@@ -1257,7 +1258,7 @@ public class DataSeeder
         var adminUser = await _context.Users.IgnoreQueryFilters()
             .FirstAsync(u => u.Role == "admin");
 
-        User CU(string email)    => customers.First(u => u.Email == email);
+        User CU(string email) => customers.First(u => u.Email == email);
         Craftsman CM(string email) => craftsmen.First(c => c.User.Email == email);
 
         var reports = new List<Report>

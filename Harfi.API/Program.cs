@@ -1,4 +1,3 @@
-using Harfi.API.BackgroundServices;
 using Harfi.API.Extensions;
 using Harfi.API.Hubs;
 using Harfi.API.Middleware;
@@ -26,9 +25,6 @@ builder.Services
     .AddHarfiCors(builder.Configuration)
     .AddHarfiRateLimiting(builder.Configuration)
     .AddControllers();
-
-// Background services
-builder.Services.AddHostedService<RefreshTokenCleanupService>();
 
 // Seeder
 builder.Services.AddScoped<DataSeeder>();
