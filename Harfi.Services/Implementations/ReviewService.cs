@@ -93,6 +93,8 @@ namespace Harfi.Services.Implementations
 
             var savedReview = await _reviewRepository.CreateReviewAsync(review);
 
+            await _reviewRepository.UpdateCraftsmanRatingAsync(review.CraftsmanId);
+
             var response = new ReviewResponseDto
             {
                 Id = savedReview.Id,

@@ -1,12 +1,29 @@
-﻿namespace Harfi.DTOs.Job;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Harfi.DTOs.Job;
 
 public class CreateJobDto
 {
-    public int CraftsmanId { get; set; }          // which craftsman they want
-    public string ServiceType { get; set; } = string.Empty;   // e.g. "plumber", "electrician"
-    public string Description { get; set; } = string.Empty;   // what they need done
-    public string Address { get; set; } = string.Empty;        // where the job is
-    public DateTime? PreferredDate { get; set; }               // when they want it
-    public string? ProblemImageUrl { get; set; }               // optional photo
-    public string? ProblemDescription { get; set; }            // optional extra details
+    public int? CraftsmanId { get; set; }
+
+    [Required(ErrorMessage = "نوع الخدمة مطلوب")]
+    [MaxLength(50)]
+    public string ServiceType { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "وصف المشكلة مطلوب")]
+    [MinLength(10, ErrorMessage = "يجب أن يكون الوصف 10 أحرف على الأقل")]
+    [MaxLength(2000)]
+    public string Description { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "العنوان مطلوب")]
+    [MaxLength(500)]
+    public string Address { get; set; } = string.Empty;
+
+    public DateTime? PreferredDate { get; set; }
+
+    [MaxLength(500)]
+    public string? ProblemImageUrl { get; set; }
+
+    [MaxLength(2000)]
+    public string? ProblemDescription { get; set; }
 }

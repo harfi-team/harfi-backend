@@ -2,6 +2,7 @@ using Harfi.DTOs.User;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace Harfi.API.Controllers
@@ -22,6 +23,11 @@ namespace Harfi.API.Controllers
         [HttpGet("profile/{id}")]
         public async Task<IActionResult> GetProfile(int id)
         {
+            var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+            if (requestingUserId != id && requestingRole != "admin")
+                return Forbid();
+
             var profile = await _userService.GetUserProfileAsync(id);
 
             if (profile == null)
@@ -34,6 +40,11 @@ namespace Harfi.API.Controllers
         [HttpPut("profile/{id}")]
         public async Task<IActionResult> UpdateProfile(int id, [FromBody] UpdateUserDto dto)
         {
+            var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+            if (requestingUserId != id && requestingRole != "admin")
+                return Forbid();
+
             // أضفنا فحص الـ ModelState هنا للتأكد من سلامة المدخلات
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
@@ -50,6 +61,11 @@ namespace Harfi.API.Controllers
         [HttpPost("profile/{id}/upload-image")]
         public async Task<IActionResult> UploadProfileImage(int id, [FromForm] IFormFile file)
         {
+            var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+            if (requestingUserId != id && requestingRole != "admin")
+                return Forbid();
+
             if (file == null || file.Length == 0)
                 return BadRequest(new { message = "الرجاء اختيار صورة للرفع." });
 

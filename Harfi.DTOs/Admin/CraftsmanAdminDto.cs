@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Harfi.DTOs.Admin;
 
 public class PendingCraftsmanDto
@@ -77,16 +79,25 @@ public class CraftsmanDetailDto
 
 public class RejectCraftsmanRequest
 {
+    [Required(ErrorMessage = "سبب الرفض مطلوب")]
+    [MinLength(10, ErrorMessage = "يجب أن يكون سبب الرفض 10 أحرف على الأقل")]
+    [MaxLength(500)]
     public string Reason { get; set; } = string.Empty;
 }
 
 public class SuspendCraftsmanRequest
 {
+    [Required(ErrorMessage = "سبب التعليق مطلوب")]
+    [MinLength(10, ErrorMessage = "يجب أن يكون سبب التعليق 10 أحرف على الأقل")]
+    [MaxLength(500)]
     public string Reason { get; set; } = string.Empty;
 }
 
 public class DeleteCraftsmanRequest
 {
+    [Required(ErrorMessage = "سبب الحذف مطلوب")]
+    [MinLength(10, ErrorMessage = "يجب أن يكون سبب الحذف 10 أحرف على الأقل")]
+    [MaxLength(500)]
     public string Reason { get; set; } = string.Empty;
 }
 

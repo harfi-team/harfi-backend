@@ -103,6 +103,9 @@ public class JobService : IJobService
         return jobs.Select(MapToDto);
     }
 
+    public async Task<bool> CraftsmanBelongsToUserAsync(int craftsmanId, int userId)
+        => await _jobRepository.CraftsmanBelongsToUserAsync(craftsmanId, userId);
+
     // ─── Private Helpers ────────────────────────────────────────────────────
 
     private async Task<Job> GetAndValidateJob(int jobId, int craftsmanUserId, string requiredStatus)

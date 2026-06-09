@@ -21,5 +21,7 @@ namespace Harfi.Repositories.Interfaces
 
   
         Task<List<ReviewResponseDto>> GetReviewsByCraftsmanIdAsync(int craftsmanId);
+
+        Task UpdateCraftsmanRatingAsync(int craftsmanId);
     }
 }

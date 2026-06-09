@@ -18,7 +18,7 @@ public class AdminConversationService : IAdminConversationService
     public async Task<IEnumerable<AdminConversationDto>> GetAllConversationsAsync(
         ConversationFilterDto filter)
     {
-        var query = _convRepo.GetAllConversationsQuery();
+        var query = _convRepo.GetAllConversationsQueryIgnoreFilters();
 
         if (!string.IsNullOrEmpty(filter.CustomerName))
             query = query.Where(c =>

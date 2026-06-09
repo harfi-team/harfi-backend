@@ -77,7 +77,7 @@ public class AuthService : IAuthService
 
         // 4. Generate Identity email confirmation token + custom 6-digit code
         var identityToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-        var code = new Random().Next(100000, 999999).ToString();
+        var code = GenerateSecureOtp();
         await _verificationRepo.AddAsync(new EmailVerification
         {
             UserId = user.Id,
@@ -132,9 +132,9 @@ public class AuthService : IAuthService
     // ── REFRESH TOKEN ─────────────────────────────────────────
     public async Task<AuthResponseDto> RefreshTokenAsync(string refreshToken)
     {
-        // 1. Find token
+        // 1. Find token (hash incoming token for comparison)
         var stored = await _refreshTokenRepo.FirstOrDefaultAsync(
-            rt => rt.Token == refreshToken);
+            rt => rt.Token == HashToken(refreshToken));
 
         // 2. Validate
         if (stored is null || !stored.IsActive)
@@ -161,7 +161,7 @@ public class AuthService : IAuthService
     public async Task LogoutAsync(string refreshToken)
     {
         var stored = await _refreshTokenRepo.FirstOrDefaultAsync(
-            rt => rt.Token == refreshToken);
+            rt => rt.Token == HashToken(refreshToken));
 
         if (stored is not null && !stored.IsRevoked)
         {
@@ -236,7 +236,7 @@ public class AuthService : IAuthService
 
         // Generate new Identity token + custom code
         var identityToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-        var code = new Random().Next(100000, 999999).ToString();
+        var code = GenerateSecureOtp();
         await _verificationRepo.AddAsync(new EmailVerification
         {
             UserId = user.Id,
@@ -253,23 +253,22 @@ public class AuthService : IAuthService
     }
 
     // ── SEND PHONE VERIFICATION CODE ─────────────────────────
-    public async Task<string> SendPhoneVerificationCodeAsync(SendPhoneVerificationDto dto)
+    public async Task<string> SendPhoneVerificationCodeAsync(string email, string phoneNumber)
     {
-        var user = await _userManager.FindByEmailAsync(dto.Email.ToLower().Trim())
+        var user = await _userManager.FindByEmailAsync(email.ToLower().Trim())
             ?? throw new KeyNotFoundException("المستخدم غير موجود.");
 
         if (user.PhoneNumberConfirmed)
             throw new InvalidOperationException("رقم الهاتف مفعّل مسبقاً.");
 
-        // Generate Identity phone change token + custom 6-digit code
         var identityToken = await _userManager.GenerateChangePhoneNumberTokenAsync(
-            user, dto.PhoneNumber);
-        var code = new Random().Next(100000, 999999).ToString();
+            user, phoneNumber);
+        var code = GenerateSecureOtp();
 
         await _phoneVerificationRepo.AddAsync(new PhoneVerification
         {
             UserId = user.Id,
-            PhoneNumber = dto.PhoneNumber,
+            PhoneNumber = phoneNumber,
             Code = code,
             IdentityToken = identityToken,
             ExpiresAt = DateTime.UtcNow.AddMinutes(10),
@@ -285,9 +284,9 @@ public class AuthService : IAuthService
     }
 
     // ── VERIFY PHONE ──────────────────────────────────────────
-    public async Task<string> VerifyPhoneAsync(VerifyPhoneDto dto)
+    public async Task<string> VerifyPhoneAsync(string email, string phoneNumber, string code)
     {
-        var user = await _userManager.FindByEmailAsync(dto.Email.ToLower().Trim())
+        var user = await _userManager.FindByEmailAsync(email.ToLower().Trim())
             ?? throw new KeyNotFoundException("المستخدم غير موجود.");
 
         if (user.PhoneNumberConfirmed)
@@ -295,20 +294,17 @@ public class AuthService : IAuthService
 
         var verification = await _phoneVerificationRepo.FirstOrDefaultAsync(
             v => v.UserId == user.Id &&
-                 v.PhoneNumber == dto.PhoneNumber &&
-                 v.Code == dto.Code &&
+                 v.PhoneNumber == phoneNumber &&
+                 v.Code == code &&
                  !v.IsUsed &&
                  v.ExpiresAt > DateTime.UtcNow);
 
         if (verification is null)
             throw new InvalidOperationException("الكود غير صحيح أو منتهي الصلاحية.");
 
-        // Mark code as used
         verification.IsUsed = true;
         _phoneVerificationRepo.Update(verification);
 
-        // Use Identity's ChangePhoneNumberAsync — this validates the token
-        // and automatically flips the PhoneNumberConfirmed column to true.
         var confirmResult = await _userManager.ChangePhoneNumberAsync(
             user, verification.PhoneNumber, verification.IdentityToken!);
 
@@ -318,7 +314,6 @@ public class AuthService : IAuthService
             throw new InvalidOperationException($"فشل تأكيد رقم الهاتف: {errors}");
         }
 
-        // Sync custom Phone field with the verified number
         user.Phone = verification.PhoneNumber;
         await _userManager.UpdateAsync(user);
 
@@ -326,17 +321,16 @@ public class AuthService : IAuthService
     }
 
     // ── RESEND PHONE CODE ─────────────────────────────────────
-    public async Task<string> ResendPhoneVerificationCodeAsync(ResendPhoneCodeDto dto)
+    public async Task<string> ResendPhoneVerificationCodeAsync(string email, string phoneNumber)
     {
-        var user = await _userManager.FindByEmailAsync(dto.Email.ToLower().Trim())
+        var user = await _userManager.FindByEmailAsync(email.ToLower().Trim())
             ?? throw new KeyNotFoundException("المستخدم غير موجود.");
 
         if (user.PhoneNumberConfirmed)
             throw new InvalidOperationException("رقم الهاتف مفعّل مسبقاً.");
 
-        // Invalidate all old unused codes for this user + phone
         var oldCodes = await _phoneVerificationRepo.FindAsync(
-            v => v.UserId == user.Id && v.PhoneNumber == dto.PhoneNumber && !v.IsUsed);
+            v => v.UserId == user.Id && v.PhoneNumber == phoneNumber && !v.IsUsed);
 
         foreach (var old in oldCodes)
         {
@@ -344,15 +338,14 @@ public class AuthService : IAuthService
             _phoneVerificationRepo.Update(old);
         }
 
-        // Generate new Identity token + custom code
         var identityToken = await _userManager.GenerateChangePhoneNumberTokenAsync(
-            user, dto.PhoneNumber);
-        var code = new Random().Next(100000, 999999).ToString();
+            user, phoneNumber);
+        var code = GenerateSecureOtp();
 
         await _phoneVerificationRepo.AddAsync(new PhoneVerification
         {
             UserId = user.Id,
-            PhoneNumber = dto.PhoneNumber,
+            PhoneNumber = phoneNumber,
             Code = code,
             IdentityToken = identityToken,
             ExpiresAt = DateTime.UtcNow.AddMinutes(10),
@@ -435,10 +428,13 @@ public class AuthService : IAuthService
     {
         var expiryDays = GetJwtSetting<int>("RefreshTokenExpiryDays", 30);
 
+        var rawToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        var hashedToken = HashToken(rawToken);
+
         var refreshToken = new RefreshToken
         {
             UserId = userId,
-            Token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64)),
+            Token = hashedToken,
             ExpiresAt = DateTime.UtcNow.AddDays(expiryDays),
             IsRevoked = false,
             CreatedAt = DateTime.UtcNow
@@ -447,7 +443,16 @@ public class AuthService : IAuthService
         await _refreshTokenRepo.AddAsync(refreshToken);
         await _refreshTokenRepo.SaveChangesAsync();
 
-        return refreshToken;
+        // Return object with raw token for HTTP response (client receives raw token)
+        return new RefreshToken 
+        { 
+            Id = refreshToken.Id,
+            UserId = userId,
+            Token = rawToken,  // Return raw token to client
+            ExpiresAt = refreshToken.ExpiresAt,
+            IsRevoked = false,
+            CreatedAt = DateTime.UtcNow
+        };
     }
 
     private T GetJwtSetting<T>(string key, T defaultValue)
@@ -456,5 +461,20 @@ public class AuthService : IAuthService
         if (raw is null) return defaultValue;
         try { return (T)Convert.ChangeType(raw, typeof(T)); }
         catch { return defaultValue; }
+    }
+
+    private static string GenerateSecureOtp()
+    {
+        byte[] data = new byte[4];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(data);
+        uint value = BitConverter.ToUInt32(data, 0) % 900000;
+        return (100000 + value).ToString();
+    }
+
+    private static string HashToken(string token)
+    {
+        var bytes = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(token));
+        return Convert.ToBase64String(bytes);
     }
 }

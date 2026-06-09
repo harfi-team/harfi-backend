@@ -57,6 +57,11 @@ public class JobsController : ControllerBase
     [HttpGet("customer/{id}")]
     public async Task<IActionResult> GetCustomerJobs(int id)
     {
+        var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+        if (requestingRole != "admin" && requestingUserId != id)
+            return Forbid();
+
         var result = await _jobService.GetCustomerJobsAsync(id);
         return Ok(result);
     }
@@ -64,6 +69,22 @@ public class JobsController : ControllerBase
     [HttpGet("craftsman/{id}")]
     public async Task<IActionResult> GetCraftsmanJobs(int id)
     {
+        var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+
+        if (requestingRole == "admin")
+            return Ok(await _jobService.GetCraftsmanJobsAsync(id));
+
+        if (requestingRole == "craftsman")
+        {
+            var owns = await _jobService.CraftsmanBelongsToUserAsync(id, requestingUserId);
+            if (!owns) return Forbid();
+        }
+        else
+        {
+            return Forbid();
+        }
+
         var result = await _jobService.GetCraftsmanJobsAsync(id);
         return Ok(result);
     }

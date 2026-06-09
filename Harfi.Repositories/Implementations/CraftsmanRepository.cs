@@ -50,7 +50,7 @@ namespace Harfi.Repositories.Implementations
 
             var query = _context.Craftsmen
                                 .Include(c => c.User)
-                                .Where(c => c.IsApproved)
+                                .Where(c => c.IsApproved && c.IsAvailable)
                                 .AsQueryable();
 
             // 2. الفلترة بنوع الخدمة (تعديل الـ == إلى .Contains لدعم البحث العربي الجزئي)
