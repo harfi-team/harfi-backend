@@ -71,6 +71,8 @@ public static class ServiceExtensions
     {
         // Phase 1 — Auth (Esraa)
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<IAdminService, AdminService>();
 
         // TODO (Hadeer - Phase 2): services.AddScoped<ICraftsmanService, CraftsmanService>();
         // TODO (Habiba - Phase 3): services.AddScoped<IJobService, JobService>();
