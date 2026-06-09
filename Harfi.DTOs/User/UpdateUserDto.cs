@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace Harfi.DTOs.User
 {
@@ -17,9 +12,6 @@ namespace Harfi.DTOs.User
         [StringLength(20)]
         [Phone]
         public string? Phone { get; set; }
-
-        [StringLength(500)]
-        public string? ProfileImageUrl { get; set; }
     }
 }
 

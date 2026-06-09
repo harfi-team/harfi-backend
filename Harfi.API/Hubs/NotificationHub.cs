@@ -9,19 +9,53 @@ namespace Harfi.API.Hubs
     {
         public override async Task OnConnectedAsync()
         {
-            await Groups.AddToGroupAsync(
-                Context.ConnectionId, $"user_{GetUserId()}");
+            try
+            {
+                var userId = GetUserId();
+                if (userId.HasValue)
+                {
+                    await Groups.AddToGroupAsync(Context.ConnectionId, $"user_{userId.Value}");
+                }
+            }
+            catch
+            {
+            }
+
             await base.OnConnectedAsync();
         }
 
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
-            await Groups.RemoveFromGroupAsync(
-                Context.ConnectionId, $"user_{GetUserId()}");
+            
+            try
+            {
+                var userId = GetUserId();
+                if (userId.HasValue)
+                {
+                    await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user_{userId.Value}");
+                }
+            }
+            catch
+            {
+            }
+
             await base.OnDisconnectedAsync(exception);
         }
 
-        private int GetUserId() =>
-            int.Parse(Context.User!.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        private int? GetUserId()
+        {
+            try
+            {
+                var claimValue = Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(claimValue) && int.TryParse(claimValue, out int userId))
+                {
+                    return userId;
+                }
+            }
+            catch
+            {
+            }
+            return null;
+        }
     }
 }

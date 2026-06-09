@@ -38,8 +38,27 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
         await SaveChangesAsync();
     }
 
-    public Task<int> GetUnreadCountAsync(int userId)
+        public Task<int> GetUnreadCountAsync(int userId)
         => CountAsync(n => n.UserId == userId && n.IsRead == false);
+
+    public async Task<bool> DeleteAsync(int notificationId, int userId)
+    {
+        var notification = await FirstOrDefaultAsync(n =>
+            n.Id == notificationId &&
+            n.UserId == userId);
+
+        if (notification == null) return false;
+
+        Remove(notification);
+        await SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<int> DeleteAllAsync(int userId)
+        => await _dbSet
+            .Where(n => n.UserId == userId)
+            .ExecuteDeleteAsync();
+
     public async Task CreateAsync(Notification notification)
     {
         _context.Notifications.Add(notification);

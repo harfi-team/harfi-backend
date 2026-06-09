@@ -14,27 +14,53 @@ namespace Harfi.Services.Implementations
             _notifRepo = notifRepo;
         }
 
-        public async Task CreateMessageNotificationAsync(
-            int receiverId, string senderName, string messagePreview)
+        public async Task<NotificationDto> CreateMessageNotificationAsync(
+            int receiverId, string senderName, string messagePreview, string messageType, int conversationId)
         {
-            var preview = messagePreview.Length > 80
-                ? messagePreview[..80] + "..."
-                : messagePreview;
+            var preview = BuildMessagePreview(messagePreview, messageType);
 
-            await _notifRepo.AddAsync(new Notification
+            var notif = new Notification
             {
                 UserId = receiverId,
                 Title = $"رسالة جديدة من {senderName}",
                 Body = preview,
-                Type = "new_message"
-            });
+                Type = "new_message",
+                ConversationId = conversationId
+            };
+            await _notifRepo.AddAsync(notif);
             await _notifRepo.SaveChangesAsync();
+            return MapToDto(notif);
         }
 
-        public async Task CreateJobNotificationAsync(
+        private static string BuildMessagePreview(string content, string messageType)
+        {
+            var normalizedType = messageType?.Trim().ToLowerInvariant();
+
+            return normalizedType switch
+            {
+                "image" => "📷 صورة",
+                "voice" => "🎤 رسالة صوتية",
+                "location" => "📍 موقع",
+                _ => BuildTextPreview(content)
+            };
+        }
+
+        private static string BuildTextPreview(string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return "رسالة جديدة";
+            }
+
+            return content.Length > 80
+                ? content[..80] + "..."
+                : content;
+        }
+
+        public async Task<NotificationDto> CreateJobNotificationAsync(
             int receiverId, string title, string body, string type, int relatedJobId)
         {
-            await _notifRepo.AddAsync(new Notification
+            var notif = new Notification
             {
                 UserId = receiverId,
                 Title = title,
@@ -43,8 +69,10 @@ namespace Harfi.Services.Implementations
                 RelatedJobId = relatedJobId,
                 IsRead = false,
                 CreatedAt = DateTime.UtcNow
-            });
+            };
+            await _notifRepo.AddAsync(notif);
             await _notifRepo.SaveChangesAsync();
+            return MapToDto(notif);
         }
 
         public async Task<IEnumerable<NotificationDto>> GetUserNotificationsAsync(int userId)
@@ -62,6 +90,12 @@ namespace Harfi.Services.Implementations
         public Task<int> GetUnreadCountAsync(int userId)
             => _notifRepo.GetUnreadCountAsync(userId);
 
+        public Task<bool> DeleteAsync(int notificationId, int userId)
+            => _notifRepo.DeleteAsync(notificationId, userId);
+
+        public Task<int> DeleteAllAsync(int userId)
+            => _notifRepo.DeleteAllAsync(userId);
+
         // ── Mapper ────────────────────────────────────────────────
         private static NotificationDto MapToDto(Notification n) => new()
         {
@@ -70,8 +104,9 @@ namespace Harfi.Services.Implementations
             Body = n.Body,
             Type = n.Type,
             RelatedJobId = n.RelatedJobId,
+            ConversationId = n.ConversationId,
             IsRead = n.IsRead,
-            CreatedAt = n.CreatedAt
+            CreatedAt = DateTime.SpecifyKind(n.CreatedAt, DateTimeKind.Utc)
         };
     }
 }

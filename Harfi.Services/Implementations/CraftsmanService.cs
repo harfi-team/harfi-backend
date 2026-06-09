@@ -2,6 +2,7 @@
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 
 namespace Harfi.Services.Implementations
@@ -10,13 +11,16 @@ namespace Harfi.Services.Implementations
     {
         private readonly ICraftsmanRepository _craftsmanRepository;
         private readonly UserManager<User> _userManager;
+        private readonly IImageservice _imageService;
 
         public CraftsmanService(
             ICraftsmanRepository craftsmanRepository,
-            UserManager<User> userManager)
+            UserManager<User> userManager,
+            IImageservice imageService)
         {
             _craftsmanRepository = craftsmanRepository;
             _userManager = userManager;
+            _imageService = imageService;
         }
 
         // 1. تسجيل حرفي جديد (بيكون معلق IsApproved = false في البداية)
@@ -136,5 +140,23 @@ namespace Harfi.Services.Implementations
             return await _craftsmanRepository.UpdateAsync(craftsman);
         }
 
+        public async Task<string?> UploadProfileImageAsync(int craftsmanId, IFormFile file)
+        {
+            var craftsman = await _craftsmanRepository.GetByIdAsync(craftsmanId);
+            if (craftsman == null) return null;
+
+            var user = await _userManager.FindByIdAsync(craftsman.UserId.ToString());
+            if (user == null) return null;
+
+            if (!string.IsNullOrEmpty(user.ProfileImageUrl))
+                _imageService.DeleteImage(user.ProfileImageUrl, "profiles");
+
+            var imageUrl = await _imageService.SaveImageAsync(file, "profiles");
+
+            user.ProfileImageUrl = imageUrl;
+            var result = await _userManager.UpdateAsync(user);
+
+            return result.Succeeded ? imageUrl : null;
+        }
     }
 }
