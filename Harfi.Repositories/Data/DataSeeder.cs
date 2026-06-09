@@ -337,10 +337,10 @@ public class DataSeeder
         var approved = craftsmen.Where(c => c.IsApproved && !c.IsDeleted).ToList();
 
         var c = new Dictionary<string, User>();
-        foreach (var u in customers) c[u.Email.Split('@')[0].Split('.')[0]] = u;
+        foreach (var u in customers) c[u.Email!.Split('@')[0].Split('.')[0]] = u;
 
         // Build job definitions — (custEmail, craftIdx, status, svc, desc, addr, problem, solution, daysAgo, duration, disputed, dispDays, dispRes)
-        var defs = new List<(string cust, int cm, string st, string sv, string desc, string addr, string prob, string? sol, int da, int dur, bool disp, int? dispD, string? dispR)>
+        var defs = new List<(string cust, int cm, string st, string sv, string desc, string addr, string? prob, string? sol, int da, int dur, bool disp, int? dispD, string? dispR)>
         {
             ("mennatallah", 0, "مفتوح", "كهرباء", "المفاتيح في الصالة بتشرر وفيه رائحة احتراق", "15 شارع التحرير، الإسكندرية", "شرار من المفاتيح الكهربائية مع رائحة بلاستيك محترق", null, 165, 0, false, null, null),
             ("sara", 0, "قيد التنفيذ", "كهرباء", "لوحة الكهرباء الرئيسية عاطلة والكهربا مقطوعة", "8 شارع الجيش، مدينة نصر، القاهرة", "انقطاع تام في التيار الكهربائي بعد شرارة من اللوحة", null, 160, 0, false, null, null),
