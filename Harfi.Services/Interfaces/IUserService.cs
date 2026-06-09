@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Harfi.DTOs.User;
+﻿using Harfi.DTOs.User;
+using Microsoft.AspNetCore.Http;
 
 namespace Harfi.Services.Interfaces
 {
@@ -11,6 +7,7 @@ namespace Harfi.Services.Interfaces
     {
         Task<UserProfileDto?> GetUserProfileAsync(int userId);
         Task<bool> UpdateUserProfileAsync(int userId, UpdateUserDto updateUserDto);
+        Task<string?> UploadProfileImageAsync(int userId, IFormFile file);
     }
 }
 

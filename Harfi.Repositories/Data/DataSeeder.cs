@@ -24,7 +24,8 @@ public class DataSeeder
 
     public async Task SeedAsync()
     {
-        await ClearAllDataAsync();
+        if (await _context.Users.AnyAsync())
+            return;
 
         await SeedAdminAsync();
         await SeedCraftsmanUsersAsync();

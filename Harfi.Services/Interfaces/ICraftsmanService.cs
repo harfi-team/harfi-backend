@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Harfi.DTOs.Craftsman;
+﻿using Harfi.DTOs.Craftsman;
+using Microsoft.AspNetCore.Http;
 
 namespace Harfi.Services.Interfaces
 {
@@ -11,8 +7,8 @@ namespace Harfi.Services.Interfaces
     {
         Task<bool> RegisterCraftsmanAsync(CreateCraftsmanDto createCraftsmanDto);
         Task<CraftsmanDto?> GetCraftsmanProfileAsync(int id);
-
         Task<bool> UpdateCraftsmanAsync(int id, UpdateCraftsmanDto dto);
         Task<IEnumerable<CraftsmanDto>> GetFilteredCraftsmenAsync(CraftsmanFilterDto filter);
+        Task<string?> UploadProfileImageAsync(int craftsmanId, IFormFile file);
     }
 }
