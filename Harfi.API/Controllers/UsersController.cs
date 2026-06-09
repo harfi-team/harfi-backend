@@ -45,5 +45,20 @@ namespace Harfi.API.Controllers
 
             return Ok(new { message = "تم تحديث بيانات الملف الشخصي بنجاح." });
         }
+
+        // 3. رفع صورة البروفايل
+        [HttpPost("profile/{id}/upload-image")]
+        public async Task<IActionResult> UploadProfileImage(int id, [FromForm] IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(new { message = "الرجاء اختيار صورة للرفع." });
+
+            var url = await _userService.UploadProfileImageAsync(id, file);
+
+            if (url == null)
+                return NotFound(new { message = "عذراً، هذا المستخدم غير موجود." });
+
+            return Ok(new { url });
+        }
     }
 }

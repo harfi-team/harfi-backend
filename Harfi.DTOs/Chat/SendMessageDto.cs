@@ -17,8 +17,8 @@ namespace Harfi.DTOs.Chat
         [MaxLength(2000, ErrorMessage = "Message cannot exceed 2000 characters.")]
         public string Content { get; set; } = string.Empty;
 
-        [RegularExpression("^(text|image|system)$",
-            ErrorMessage = "MessageType must be: text, image, or system.")]
+                        [RegularExpression("^(text|image|voice|location)$",
+            ErrorMessage = "MessageType must be: text, image, voice, or location.")]
         public string MessageType { get; set; } = "text";
     }
 }
