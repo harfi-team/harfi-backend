@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <Folder Include="wwwroot\chat-voices\" />
+    <Folder Include="wwwroot\chat\" />
     <Folder Include="wwwroot\profiles\" />
   </ItemGroup>
 
