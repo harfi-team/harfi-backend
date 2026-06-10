@@ -176,4 +176,14 @@ public class VectorDbService
         byte[] hash = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
         return new Guid(hash).ToString();
     }
+    public async Task DeletePointAsync(string pointId)
+    {
+        var payload = new { ids = new[] { pointId } };
+        var response = await _http.PostAsJsonAsync($"collections/{Col}/points/delete", payload);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new InvalidOperationException($"Qdrant delete failed: {error}");
+        }
+    }
 }

@@ -21,19 +21,31 @@ namespace Harfi.API.Extensions;
 public static class ServiceExtensions
 {
     // ── DATABASE ──────────────────────────────────────────────
+    //public static IServiceCollection AddDatabase(
+    //    this IServiceCollection services,
+    //    IConfiguration config)
+    //{
+    //    services.AddDbContext<AppDbContext>(options =>
+    //        options.UseSqlServer(
+    //            config.GetConnectionString("DefaultConnection"),
+    //            sql => sql.MigrationsAssembly("Harfi.Repositories").UseCompatibilityLevel(110)
+    //        )
+    //    );
+    //    return services;
+    //}
     public static IServiceCollection AddDatabase(
         this IServiceCollection services,
         IConfiguration config)
     {
-        services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(
-                config.GetConnectionString("DefaultConnection"),
-                sql => sql.MigrationsAssembly("Harfi.Repositories").UseCompatibilityLevel(110)
-            )
-        );
+        services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+        {
+            var connectionString = config.GetConnectionString("DefaultConnection");
+            options.UseSqlServer(connectionString, sql => sql.MigrationsAssembly("Harfi.Repositories"));
+            var interceptor = serviceProvider.GetRequiredService<CraftsmanChangeInterceptor>();
+            options.AddInterceptors(interceptor);
+        });
         return services;
     }
-
     // ── REPOSITORIES ─────────────────────────────────────────
     public static IServiceCollection AddRepositories(
         this IServiceCollection services)
