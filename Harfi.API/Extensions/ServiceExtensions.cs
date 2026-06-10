@@ -80,7 +80,7 @@ public static class ServiceExtensions
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<IAdminService, AdminService>();
 
-        // TODO (Hadeer - Phase 2): services.AddScoped<ICraftsmanService, CraftsmanService>();
+        services.AddScoped<ICraftsmanService, CraftsmanService>();
         // TODO (Habiba - Phase 3): services.AddScoped<IJobService, JobService>();
         services.AddScoped<IJobService, JobService>();
         // TODO (Mazen  - Phase 4): services.AddScoped<IReviewService, ReviewService>();
