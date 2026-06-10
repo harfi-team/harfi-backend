@@ -1,0 +1,66 @@
+﻿using Harfi.Models.Entities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+
+namespace Harfi.Services.Implementations
+{
+    public class CraftsmanChangeInterceptor : SaveChangesInterceptor
+    {
+        private readonly IServiceProvider _serviceProvider;
+
+        public CraftsmanChangeInterceptor(IServiceProvider serviceProvider)
+        {
+            _serviceProvider = serviceProvider;
+        }
+
+        public override async ValueTask<int> SavedChangesAsync(
+            SaveChangesCompletedEventData eventData,
+            int result,
+            CancellationToken cancellationToken = default)
+        {
+            var context = eventData.Context;
+            if (context != null)
+            {
+                // البحث عن كائنات Craftsman التي تغيرت (إضافة، تعديل، حذف)
+                var entries = context.ChangeTracker.Entries<Craftsman>()
+                    .Where(e => e.State == EntityState.Added ||
+                                e.State == EntityState.Modified ||
+                                e.State == EntityState.Deleted)
+                    .ToList();
+
+                if (entries.Any())
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var ragService = scope.ServiceProvider.GetRequiredService<RAGService>();
+                    var logger = scope.ServiceProvider.GetRequiredService<ILogger<CraftsmanChangeInterceptor>>();
+
+                    foreach (var entry in entries)
+                    {
+                        var craftsmanId = entry.Entity.Id;
+                        try
+                        {
+                            if (entry.State == EntityState.Deleted)
+                            {
+                                await ragService.DeleteCraftsmanFromVectorDbAsync(craftsmanId);
+                                logger.LogInformation("تم حذف الحرفي {CraftsmanId} من Qdrant", craftsmanId);
+                            }
+                            else // Added or Modified
+                            {
+                                await ragService.UpsertCraftsmanToVectorDbAsync(craftsmanId);
+                                logger.LogInformation("تم تحديث الحرفي {CraftsmanId} في Qdrant (إضافة أو تعديل)", craftsmanId);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "فشل في مزامنة الحرفي {CraftsmanId} مع Qdrant", craftsmanId);
+                        }
+                    }
+                }
+            }
+
+            return await base.SavedChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+}

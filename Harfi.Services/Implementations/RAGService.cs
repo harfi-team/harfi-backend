@@ -1,12 +1,14 @@
-﻿using System.Net.Http.Json;
+﻿using Harfi.DTOs.RAG;
+using Harfi.Repositories.Data;
+using Harfi.Repositories.Interfaces;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using System.Diagnostics;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Diagnostics;
-using Harfi.DTOs.RAG;
-using Harfi.Repositories.Interfaces;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
 
 namespace Harfi.Services.Implementations;
 
@@ -19,6 +21,7 @@ public class RAGService
     private readonly GroqRotatingClient _groqRotating;
     private readonly IConfiguration _config;
     private readonly ILogger<RAGService> _logger;
+    private readonly AppDbContext _db;
 
     private static readonly (string Keyword, string Service)[] KeywordMap =
     [
@@ -109,12 +112,13 @@ public class RAGService
         EmbeddingService embedder, VectorDbService vectorDb,
         IHttpClientFactory httpFactory, IConfiguration config,
         GroqRotatingClient groqRotating,
-        ILogger<RAGService> logger)
+        ILogger<RAGService> logger, AppDbContext db)
     {
         _repo = repo;
         _chunker = chunker;
         _embedder = embedder;
         _vectorDb = vectorDb;
+        _db = db;
         _groqRotating = groqRotating;
         _config = config;
         _logger = logger;
@@ -260,7 +264,10 @@ public class RAGService
             if (qdrantScores.Count == 0) { isFirstCity = false; continue; }
 
             var ids = qdrantScores.Select(x => x.Id).ToList();
-            var craftsmen = await _repo.FindAsync(c => ids.Contains(c.Id));
+            var craftsmen = await _db.Craftsmen
+     .Include(c => c.User)
+     .Where(c => ids.Contains(c.Id))
+     .ToListAsync();
             var craftsmanMap = craftsmen.ToDictionary(c => c.Id);
 
             var ranked = qdrantScores
@@ -286,9 +293,20 @@ public class RAGService
         if (allVerified.Count == 0)
             return await SqlFallbackAsync(request, service, city, sw);
 
+        // ── Re-rank by district if user provided district ────────────────
+        if (!string.IsNullOrEmpty(request.ExtractedDistrict) && allVerified.Count > 1)
+        {
+            allVerified = await ReRankByDistrictAsync(allVerified, request.ExtractedDistrict);
+        }
+
         string nearbyNote = BuildNearbyNote(city, service, verifiedLocal.Count, verifiedNearby.Count);
         string context = BuildContext(allVerified, verifiedLocal.Count, nearbyNote);
         string answer = await CallGroqAsync(request.Question, context, nearbyNote);
+
+
+        //string nearbyNote = BuildNearbyNote(city, service, verifiedLocal.Count, verifiedNearby.Count);
+        //string context = BuildContext(allVerified, verifiedLocal.Count, nearbyNote);
+        //string answer = await CallGroqAsync(request.Question, context, nearbyNote);
 
         sw.Stop();
 
@@ -318,7 +336,85 @@ public class RAGService
             LatencyMs = sw.ElapsedMilliseconds
         };
     }
+    // ════════════════════════════════════════════════════════════════════════
+    //  Re-rank by district (مدينة + شارع المستخدم)
+    // ════════════════════════════════════════════════════════════════════════
 
+    private async Task<List<FinalCraftsman>> ReRankByDistrictAsync(
+        List<FinalCraftsman> craftsmen, string userDistrict)
+    {
+        // جيب العناوين الكاملة من SQL
+        var ids = craftsmen.Select(fc => fc.Craftsman.Id).ToList();
+        var addressMap = await _db.Craftsmen
+            .Where(c => ids.Contains(c.Id))
+            .Select(c => new { c.Id, c.City })  // City فيها العنوان الكامل
+            .ToDictionaryAsync(x => x.Id, x => x.City ?? "");
+
+        // ابعت للـ LLM يرتبهم
+        var list = string.Join("\n", craftsmen.Select((fc, i) =>
+        {
+            var addr = addressMap.TryGetValue(fc.Craftsman.Id, out var a) ? a : "";
+            return $"{i + 1}. ID={fc.Craftsman.Id} | العنوان: {addr}";
+        }));
+
+        string prompt =
+            "أنت مساعد لترتيب الحرفيين حسب القرب الجغرافي.\n" +
+            "عنوان المستخدم: [" + userDistrict + "]\n\n" +
+            "قائمة الحرفيين بعناوينهم:\n" + list + "\n\n" +
+            "قواعد:\n" +
+            "- رتّب الحرفيين من الأقرب للأبعد بناءً على تشابه المدينة والشارع مع عنوان المستخدم\n" +
+            "- الأولوية: نفس المدينة أولاً، ثم أقرب شارع\n" +
+            "- رد بـ JSON فقط: {\"ranked_ids\": [ID1, ID2, ...]}\n" +
+            "- اذكر كل الـ IDs بالترتيب";
+
+        try
+        {
+            var payload = new
+            {
+                model = _config["Groq:ChatModel"] ?? "llama-3.3-70b-versatile",
+                temperature = 0.0,
+                max_tokens = 200,
+                messages = new[]
+                {
+                new { role = "system", content = prompt },
+                new { role = "user",   content = "رتّب الحرفيين حسب القرب من عنوان المستخدم" }
+            }
+            };
+
+            var resp = await _groqRotating.PostAsync("openai/v1/chat/completions", payload);
+            if (!resp.IsSuccessStatusCode) return craftsmen;
+
+            var result = await resp.Content.ReadFromJsonAsync<GroqResp>();
+            string raw = result?.Choices?.FirstOrDefault()?.Message?.Content?.Trim() ?? "";
+            string json = raw.Replace("```json", "").Replace("```", "").Trim();
+
+            using var doc = JsonDocument.Parse(json);
+            var rankedIds = doc.RootElement
+                .GetProperty("ranked_ids")
+                .EnumerateArray()
+                .Select(x => x.GetInt32())
+                .ToList();
+
+            // رتّب الـ craftsmen حسب ترتيب الـ LLM
+            var craftsmanDict = craftsmen.ToDictionary(fc => fc.Craftsman.Id);
+            var reranked = rankedIds
+                .Where(id => craftsmanDict.ContainsKey(id))
+                .Select(id => craftsmanDict[id])
+                .ToList();
+
+            // أي حد مش في القائمة (لو LLM نسي حد) يتضاف في الآخر
+            var missing = craftsmen.Where(fc => !rankedIds.Contains(fc.Craftsman.Id)).ToList();
+            reranked.AddRange(missing);
+
+            _logger.LogInformation("[ReRank] Reranked {N} craftsmen by district: {D}", reranked.Count, userDistrict);
+            return reranked;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("[ReRank] Failed: {M}", ex.Message);
+            return craftsmen; // fallback: رجّع الترتيب الأصلي
+        }
+    }
     // ════════════════════════════════════════════════════════════════════════
     //  LLM يتحقق من التخصص
     // ════════════════════════════════════════════════════════════════════════
@@ -435,11 +531,18 @@ public class RAGService
     private async Task<QueryResponse> SqlFallbackAsync(
         QueryRequest req, string? service, string? city, Stopwatch sw)
     {
-        var top = (await _repo.GetAllAsync())
-            .Where(c => service is null || c.ServiceType == service)
-            .OrderByDescending(c => c.Rating)
-            .Take(req.TopK)
-            .ToList();
+        //var top = (await _repo.GetAllAsync())
+        //    .Where(c => service is null || c.ServiceType == service)
+        //    .OrderByDescending(c => c.Rating)
+        //    .Take(req.TopK)
+        //    .ToList();
+        var top = await _db.Craftsmen           // ← استخدم _db مباشرة بدل _repo
+       .Include(c => c.User)               // ← أضف Include
+       .Where(c => c.ServiceType != "AI")  // ← استبعد الـ AI
+       .Where(c => service == null || c.ServiceType == service)
+       .OrderByDescending(c => c.Rating)
+       .Take(req.TopK)
+       .ToListAsync();
 
         string ctx = string.Join("\n\n", top.Select(c =>
             $"[{c.User.Name}] {c.ServiceType} — {c.City}\n" +
@@ -550,5 +653,33 @@ public class RAGService
     private class GroqMsg
     {
         [JsonPropertyName("content")] public string Content { get; set; } = "";
+    }
+    public async Task UpsertCraftsmanToVectorDbAsync(int craftsmanId)
+    {
+        var craftsman = await _repo.GetByIdAsync(craftsmanId);
+        if (craftsman == null)
+        {
+            _logger.LogWarning("Craftsman {Id} not found for upsert", craftsmanId);
+            return;
+        }
+
+        await _repo.LoadReferenceAsync(craftsman, c => c.User);
+        var chunks = _chunker.ChunkCraftsman(craftsman);
+
+        var texts = chunks.Select(c => c.Text).ToList();
+        var embeddings = await _embedder.EmbedBatchAsync(texts);
+
+        for (int i = 0; i < chunks.Count; i++)
+            chunks[i].Embedding = embeddings[i];
+
+        await _vectorDb.AddChunksAsync(chunks);
+        _logger.LogInformation("Upserted Craftsman {Id} to Qdrant", craftsmanId);
+    }
+
+    public async Task DeleteCraftsmanFromVectorDbAsync(int craftsmanId)
+    {
+        var pointId = $"craftsman-{craftsmanId}";
+        await _vectorDb.DeletePointAsync(pointId);
+        _logger.LogInformation("Deleted Craftsman {Id} from Qdrant", craftsmanId);
     }
 }

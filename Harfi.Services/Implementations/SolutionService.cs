@@ -71,7 +71,7 @@ public class SolutionService : ISolutionService
                     .Include(j => j.Review)
                     .Include(j => j.Craftsman)
                     .FirstOrDefaultAsync(j => j.Id == jobId &&
-                                              (j.Status == "done" || j.Status == "AI"));
+                                              (j.Status == "done" || j.Status == "AI"|| j.Status == "مكتمل"));
                 if (job is null) continue;
 
                 double boostedScore = ComputeBoostedScore(

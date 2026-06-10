@@ -10,6 +10,8 @@ public class QueryRequest
     public int TopK { get; set; } = 5;
     public string? ExtractedService { get; set; }
     public string? ExtractedCity { get; set; }
+    public string? ExtractedDistrict { get; set; }  // ← جديد (مدينة + شارع المستخدم)
+
 }
 
 public class QueryResponse
@@ -82,6 +84,7 @@ public class Chat3Request
     public int ProblemClarificationAttempts { get; set; } = 0;
     public SolutionFollowUpState FollowUpState { get; set; } = SolutionFollowUpState.None;
     public string? LastProblemDescription { get; set; }
+    public string? ExtractedDistrict { get; set; }  // ← جديد
 
 
     public int? UserId { get; set; }   // ← ضيف ده
@@ -117,6 +120,8 @@ public class Chat3Response
     public string? LastProblemDescription { get; set; }
     public QueryResponse? Result { get; set; }
     public double LatencyMs { get; set; }
+    public string? ExtractedDistrict { get; set; }  // ← جديد
+
 }
 public class LlmExtractionResult
 {
@@ -203,6 +208,8 @@ public class AnalyzeMediaDto
     public string? ExtractedService { get; set; }
     public string? ExtractedCity { get; set; }
     public int? ExtractedCount { get; set; }
+    public string? ExtractedDistrict { get; set; }  // ← جديد
+
 
 
 
@@ -266,5 +273,18 @@ public class CraftsmanSolutionDto
     public string? ProblemDescription { get; set; }         // وصف المشكلة
     public List<string> Steps { get; set; } = [];           // الخطوات الخام
     public int CraftsmanId { get; set; }                    // اختياري
+}
+
+public class CheckAndSubmitResultDto
+{
+    public bool Accepted { get; set; }
+    public string Message { get; set; } = "";
+    public int? JobId { get; set; }
+    public int? Upserted { get; set; }
+    public List<string>? FixedSteps { get; set; }
+}
+public static class SeedStatus
+{
+    public static bool IsCompleted { get; set; } = false;
 }
 

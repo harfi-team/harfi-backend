@@ -25,6 +25,44 @@ public class ChunkingService
     private readonly ILogger<ChunkingService> _logger;
     public ChunkingService(ILogger<ChunkingService> logger) => _logger = logger;
 
+    //public List<CraftsmanChunk> ChunkCraftsman(Craftsman craftsman)
+    //{
+    //    string problems = ServiceProblems.TryGetValue(craftsman.ServiceType, out var list)
+    //        ? string.Join("، ", list) : craftsman.ServiceType;
+
+    //    string name = craftsman.User?.Name ?? $"حرفي #{craftsman.Id}";
+    //    string bio = craftsman.Bio ?? "";
+
+    //    string fullText =
+    //        $"الحرفي: {name}\n" +
+    //        $"التخصص: {craftsman.ServiceType}\n" +
+    //        $"المدينة: {craftsman.City}\n" +
+    //        $"الخبرة: {craftsman.Experience} سنة | التقييم: {craftsman.Rating}/5.0\n" +
+    //        $"يحل مشاكل مثل: {problems}\n" +
+    //        $"نبذة: {bio}";
+
+    //    _logger.LogInformation("Chunked [{Id}] {Name}", craftsman.Id, name);
+
+    //    return
+    //    [
+    //        new CraftsmanChunk
+    //        {
+    //            ChromaId    = $"craftsman-{craftsman.Id}",
+    //            CraftsmanId = craftsman.Id,
+    //            Text        = fullText,
+    //            Metadata    = new Dictionary<string, string>
+    //            {
+    //                ["craftsman_id"]     = craftsman.Id.ToString(),
+    //                ["name"]             = name,
+    //                ["service_type"]     = craftsman.ServiceType,
+    //                ["city"]             = craftsman.City,
+    //                ["rating"]           = craftsman.Rating.ToString("F1"),
+    //                ["experience_years"] = craftsman.Experience.ToString(),
+    //                ["text"]             = fullText
+    //            }
+    //        }
+    //    ];
+    //}
     public List<CraftsmanChunk> ChunkCraftsman(Craftsman craftsman)
     {
         string problems = ServiceProblems.TryGetValue(craftsman.ServiceType, out var list)
@@ -33,34 +71,51 @@ public class ChunkingService
         string name = craftsman.User?.Name ?? $"حرفي #{craftsman.Id}";
         string bio = craftsman.Bio ?? "";
 
+        // ── استخراج المحافظة فقط ─────────────────────────────
+        string governorate = ExtractGovernorate(craftsman.City);
+
         string fullText =
             $"الحرفي: {name}\n" +
             $"التخصص: {craftsman.ServiceType}\n" +
-            $"المدينة: {craftsman.City}\n" +
+            $"المحافظة: {governorate}\n" +        // ← بقى محافظة مش مدينة كاملة
             $"الخبرة: {craftsman.Experience} سنة | التقييم: {craftsman.Rating}/5.0\n" +
             $"يحل مشاكل مثل: {problems}\n" +
             $"نبذة: {bio}";
 
-        _logger.LogInformation("Chunked [{Id}] {Name}", craftsman.Id, name);
+        _logger.LogInformation("Chunked [{Id}] {Name} → governorate: {Gov}", craftsman.Id, name, governorate);
 
-        return
-        [
-            new CraftsmanChunk
+        return new List<CraftsmanChunk>
+    {
+        new CraftsmanChunk
+        {
+            ChromaId    = $"craftsman-{craftsman.Id}",
+            CraftsmanId = craftsman.Id,
+            Text        = fullText,
+            Metadata    = new Dictionary<string, string>
             {
-                ChromaId    = $"craftsman-{craftsman.Id}",
-                CraftsmanId = craftsman.Id,
-                Text        = fullText,
-                Metadata    = new Dictionary<string, string>
-                {
-                    ["craftsman_id"]     = craftsman.Id.ToString(),
-                    ["name"]             = name,
-                    ["service_type"]     = craftsman.ServiceType,
-                    ["city"]             = craftsman.City,
-                    ["rating"]           = craftsman.Rating.ToString("F1"),
-                    ["experience_years"] = craftsman.Experience.ToString(),
-                    ["text"]             = fullText
-                }
+                ["craftsman_id"]     = craftsman.Id.ToString(),
+                ["name"]             = name,
+                ["service_type"]     = craftsman.ServiceType,
+                ["city"]             = governorate,     // ← الـ city metadata بقت المحافظة فقط
+                ["rating"]           = craftsman.Rating.ToString("F1"),
+                ["experience_years"] = craftsman.Experience.ToString(),
+                ["text"]             = fullText
             }
-        ];
+        }
+    };
+    }
+
+
+
+    private static string ExtractGovernorate(string fullCity)
+    {
+        if (string.IsNullOrWhiteSpace(fullCity))
+            return fullCity ?? string.Empty;
+
+        // Split على أي من الفواصل العربية أو الإنجليزية
+        var separators = new[] { ',', '،' };
+        var firstPart = fullCity.Split(separators, StringSplitOptions.RemoveEmptyEntries)
+                                .FirstOrDefault()?.Trim();
+        return firstPart ?? fullCity;
     }
 }
