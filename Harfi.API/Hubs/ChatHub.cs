@@ -308,7 +308,14 @@ namespace Harfi.API.Hubs
 
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user_{userId}");
 
-                await Clients.Others.SendAsync("UserOffline", userId);
+                var hasOtherConnections = await _db.UserConnections
+                    .AsNoTracking()
+                    .AnyAsync(c => c.UserId == userId && c.IsConnected);
+
+                if (!hasOtherConnections)
+                {
+                    await Clients.Others.SendAsync("UserOffline", userId);
+                }
             }
             catch (Exception ex)
             {

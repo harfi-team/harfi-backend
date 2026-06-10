@@ -1,7 +1,12 @@
+using Harfi.API.Hubs;
 using Harfi.DTOs.Auth;
+using Harfi.Repositories.Data;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Harfi.API.Controllers;
 
@@ -11,10 +16,17 @@ namespace Harfi.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly AppDbContext _db;
+    private readonly IHubContext<ChatHub> _chatHubContext;
 
-    public AuthController(IAuthService authService)
+    public AuthController(
+        IAuthService authService,
+        AppDbContext db,
+        IHubContext<ChatHub> chatHubContext)
     {
         _authService = authService;
+        _db = db;
+        _chatHubContext = chatHubContext;
     }
 
     // ── POST /api/auth/register ───────────────────────────────
@@ -69,6 +81,22 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Logout([FromBody] RefreshTokenRequestDto dto)
     {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
+        {
+            var hadConnections = await _db.UserConnections
+                .AnyAsync(c => c.UserId == userId);
+
+            await _db.UserConnections
+                .Where(c => c.UserId == userId)
+                .ExecuteDeleteAsync();
+
+            if (hadConnections)
+            {
+                await _chatHubContext.Clients.All.SendAsync("UserOffline", userId);
+            }
+        }
+
         await _authService.LogoutAsync(dto.RefreshToken);
         return Ok(new { message = "تم تسجيل الخروج بنجاح" });
     }
