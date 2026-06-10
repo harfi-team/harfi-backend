@@ -45,7 +45,7 @@ public class JobService : IJobService
 
         var created = await _jobRepository.CreateAsync(job);
 
-        var craftsman = await _craftsmanRepo.GetByIdAsync(dto.CraftsmanId);
+        var craftsman = await _craftsmanRepo.GetByIdAsync(dto.CraftsmanId ?? 0);
         if (craftsman != null)
         {
             var notifDto = await _notificationService.CreateJobNotificationAsync(
