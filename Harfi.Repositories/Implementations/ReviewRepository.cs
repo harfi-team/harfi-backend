@@ -27,6 +27,7 @@ namespace Harfi.Repositories.Implementations
         {
             return await _db.Jobs
                  .Include(j => j.Craftsman)
+                 .Include(j => j.Customer)
              .FirstOrDefaultAsync(j => j.Id == jobId);
         }
 

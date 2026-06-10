@@ -1,3 +1,4 @@
+using Harfi.API.Hubs;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
 using Harfi.Repositories.Implementations;
@@ -44,7 +45,7 @@ public static class ServiceExtensions
         services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
         services.AddScoped<IEmailService, EmailService>();
 
-        // TODO (Hadeer - Phase 2): add ICraftsmanRepository
+        services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
         // TODO (Habiba - Phase 3): add IJobRepository
         services.AddScoped<IJobRepository, JobRepository>();
 
@@ -61,6 +62,8 @@ public static class ServiceExtensions
         services.AddScoped<IMessageRepository, MessageRepository>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
         services.AddScoped<IUserConnectionRepository, UserConnectionRepository>();
+
+        services.AddScoped<IRealtimeNotificationPusher, SignalRNotificationPusher>();
 
         return services;
     }
