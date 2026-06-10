@@ -18,6 +18,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Harfi.Repositories\Harfi.Repositories.csproj" />
     <ProjectReference Include="..\Harfi.Services\Harfi.Services.csproj" />
     <ProjectReference Include="..\Harfi.DTOs\Harfi.DTOs.csproj" />
   </ItemGroup>

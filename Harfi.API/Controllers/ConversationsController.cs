@@ -1,4 +1,6 @@
 ﻿using Harfi.DTOs.Chat;
+using Harfi.Models.Constants;
+using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -14,13 +16,16 @@ namespace Harfi.API.Controllers
     {
         private readonly IConversationService _convService;
         private readonly IMessageService _msgService;
+        private readonly IJobRepository _jobRepo;
 
         public ConversationsController(
             IConversationService convService,
-            IMessageService msgService)
+            IMessageService msgService,
+            IJobRepository jobRepo)
         {
             _convService = convService;
             _msgService = msgService;
+            _jobRepo = jobRepo;
         }
 
         // POST /api/conversations
@@ -33,7 +38,14 @@ namespace Harfi.API.Controllers
             var customerId = GetUserId();
 
             if (customerId == dto.CraftsmanId)
-                return BadRequest("Cannot start a conversation with yourself.");
+                return BadRequest("لا يمكنك إنشاء محادثة مع نفسك.");
+
+            var job = await _jobRepo.GetByIdAsync(dto.JobId);
+            if (job == null)
+                return NotFound("الوظيفة غير موجودة.");
+
+            if (job.Status == JobStatusConstants.Rejected || job.Status == JobStatusConstants.Cancelled)
+                return BadRequest( $"لا يمكن بدء محادثة على وظيفة {job.Status}.");
 
             var conversation = await _convService
                 .GetOrCreateAsync(dto.JobId, customerId, dto.CraftsmanId);
@@ -54,12 +66,11 @@ namespace Harfi.API.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
-            if (id <= 0) return BadRequest("Invalid conversation ID.");
+            if (id <= 0) return BadRequest("معرف المحادثة غير صالح.");
 
             var conversation = await _convService.GetByIdAsync(id, GetUserId());
             if (conversation == null)
-                return NotFound("Conversation not found or access denied.");
-
+                return NotFound("المحادثة غير موجودة أو الوصول مرفوض.");
             return Ok(conversation);
         }
 
@@ -70,9 +81,9 @@ namespace Harfi.API.Controllers
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20)
         {
-            if (id <= 0) return BadRequest("Invalid conversation ID.");
+            if (id <= 0) return BadRequest("معرف المحادثة غير صالح.");
             if (page <= 0 || pageSize <= 0 || pageSize > 100)
-                return BadRequest("Invalid pagination parameters.");
+                return BadRequest("معلمات الترقيم غير صالحة.");
 
             var userId = GetUserId();
 
@@ -88,7 +99,7 @@ namespace Harfi.API.Controllers
         [HttpPut("{id}/read")]
         public async Task<IActionResult> MarkAsRead(int id)
         {
-            if (id <= 0) return BadRequest("Invalid conversation ID.");
+            if (id <= 0) return BadRequest("معرف المحادثة غير صالح.");
 
             var userId = GetUserId();
 

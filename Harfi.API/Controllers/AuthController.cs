@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Harfi.DTOs.Auth;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -74,22 +73,6 @@ public class AuthController : ControllerBase
         return Ok(new { message = "تم تسجيل الخروج بنجاح" });
     }
 
-    // ── GET /api/auth/me ──────────────────────────────────────
-    /// <summary>بيانات المستخدم الحالي من التوكن</summary>
-    [HttpGet("me")]
-    [Authorize]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public IActionResult Me()
-    {
-        var id = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var email = User.FindFirstValue(ClaimTypes.Email);
-        var role = User.FindFirstValue(ClaimTypes.Role);
-        var name = User.FindFirstValue(ClaimTypes.Name);
-
-        return Ok(new { id, name, email, role });
-    }
-
     // ── GET /api/auth/admin-only (example) ───────────────────
     /// <summary>مثال على endpoint مخصص للأدمن فقط</summary>
     [HttpGet("admin-only")]
@@ -118,6 +101,33 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> ResendCode([FromBody] ResendCodeDto dto)
     {
         var message = await _authService.ResendVerificationCodeAsync(dto);
+        return Ok(new { success = true, message });
+    }
+
+    // ── POST /api/auth/send-phone-code ─────────────────────────
+    [HttpPost("send-phone-code")]
+    [Authorize]
+    public async Task<IActionResult> SendPhoneCode([FromBody] SendPhoneVerificationDto dto)
+    {
+        var message = await _authService.SendPhoneVerificationCodeAsync(dto);
+        return Ok(new { success = true, message });
+    }
+
+    // ── POST /api/auth/verify-phone ────────────────────────────
+    [HttpPost("verify-phone")]
+    [Authorize]
+    public async Task<IActionResult> VerifyPhone([FromBody] VerifyPhoneDto dto)
+    {
+        var message = await _authService.VerifyPhoneAsync(dto);
+        return Ok(new { success = true, message });
+    }
+
+    // ── POST /api/auth/resend-phone-code ───────────────────────
+    [HttpPost("resend-phone-code")]
+    [Authorize]
+    public async Task<IActionResult> ResendPhoneCode([FromBody] ResendPhoneCodeDto dto)
+    {
+        var message = await _authService.ResendPhoneVerificationCodeAsync(dto);
         return Ok(new { success = true, message });
     }
 }

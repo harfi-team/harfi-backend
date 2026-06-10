@@ -10,7 +10,7 @@ namespace Harfi.Repositories.Interfaces
     public interface INotificationRepository : IGenericRepository<Notification>
     {
         Task<IEnumerable<Notification>> GetUserNotificationsAsync(int userId);
-        Task MarkAsReadAsync(int notificationId, int userId);
+        Task<bool> MarkAsReadAsync(int notificationId, int userId);
         Task MarkAllAsReadAsync(int userId);
         Task<int> GetUnreadCountAsync(int userId);
         Task CreateAsync(Notification notification);

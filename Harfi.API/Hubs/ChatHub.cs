@@ -68,10 +68,10 @@ namespace Harfi.API.Hubs
         public async Task JoinConversation(int conversationId)
         {
             if (conversationId <= 0)
-                throw new HubException("Invalid conversationId.");
+                throw new HubException("معرف المحادثة غير صالح.");
 
             if (!await _convService.IsParticipantAsync(conversationId, GetUserId()))
-                throw new HubException("Access denied.");
+                throw new HubException("الوصول مرفوض.");
 
             await Groups.AddToGroupAsync(
                 Context.ConnectionId, Group(conversationId));
@@ -89,20 +89,18 @@ namespace Harfi.API.Hubs
         {
             // Manual validation
             if (dto.ConversationId <= 0)
-                throw new HubException("Invalid conversationId.");
+                throw new HubException("معرف المحادثة غير صالح.");
 
             if (string.IsNullOrWhiteSpace(dto.Content) || dto.Content.Length > 2000)
-                throw new HubException("Invalid message content.");
+                throw new HubException("محتوى الرسالة غير صالح.");
 
             var allowed = new[] { "text", "image", "system" };
             if (!allowed.Contains(dto.MessageType))
-                throw new HubException("MessageType must be: text, image, or system.");
-
+                throw new HubException("نوع الرسالة غير صالح. يجب أن يكون: نص، صورة، أو نظام.");
             var senderId = GetUserId();
 
             if (!await _convService.IsParticipantAsync(dto.ConversationId, senderId))
-                throw new HubException("Access denied.");
-
+                throw new HubException("الوصول مرفوض.");
             // Save message
             var message = await _msgService.SaveMessageAsync(
                 dto.ConversationId, senderId, dto.Content, dto.MessageType);

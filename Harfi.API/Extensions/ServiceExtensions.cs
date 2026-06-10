@@ -28,7 +28,7 @@ public static class ServiceExtensions
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(
                 config.GetConnectionString("DefaultConnection"),
-                sql => sql.MigrationsAssembly("Harfi.Repositories")
+                sql => sql.MigrationsAssembly("Harfi.Repositories").UseCompatibilityLevel(110)
             )
         );
         return services;

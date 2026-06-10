@@ -126,7 +126,8 @@ public class RAGService
 
     public async Task<IngestResponse> IngestAllCraftsmenAsync(int fromId = 0)
     {
-        var all = await _repo.GetAllAsync();
+        var allEnum = await _repo.GetAllAsync();
+        var all = allEnum.ToList();
         var craftsmen = fromId > 0 ? all.Where(c => c.Id >= fromId).ToList() : all;
 
         _logger.LogInformation("[Ingest] {N}/{T} craftsmen", craftsmen.Count, all.Count);
@@ -182,7 +183,7 @@ public class RAGService
 
         return new IngestResponse
         {
-            TotalCraftsmen = all.Count,
+            TotalCraftsmen = all.Count(),
             TotalChunksIndexed = done,
             Message = "Ingestion complete ✓"
         };
@@ -259,7 +260,7 @@ public class RAGService
             if (qdrantScores.Count == 0) { isFirstCity = false; continue; }
 
             var ids = qdrantScores.Select(x => x.Id).ToList();
-            var craftsmen = await _repo.GetByIdsAsync(ids);
+            var craftsmen = await _repo.FindAsync(c => ids.Contains(c.Id));
             var craftsmanMap = craftsmen.ToDictionary(c => c.Id);
 
             var ranked = qdrantScores

@@ -106,18 +106,23 @@ namespace Harfi.API.Controllers
         public async Task<IActionResult> SubmitRagFeedback(
             [FromBody] CreateJobFeedbackDto dto)
         {
-            // Extract userId from JWT
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-
             if (userIdClaim == null || !int.TryParse(userIdClaim, out int userId))
                 return Unauthorized(new { message = "رمز المصادقة غير صالح" });
 
+            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
+            if (userRole == "craftsman")
+            {
+                return Ok(new
+                {
+                    redirect = true,
+                    url = "/api/craftsmen",
+                    message = "يرجى استخدام endpoint الحرفيين"
+                });
+            }
+
             var result = await _feedbackService.SubmitFeedbackAsync(dto, userId);
-
-            if (!result.Success)
-                return BadRequest(new { message = result.Error });
-
-            return Ok(new { message = result.Data });
+            return Ok(new { message = result });
         }
     }
 
