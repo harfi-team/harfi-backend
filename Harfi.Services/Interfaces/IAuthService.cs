@@ -1,4 +1,5 @@
 using Harfi.DTOs.Auth;
+using Harfi.Models.Entities;
 
 namespace Harfi.Services.Interfaces;
 
@@ -35,7 +36,8 @@ public interface IAuthService
     Task<string> VerifyEmailAsync(VerifyEmailDto dto);
     Task<string> ResendVerificationCodeAsync(ResendCodeDto dto);
 
-    Task<string> SendPhoneVerificationCodeAsync(SendPhoneVerificationDto dto);
-    Task<string> VerifyPhoneAsync(VerifyPhoneDto dto);
-    Task<string> ResendPhoneVerificationCodeAsync(ResendPhoneCodeDto dto);
+    Task<string> SendPhoneVerificationCodeAsync(string email, string phoneNumber);
+    Task<string> VerifyPhoneAsync(string email, string phoneNumber, string code);
+    Task<string> ResendPhoneVerificationCodeAsync(string email, string phoneNumber);
+    Task<Craftsman?> GetCraftsmanProfileByUserIdAsync(int userId);
 }

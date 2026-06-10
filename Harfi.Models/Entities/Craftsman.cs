@@ -37,6 +37,17 @@ public class Craftsman
     /// <summary>Craftsman sets this — available for new jobs or not</summary>
     public bool IsAvailable { get; set; } = true;
 
+    /// <summary>Soft delete flag — never hard-delete craftsmen</summary>
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
+    public int? DeletedByAdminId { get; set; }
+
+    [MaxLength(500)]
+    public string? DeletionReason { get; set; }
+
+    [MaxLength(500)]
+    public string? RejectionReason { get; set; }
+
     /// <summary>Computed from Reviews — do NOT update manually</summary>
     [Column(TypeName = "decimal(3,2)")]
     public decimal Rating { get; set; } = 0;

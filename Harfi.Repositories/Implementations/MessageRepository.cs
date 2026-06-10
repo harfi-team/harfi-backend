@@ -21,15 +21,12 @@ namespace Harfi.Repositories.Implementations
 
         public async Task MarkConversationAsReadAsync(int conversationId, int userId)
         {
-            var unread = await _dbSet
-                .Where(m =>
-                    m.ConversationId == conversationId &&
-                    m.SenderId != userId &&
-                    m.IsRead == false)
-                .ToListAsync();
-
-            unread.ForEach(m => m.IsRead = true);
-            await SaveChangesAsync();
+            await _dbSet
+                .Where(m => m.ConversationId == conversationId
+                         && m.SenderId != userId
+                         && !m.IsRead)
+                .ExecuteUpdateAsync(s =>
+                    s.SetProperty(m => m.IsRead, true));
         }
 
         public Task<int> GetUnreadCountAsync(int conversationId, int userId)
@@ -37,5 +34,15 @@ namespace Harfi.Repositories.Implementations
                 m.ConversationId == conversationId &&
                 m.SenderId != userId &&
                 m.IsRead == false);
+
+        public async Task<Dictionary<int, int>> GetBatchUnreadCountsAsync(
+            List<int> conversationIds, int userId)
+            => await _dbSet
+                .Where(m => conversationIds.Contains(m.ConversationId)
+                         && m.SenderId != userId
+                         && !m.IsRead)
+                .GroupBy(m => m.ConversationId)
+                .Select(g => new { ConvId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ConvId, x => x.Count);
     }
 }

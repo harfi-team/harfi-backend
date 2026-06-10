@@ -40,6 +40,9 @@ public class AuthController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        if (dto.Role == "admin")
+            return BadRequest(new { message = "لا يمكن تسجيل حساب أدمن من خلال API التسجيل." });
+
         var result = await _authService.RegisterAsync(dto);
         return StatusCode(StatusCodes.Status201Created, result);
     }
@@ -115,6 +118,24 @@ public class AuthController : ControllerBase
     public IActionResult CraftsmanOnly()
         => Ok(new { message = "أهلاً بالحرفي 🔧" });
 
+    // ── GET /api/auth/me ──────────────────────────────────────
+    /// <summary>إرجاع بيانات المستخدم الحالي من الـ JWT</summary>
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> Me()
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var profile = await _authService.GetCraftsmanProfileByUserIdAsync(userId);
+        return Ok(new
+        {
+            id    = User.FindFirstValue(ClaimTypes.NameIdentifier),
+            name  = User.FindFirstValue(ClaimTypes.Name),
+            email = User.FindFirstValue(ClaimTypes.Email),
+            role  = User.FindFirstValue(ClaimTypes.Role),
+            craftsmanId = profile?.Id
+        });
+    }
+
 
     [HttpPost("verify-email")]
     [AllowAnonymous]
@@ -137,7 +158,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> SendPhoneCode([FromBody] SendPhoneVerificationDto dto)
     {
-        var message = await _authService.SendPhoneVerificationCodeAsync(dto);
+        var email = User.FindFirstValue(ClaimTypes.Email)!;
+        var message = await _authService.SendPhoneVerificationCodeAsync(email, dto.PhoneNumber);
         return Ok(new { success = true, message });
     }
 
@@ -146,7 +168,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> VerifyPhone([FromBody] VerifyPhoneDto dto)
     {
-        var message = await _authService.VerifyPhoneAsync(dto);
+        var email = User.FindFirstValue(ClaimTypes.Email)!;
+        var message = await _authService.VerifyPhoneAsync(email, dto.PhoneNumber, dto.Code);
         return Ok(new { success = true, message });
     }
 
@@ -155,7 +178,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> ResendPhoneCode([FromBody] ResendPhoneCodeDto dto)
     {
-        var message = await _authService.ResendPhoneVerificationCodeAsync(dto);
+        var email = User.FindFirstValue(ClaimTypes.Email)!;
+        var message = await _authService.ResendPhoneVerificationCodeAsync(email, dto.PhoneNumber);
         return Ok(new { success = true, message });
     }
 }

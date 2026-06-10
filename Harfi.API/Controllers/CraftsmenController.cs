@@ -2,6 +2,7 @@ using Harfi.DTOs.Craftsman;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace Harfi.API.Controllers
@@ -28,7 +29,10 @@ namespace Harfi.API.Controllers
             if (!result)
                 return BadRequest(new { message = "فشل في تقديم طلب التسجيل، يرجى المحاولة مرة أخرى." });
 
-            return Ok(new { message = "تم تقديم طلبك بنجاح وهو قيد المراجعة حالياً." });
+            return StatusCode(StatusCodes.Status201Created, new
+            {
+                message = "تم تقديم طلبك بنجاح وهو قيد المراجعة حالياً."
+            });
         }
 
         // 2. جلب الملف الشخصي للحرفي بواسطة الـ ID
@@ -67,6 +71,17 @@ namespace Harfi.API.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
+            var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+            if (requestingRole != "admin")
+            {
+                var profile = await _craftsmanService.GetCraftsmanProfileAsync(id);
+                if (profile == null)
+                    return NotFound(new { message = "لم يتم العثور على حساب الحرفي المطلوب لتحديثه." });
+                if (profile.UserId != requestingUserId)
+                    return Forbid();
+            }
+
             var result = await _craftsmanService.UpdateCraftsmanAsync(id, dto);
 
             if (!result)
@@ -79,6 +94,17 @@ namespace Harfi.API.Controllers
         [HttpPost("{id}/upload-image")]
         public async Task<IActionResult> UploadProfileImage(int id, [FromForm] IFormFile file)
         {
+            var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+            if (requestingRole != "admin")
+            {
+                var profile = await _craftsmanService.GetCraftsmanProfileAsync(id);
+                if (profile == null)
+                    return NotFound(new { message = "عذراً، هذا الحرفي غير موجود حالياً." });
+                if (profile.UserId != requestingUserId)
+                    return Forbid();
+            }
+
             if (file == null || file.Length == 0)
                 return BadRequest(new { message = "الرجاء اختيار صورة للرفع." });
 

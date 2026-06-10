@@ -12,5 +12,6 @@ namespace Harfi.Repositories.Interfaces
         Task<IEnumerable<Message>> GetByConversationAsync(int conversationId, int page, int pageSize);
         Task MarkConversationAsReadAsync(int conversationId, int userId);
         Task<int> GetUnreadCountAsync(int conversationId, int userId);
+        Task<Dictionary<int, int>> GetBatchUnreadCountsAsync(List<int> conversationIds, int userId);
     }
 }

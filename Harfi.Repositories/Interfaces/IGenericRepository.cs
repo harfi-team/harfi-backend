@@ -6,7 +6,7 @@ namespace Harfi.Repositories.Interfaces;
 /// Generic repository interface — covers all CRUD operations.
 /// Every entity-specific repository inherits from this.
 /// </summary>
-public interface IGenericRepository<T> where T : class
+    public interface IGenericRepository<T> where T : class
 {
     // ── READ ──────────────────────────────────────────────────
     Task<T?> GetByIdAsync(int id);
@@ -16,6 +16,7 @@ public interface IGenericRepository<T> where T : class
     Task<bool> ExistsAsync(Expression<Func<T, bool>> predicate);
     Task<int> CountAsync(Expression<Func<T, bool>>? predicate = null);
     Task LoadReferenceAsync<TProperty>(T entity,Expression<Func<T, TProperty?>> navigationProperty)where TProperty : class;
+    IQueryable<T> GetQueryable();
 
     // ── WRITE ─────────────────────────────────────────────────
     Task<T> AddAsync(T entity);

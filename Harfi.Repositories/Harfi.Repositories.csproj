@@ -23,6 +23,7 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<UserSecretsId>9a5b1907-44b8-428a-8eac-2a59d77a0cd7</UserSecretsId>
+		<NoWarn>CS8981</NoWarn>
 	</PropertyGroup>
 
 </Project>

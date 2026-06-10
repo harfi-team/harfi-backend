@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AspNetCoreRateLimit" Version="4.0.2" />
     <Compile Remove="wwwroot\chat\**" />
     <Content Remove="wwwroot\chat\**" />
     <EmbeddedResource Remove="wwwroot\chat\**" />
