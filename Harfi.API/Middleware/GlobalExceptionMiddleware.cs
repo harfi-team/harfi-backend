@@ -50,7 +50,7 @@ public class GlobalExceptionMiddleware
             ArgumentNullException e => (HttpStatusCode.BadRequest, e.Message),
             ArgumentException e => (HttpStatusCode.BadRequest, e.Message),
             NotImplementedException => (HttpStatusCode.NotImplemented, "هذه الخاصية غير متاحة بعد."),
-            _ => (HttpStatusCode.InternalServerError, "حدث خطأ غير متوقع. حاول مرة أخرى لاحقاً.")
+            _ => (HttpStatusCode.InternalServerError, "خطأ في الخادم، حاول مرة أخرى.")
         };
 
         context.Response.ContentType = "application/json";

@@ -3,6 +3,7 @@ using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
 using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;

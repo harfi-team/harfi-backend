@@ -23,6 +23,7 @@ public class AppDbContext : IdentityUserContext<User, int>
     public DbSet<JobFeedback> JobFeedbacks { get; set; }
     public DbSet<UserConnection> UserConnections { get; set; }
     public DbSet<EmailVerification> EmailVerifications => Set<EmailVerification>();
+    public DbSet<PhoneVerification> PhoneVerifications => Set<PhoneVerification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,7 +69,7 @@ public class AppDbContext : IdentityUserContext<User, int>
              .HasForeignKey(j => j.CraftsmanId)
              .OnDelete(DeleteBehavior.Restrict);
 
-            e.Property(j => j.Status).HasDefaultValue("open");
+            e.Property(j => j.Status).HasDefaultValue("مفتوح");
             e.Property(j => j.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             e.Property(j => j.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
 

@@ -1,6 +1,7 @@
 ﻿using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Harfi.Models.Constants;
 using Harfi.Repositories.Data;
 using Harfi.Services.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -291,7 +292,7 @@ public class SolutionService : ISolutionService
         var jobs = await _db.Jobs
             .Include(j => j.Review)
             .Include(j => j.Craftsman)
-            .Where(j => j.Status == "done" && j.SolutionDescription != null)
+            .Where(j => j.Status == JobStatusConstants.Done && j.SolutionDescription != null)
             .AsNoTracking()
             .ToListAsync();
 
@@ -326,7 +327,7 @@ public class SolutionService : ISolutionService
                     _logger.LogInformation("[Jobs.Ingest] ✓ {D}/{T}", done, jobs.Count);
                     break;
                 }
-                catch (Exception ex) when (attempt < 3)
+                catch (Exception) when (attempt < 3)
                 {
                     _logger.LogWarning("[Jobs.Ingest] Attempt {A} failed — wait 65s", attempt);
                     await Task.Delay(65_000);

@@ -3,6 +3,10 @@ using Harfi.API.Hubs;
 using Harfi.API.Middleware;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
+using Harfi.Repositories.Implementations;
+using Harfi.Repositories.Interfaces;
+using Harfi.Services.Implementations;
+using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -20,6 +24,17 @@ builder.Services
     .AddHarfiCors(builder.Configuration)
     .AddControllers();
 
+// 1. تسجيل الـ Repository الخاص بالحرفيين
+builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
+
+// 2. تسجيل الـ Services الثلاثة الخاصة بكِ
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ICraftsmanService, CraftsmanService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
+
+// 3. Seeder
+builder.Services.AddScoped<DataSeeder>();
+
 var app = builder.Build();
 
 // ═══════════════════════════════════════════════════════════
@@ -35,7 +50,7 @@ if (app.Environment.IsDevelopment())
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Harfi API v1");
         c.RoutePrefix = string.Empty;
     });
-} 
+}
 app.UseStaticFiles();
 app.UseHttpsRedirection();
 app.UseCors("HarfiCors");
@@ -55,11 +70,20 @@ if (app.Environment.IsDevelopment())
     db.Database.Migrate();
 }
 
-// Seed default admin
+// Seed default data (admin + demo data)
 using (var scope = app.Services.CreateScope())
 {
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<User>>();
-    await DataSeeder.SeedAsync(userManager);
+    try
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DataSeeder>();
+        await seeder.SeedAsync();
+        Console.WriteLine("✅ Seeding completed successfully.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Seeding failed: {ex.Message}");
+        Console.WriteLine(ex.InnerException?.Message);
+    }
 }
 
 app.Run();

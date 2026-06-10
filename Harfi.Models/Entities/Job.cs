@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using Harfi.Models.Constants;
 
 namespace Harfi.Models.Entities;
 
@@ -14,10 +15,10 @@ public class Job
     /// <summary>Nullable — assigned after craftsman accepts</summary>
     public int? CraftsmanId { get; set; }
 
-    /// <summary>open | in-progress | done | rejected | cancelled</summary>
+    /// <summary>مفتوح | قيد التنفيذ | مكتمل | مرفوض | ملغى</summary>
     [Required]
     [MaxLength(20)]
-    public string Status { get; set; } = "open";
+    public string Status { get; set; } = JobStatusConstants.Open;
 
     [Required]
     [MaxLength(50)]

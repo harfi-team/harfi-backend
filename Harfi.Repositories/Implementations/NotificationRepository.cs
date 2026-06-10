@@ -15,16 +15,17 @@ public class NotificationRepository : GenericRepository<Notification>, INotifica
             .OrderByDescending(n => n.CreatedAt)
             .ToListAsync();
 
-    public async Task MarkAsReadAsync(int notificationId, int userId)
+    public async Task<bool> MarkAsReadAsync(int notificationId, int userId)
     {
         var notification = await FirstOrDefaultAsync(n =>
             n.Id == notificationId &&
             n.UserId == userId);
 
-        if (notification == null) return;
+        if (notification == null) return false;
 
         notification.IsRead = true;
         await SaveChangesAsync();
+        return true;
     }
 
     public async Task MarkAllAsReadAsync(int userId)
