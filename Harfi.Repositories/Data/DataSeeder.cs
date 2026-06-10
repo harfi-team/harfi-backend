@@ -1,3 +1,4 @@
+using Harfi.DTOs.RAG;
 using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Microsoft.AspNetCore.Identity;
@@ -46,6 +47,7 @@ public class DataSeeder
         await SeedCraftsmanUsersAsync();
         await SeedCraftsmanProfilesAsync();
         await SeedJobsAsync();
+        await SeedCommonProblemsAsJobsAsync();
         await SeedReviewsAsync();
         await RecalculateRatingsAsync();
         await SeedConversationsAsync();
@@ -414,30 +416,147 @@ public class DataSeeder
             var createdAt = BaseDate.AddDays(d.da);
             var completedAt = d.dur > 0 ? createdAt.AddDays(d.dur) : (DateTime?)null;
 
-            jobs.Add(new Job
+            // التعديل هنا: استخدام modulo لضمان عدم خروج المؤشر عن النطاق
+            int craftsmanIdx = j.craftsmanIdx % craftsmen.Count;
+            int customerIdx = j.customerIdx % customers.Count;
+
+            _context.Jobs.Add(new Job
             {
-                CustomerId = customer.Id,
-                CraftsmanId = craftsman.Id,
-                Status = d.st,
-                ServiceType = d.sv,
-                Description = d.desc,
-                Address = d.addr,
-                ProblemDescription = d.prob,
-                SolutionDescription = d.sol,
-                PreferredDate = d.st == "مفتوح" ? createdAt.AddDays(2) : (DateTime?)null,
-                IsDisputed = d.disp,
-                DisputeRaisedAt = d.dispD.HasValue ? createdAt.AddDays(d.dispD.Value - d.da) : (DateTime?)null,
-                DisputeResolvedAt = d.dispR != null && d.dispD.HasValue ? createdAt.AddDays(d.dispD.Value - d.da + Rng.Next(1, 4)) : (DateTime?)null,
-                DisputeResolution = d.dispR,
-                CompletedAt = completedAt,
-                CreatedAt = createdAt,
-                UpdatedAt = completedAt ?? createdAt
+                CustomerId = customers[customerIdx].Id,
+                CraftsmanId = craftsmen[craftsmanIdx].Id,
+                Status = JobStatusConstants.Done,
+                ServiceType = craftsmen[craftsmanIdx].ServiceType,
+                Description = j.description,
+                Address = j.address,
+                ProblemDescription = j.problemDesc,
+                SolutionDescription = j.solutionDesc,
+                CreatedAt = jobDate,
+                CompletedAt = jobDate.AddDays(completedDays)
             });
         }
 
         await _context.Jobs.AddRangeAsync(jobs);
         await _context.SaveChangesAsync();
-        _logger.LogInformation("Jobs seeded: {N}", jobs.Count);
+        _logger.LogInformation("{Count} jobs seeded.", jobData.Length);
+    }
+    // ───────────────────────────────────────────────────────────
+    //  COMMON PROBLEMS → JOBS (زيادة داتا الـ RAG)
+    // ─────────
+    private async Task SeedCommonProblemsAsJobsAsync()
+    {
+        var craftsmen = await _context.Craftsmen
+            .Where(c => c.ServiceType != "AI")
+            .OrderBy(c => c.Id)
+            .ToListAsync();
+
+        var customers = await _context.Users
+            .Where(u => u.Role == "customer")
+            .OrderBy(u => u.CreatedAt)
+            .ToListAsync();
+
+        if (craftsmen.Count == 0 || customers.Count == 0)
+        {
+            _logger.LogWarning("No craftsmen or customers found. Common problem jobs not seeded.");
+            return;
+        }
+
+        var baseDate = DateTime.UtcNow.AddMonths(-2);
+
+        var problemJobs = new (string serviceType, string description,
+ string address, string problemDesc, string solutionDesc)[]
+ {
+("سباك",
+"الحنفية بتنقط مياه باستمرار",
+"القاهرة",
+"تنقيط مستمر من الحنفية بعد الإغلاق. قد يكون السبب تلف الجلدة أو الرواسب الجيرية أو تآكل قلب الحنفية.",
+"فحص مصدر التسريب ثم استبدال الجلدة أو قلب الحنفية وتنظيف الرواسب وإعادة اختبار التشغيل."),
+
+("سباك",
+"انسداد حوض المطبخ",
+"القاهرة",
+"بطء أو توقف تصريف المياه بسبب تراكم الدهون وبقايا الطعام داخل السيفون أو المواسير.",
+"تنظيف السيفون وتسليك المواسير وغسلها بالمياه الساخنة أو المضغوطة."),
+
+("كهربائي",
+"القاطع الكهربائي بيفصل باستمرار",
+"الجيزة",
+"فصل متكرر للكهرباء بسبب حمل زائد أو قصر كهربائي أو تلف القاطع.",
+"قياس الأحمال وفحص الدوائر واستبدال القاطع إذا لزم الأمر."),
+
+("كهربائي",
+"شرارة من مفتاح الكهرباء",
+"القاهرة",
+"ظهور شرر أو رائحة احتراق نتيجة ضعف التوصيلات أو احتراق نقاط التلامس.",
+"فصل الكهرباء واستبدال المفتاح وفحص الأسلاك المرتبطة به."),
+
+("فني تكييف",
+"التكييف لا يبرد",
+"القاهرة",
+"ضعف التبريد بسبب نقص الفريون أو اتساخ الفلاتر أو مشكلة بالمكثف.",
+"تنظيف الفلاتر وقياس ضغط الفريون وفحص الوحدة الداخلية والخارجية."),
+
+("فني تكييف",
+"نزول مياه من التكييف",
+"الجيزة",
+"تسرب مياه من الوحدة الداخلية نتيجة انسداد خط الصرف أو عدم توازن الوحدة.",
+"تنظيف خط الصرف وضبط مستوى الوحدة واختبار التشغيل."),
+
+("نجار",
+"باب لا يغلق بشكل صحيح",
+"الإسكندرية",
+"احتكاك الباب بالأرض أو الحلق بسبب هبوط المفصلات أو تمدد الخشب.",
+"ضبط المفصلات أو استبدالها ومعالجة الأجزاء المتضررة."),
+
+("نجار",
+"أبواب الدولاب مفكوكة",
+"المنصورة",
+"ضعف المفصلات أو تلف أماكن التثبيت يؤدي إلى عدم إغلاق الأبواب.",
+"استبدال المفصلات وتقوية نقاط التثبيت وإعادة ضبط الأبواب."),
+
+("نقاش",
+"تقشر الدهان",
+"القاهرة",
+"انفصال طبقات الدهان بسبب الرطوبة أو سوء تجهيز الحائط.",
+"إزالة الطبقات التالفة ومعالجة السبب ثم إعادة الدهان."),
+
+("نقاش",
+"شروخ في الحائط",
+"الجيزة",
+"ظهور شروخ سطحية أو متوسطة نتيجة الانكماش أو الرطوبة.",
+"فتح الشروخ ومعالجتها بمواد مناسبة ثم إعادة التشطيب والدهان.")
+
+
+};
+
+
+        int idx = 0;
+        foreach (var p in problemJobs)
+        {
+            // التعديل هنا: استخدام modulo على craftsmen و customers
+            var craftsman = craftsmen.FirstOrDefault(c => c.ServiceType == p.serviceType)
+                            ?? craftsmen[idx % craftsmen.Count];
+            var customer = customers[idx % customers.Count];
+            var jobDate = baseDate.AddDays(idx * 3);
+
+            _context.Jobs.Add(new Job
+            {
+                CustomerId = customer.Id,
+                CraftsmanId = craftsman.Id,
+                Status = JobStatusConstants.Done,
+                ServiceType = p.serviceType,
+                Description = p.description,
+                Address = p.address,
+                ProblemDescription = p.problemDesc,
+                SolutionDescription = p.solutionDesc,
+                CreatedAt = jobDate,
+                CompletedAt = jobDate.AddDays(1)
+            });
+
+            idx++;
+        }
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("{Count} common problem jobs seeded.", problemJobs.Length);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -658,6 +777,12 @@ public class DataSeeder
         {
             var craftUserId = craftUserIds.GetValueOrDefault(conv.CraftsmanId, 0);
             if (craftUserId == 0) continue;
+            if (convIdx >= conversations.Count) continue;
+            var conv = conversations[convIdx];
+            var custId = conv.CustomerId;
+
+            if (!craftsmanUserIds.TryGetValue(conv.CraftsmanId, out var craftUserId))
+                continue;
 
             int msgsInConv = Rng.Next(3, 7);
             DateTime? lastMsgTime = null;

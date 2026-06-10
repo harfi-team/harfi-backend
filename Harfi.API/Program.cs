@@ -1,6 +1,7 @@
 using Harfi.API.Extensions;
 using Harfi.API.Hubs;
 using Harfi.API.Middleware;
+
 using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
 using Harfi.Repositories.Implementations;
@@ -27,7 +28,22 @@ builder.Services
     .AddControllers();
 
 // Seeder
+
+builder.Services.AddSingleton<CraftsmanChangeInterceptor>();
+
+
+// 1. تسجيل الـ Repository الخاص بالحرفيين
+builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
+
+// 2. تسجيل الـ Services الثلاثة الخاصة بكِ
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ICraftsmanService, CraftsmanService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
+
+// 3. Seeder
 builder.Services.AddScoped<DataSeeder>();
+
+
 
 var app = builder.Build();
 
