@@ -69,6 +69,15 @@ app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<NotificationHub>("/hubs/notifications");
 
+// Clean up stale UserConnections from previous server sessions
+using (var cleanupScope = app.Services.CreateScope())
+{
+    var cleanupDb = cleanupScope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var staleCount = await cleanupDb.UserConnections.ExecuteDeleteAsync();
+    if (staleCount > 0)
+        Console.WriteLine($"Cleaned {staleCount} stale UserConnection(s) from previous session.");
+}
+
 // Auto-migrate on startup (Development only)
 if (app.Environment.IsDevelopment())
 {
