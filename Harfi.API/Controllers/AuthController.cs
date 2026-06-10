@@ -95,14 +95,17 @@ public class AuthController : ControllerBase
     /// <summary>إرجاع بيانات المستخدم الحالي من الـ JWT</summary>
     [HttpGet("me")]
     [Authorize]
-    public IActionResult Me()
+    public async Task<IActionResult> Me()
     {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var profile = await _authService.GetCraftsmanProfileByUserIdAsync(userId);
         return Ok(new
         {
             id    = User.FindFirstValue(ClaimTypes.NameIdentifier),
             name  = User.FindFirstValue(ClaimTypes.Name),
             email = User.FindFirstValue(ClaimTypes.Email),
-            role  = User.FindFirstValue(ClaimTypes.Role)
+            role  = User.FindFirstValue(ClaimTypes.Role),
+            craftsmanId = profile?.Id
         });
     }
 

@@ -23,6 +23,7 @@ public class AuthService : IAuthService
     private readonly IEmailService _emailService;
     private readonly ISmsService _smsService;
     private readonly IConfiguration _config;
+    private readonly ICraftsmanRepository _craftsmanRepo;
     private readonly ILogger<AuthService> _logger;
 
     // ── CONSTRUCTOR ───────────────────────────────────────────
@@ -34,6 +35,7 @@ public class AuthService : IAuthService
         IEmailService emailService,
         ISmsService smsService,
         IConfiguration config,
+        ICraftsmanRepository craftsmanRepo,
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
@@ -43,6 +45,7 @@ public class AuthService : IAuthService
         _emailService = emailService;
         _smsService = smsService;
         _config = config;
+        _craftsmanRepo = craftsmanRepo;
         _logger = logger;
     }
 
@@ -398,6 +401,12 @@ public class AuthService : IAuthService
         return "تم إعادة إرسال الكود بنجاح.";
     }
 
+    // ── GET CRAFTSMAN PROFILE BY USER ID ─────────────────────
+    public async Task<Craftsman?> GetCraftsmanProfileByUserIdAsync(int userId)
+    {
+        return await _craftsmanRepo.GetByUserIdAsync(userId);
+    }
+
     // ══════════════════════════════════════════════════════════
     //  PRIVATE HELPERS
     // ══════════════════════════════════════════════════════════
@@ -407,6 +416,10 @@ public class AuthService : IAuthService
         var expiryMinutes = GetJwtSetting<int>("AccessTokenExpiryMinutes", 60);
         var accessToken = GenerateJwtToken(user);
         var newRefresh = await CreateAndSaveRefreshTokenAsync(user.Id);
+
+        var craftsman = user.Role == "craftsman"
+            ? await _craftsmanRepo.GetByUserIdAsync(user.Id)
+            : null;
 
         return new AuthResponseDto
         {
@@ -420,7 +433,8 @@ public class AuthService : IAuthService
                 Email = user.Email!,
                 Role = user.Role,
                 Phone = user.Phone,
-                ProfileImageUrl = user.ProfileImageUrl
+                ProfileImageUrl = user.ProfileImageUrl,
+                CraftsmanId = craftsman?.Id
             }
         };
     }

@@ -84,6 +84,12 @@ namespace Harfi.Repositories.Implementations
             return await query.ToListAsync();
         }
 
+        public async Task<Craftsman?> GetByUserIdAsync(int userId)
+        {
+            return await _context.Craftsmen
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+        }
+
         public async Task<bool> UpdateAsync(Craftsman craftsman)
         {
             _context.Craftsmen.Update(craftsman);
