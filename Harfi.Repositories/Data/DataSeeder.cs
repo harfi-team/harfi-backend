@@ -416,28 +416,28 @@ public class DataSeeder
             var createdAt = BaseDate.AddDays(d.da);
             var completedAt = d.dur > 0 ? createdAt.AddDays(d.dur) : (DateTime?)null;
 
-            // التعديل هنا: استخدام modulo لضمان عدم خروج المؤشر عن النطاق
-            int craftsmanIdx = j.craftsmanIdx % craftsmen.Count;
-            int customerIdx = j.customerIdx % customers.Count;
-
-            _context.Jobs.Add(new Job
+            jobs.Add(new Job
             {
-                CustomerId = customers[customerIdx].Id,
-                CraftsmanId = craftsmen[craftsmanIdx].Id,
-                Status = JobStatusConstants.Done,
-                ServiceType = craftsmen[craftsmanIdx].ServiceType,
-                Description = j.description,
-                Address = j.address,
-                ProblemDescription = j.problemDesc,
-                SolutionDescription = j.solutionDesc,
-                CreatedAt = jobDate,
-                CompletedAt = jobDate.AddDays(completedDays)
+                CustomerId = customer.Id,
+                CraftsmanId = craftsman.Id,
+                Status = d.st,
+                ServiceType = d.sv,
+                Description = d.desc,
+                Address = d.addr,
+                ProblemDescription = d.prob,
+                SolutionDescription = d.sol,
+                CreatedAt = createdAt,
+                CompletedAt = completedAt,
+                IsDisputed = d.disp || d.dispR != null,
+                DisputeRaisedAt = d.disp && d.dispD.HasValue ? BaseDate.AddDays(d.dispD.Value) : null,
+                DisputeResolvedAt = !d.disp && d.dispR != null && d.dispD.HasValue ? BaseDate.AddDays(d.dispD.Value) : null,
+                DisputeResolution = d.dispR
             });
         }
 
         await _context.Jobs.AddRangeAsync(jobs);
         await _context.SaveChangesAsync();
-        _logger.LogInformation("{Count} jobs seeded.", jobData.Length);
+        _logger.LogInformation("{Count} jobs seeded.", jobs.Count);
     }
     // ───────────────────────────────────────────────────────────
     //  COMMON PROBLEMS → JOBS (زيادة داتا الـ RAG)
@@ -775,13 +775,7 @@ public class DataSeeder
 
         foreach (var conv in conversations.Take(15))
         {
-            var craftUserId = craftUserIds.GetValueOrDefault(conv.CraftsmanId, 0);
-            if (craftUserId == 0) continue;
-            if (convIdx >= conversations.Count) continue;
-            var conv = conversations[convIdx];
-            var custId = conv.CustomerId;
-
-            if (!craftsmanUserIds.TryGetValue(conv.CraftsmanId, out var craftUserId))
+            if (!craftUserIds.TryGetValue(conv.CraftsmanId, out var craftUserId))
                 continue;
 
             int msgsInConv = Rng.Next(3, 7);
@@ -839,9 +833,9 @@ public class DataSeeder
             new Notification { UserId = CU("sara.ahmed@gmail.com").Id, Title = "تم قبول طلبك", Body = "قام الحرفي إبراهيم نصر بقبول طلب الخدمة.", Type = "job_accepted", RelatedJobId = J("صيانة دورية شاملة").Id, IsRead = true, CreatedAt = J("صيانة دورية شاملة").CreatedAt.AddHours(2) },
             new Notification { UserId = CM("mohamed.hassan@gmail.com").UserId, Title = "تم اعتمادك كحرفي", Body = "مبروك! تم اعتماد طلبك بنجاح.", Type = "approved", IsRead = true, CreatedAt = CM("mohamed.hassan@gmail.com").CreatedAt.AddDays(2) },
             new Notification { UserId = CM("hussien.reda@gmail.com").UserId, Title = "تم رفض طلب التسجيل", Body = "نأسف لإبلاغك بأنه تم رفض طلب تسجيلك.", Type = "rejected", IsRead = false, CreatedAt = CM("hussien.reda@gmail.com").CreatedAt.AddDays(3) },
-            new Notification { UserId = CU("nourhan.mohamed@gmail.com").Id, Title = "تم إنجاز طلبك", Body = "أنهى الحرفي العمل. يمكنك تقييم الخدمة.", Type = "job_completed", RelatedJobId = J("نقاط إضاءة جديدة").Id, IsRead = true, CreatedAt = J("نقاط إضاءة جديدة").CompletedAt!.Value.AddMinutes(30) },
-            new Notification { UserId = CM("ibrahim.nasr@gmail.com").UserId, Title = "تم فتح نزاع", Body = "تم فتح نزاع على طلب الخدمة.", Type = "dispute_opened", RelatedJobId = J("إصلاح عطل في دائرة الطاقة").Id, IsRead = false, CreatedAt = J("إصلاح عطل في دائرة الطاقة").DisputeRaisedAt!.Value.AddMinutes(5) },
-            new Notification { UserId = CU("sara.ahmed@gmail.com").Id, Title = "تم حل النزاع", Body = "تم حل النزاع لصالحك.", Type = "dispute_resolved", RelatedJobId = J("دهان كامل لشقة 3 غرف").Id, IsRead = true, CreatedAt = J("دهان كامل لشقة 3 غرف").DisputeResolvedAt!.Value.AddMinutes(30) }
+            new Notification { UserId = CU("nourhan.mohamed@gmail.com").Id, Title = "تم إنجاز طلبك", Body = "أنهى الحرفي العمل. يمكنك تقييم الخدمة.", Type = "job_completed", RelatedJobId = J("نقاط إضاءة جديدة").Id, IsRead = true, CreatedAt = J("نقاط إضاءة جديدة").CreatedAt.AddHours(2) },
+            new Notification { UserId = CM("ibrahim.nasr@gmail.com").UserId, Title = "تم فتح نزاع", Body = "تم فتح نزاع على طلب الخدمة.", Type = "dispute_opened", RelatedJobId = J("إصلاح عطل في دائرة الطاقة").Id, IsRead = false, CreatedAt = J("إصلاح عطل في دائرة الطاقة").CreatedAt.AddHours(2) },
+            new Notification { UserId = CU("sara.ahmed@gmail.com").Id, Title = "تم حل النزاع", Body = "تم حل النزاع لصالحك.", Type = "dispute_resolved", RelatedJobId = J("دهان كامل لشقة 3 غرف").Id, IsRead = true, CreatedAt = J("دهان كامل لشقة 3 غرف").CreatedAt.AddDays(1) }
         });
 
         // Additional notifications from new jobs
