@@ -33,9 +33,13 @@ public class Notification
     /// <summary>Optional — which job triggered this notification</summary>
     public int? RelatedJobId { get; set; }
 
+    /// <summary>For new_message notifications — which conversation to navigate to</summary>
+    public int? ConversationId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    // ── Navigation Properties ──────────────────────────────────
+    // Navigation Properties
     public User User { get; set; } = null!;
     public Job? RelatedJob { get; set; }
+    public Conversation? Conversation { get; set; }
 }

@@ -10,14 +10,20 @@ public class JobService : IJobService
 {
     private readonly IJobRepository _jobRepository;
     private readonly INotificationService _notificationService;
+    private readonly ICraftsmanRepository _craftsmanRepo;
+    private readonly IRealtimeNotificationPusher _notifPusher;
 
 
     public JobService(
     IJobRepository jobRepository,
-    INotificationService notificationService)
+    INotificationService notificationService,
+    ICraftsmanRepository craftsmanRepo,
+    IRealtimeNotificationPusher notifPusher)
     {
         _jobRepository = jobRepository;
         _notificationService = notificationService;
+        _craftsmanRepo = craftsmanRepo;
+        _notifPusher = notifPusher;
     }
 
     public async Task<JobResponseDto> CreateJobAsync(int customerId, CreateJobDto dto)
@@ -38,6 +44,17 @@ public class JobService : IJobService
         };
 
         var created = await _jobRepository.CreateAsync(job);
+
+        var craftsman = await _craftsmanRepo.GetByIdAsync(dto.CraftsmanId);
+        if (craftsman != null)
+        {
+            var notifDto = await _notificationService.CreateJobNotificationAsync(
+                craftsman.UserId, "طلب خدمة جديد",
+                $"قام أحد العملاء بطلب خدمة {dto.ServiceType} جديدة",
+                "new_order", created.Id);
+            await _notifPusher.PushAsync(craftsman.UserId, notifDto);
+        }
+
         return MapToDto(created);
     }
 
@@ -49,10 +66,11 @@ public class JobService : IJobService
         var updated = await _jobRepository.UpdateAsync(job);
 
         // notify customer
-        await _notificationService.CreateJobNotificationAsync(
+        var notifAccepted = await _notificationService.CreateJobNotificationAsync(
         job.CustomerId, "تم قبول طلبك",
         "قام الحرفي بقبول طلب الخدمة الخاص بك",
         "job_accepted", job.Id);
+        await _notifPusher.PushAsync(job.CustomerId, notifAccepted);
 
         return MapToDto(updated);
     }
@@ -65,10 +83,11 @@ public class JobService : IJobService
         var updated = await _jobRepository.UpdateAsync(job);
 
         // notify customer
-        await _notificationService.CreateJobNotificationAsync(
+        var notifRejected = await _notificationService.CreateJobNotificationAsync(
         job.CustomerId, "تم رفض طلبك",
         "قام الحرفي برفض طلب الخدمة الخاص بك",
         "job_rejected", job.Id);
+        await _notifPusher.PushAsync(job.CustomerId, notifRejected);
 
         return MapToDto(updated);
     }
@@ -83,10 +102,11 @@ public class JobService : IJobService
         var updated = await _jobRepository.UpdateAsync(job);
 
         // notify customer
-        await _notificationService.CreateJobNotificationAsync(
+        var notifCompleted = await _notificationService.CreateJobNotificationAsync(
         job.CustomerId, "تم إنجاز طلبك",
         "قام الحرفي بإنهاء العمل. يمكنك الآن تقييم الخدمة",
         "job_completed", job.Id);
+        await _notifPusher.PushAsync(job.CustomerId, notifCompleted);
 
         return MapToDto(updated);
     }
