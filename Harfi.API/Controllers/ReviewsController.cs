@@ -54,7 +54,7 @@ namespace Harfi.API.Controllers
             if (!result.Success)
                 return BadRequest(new { message = result.Error });
 
-            return Ok(new
+            return StatusCode(StatusCodes.Status201Created, new
             {
                 message = "تم إرسال تقييمك بنجاح",
                 data = result.Data

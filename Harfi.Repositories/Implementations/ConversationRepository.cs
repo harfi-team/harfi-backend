@@ -27,6 +27,34 @@ namespace Harfi.Repositories.Implementations
                     .Take(1))
                 .FirstOrDefaultAsync(c => c.Id == id);
 
+        public async Task<Conversation?> GetByIdWithMessagesAsync(int id)
+            => await _dbSet
+                .Include(c => c.Customer)
+                .Include(c => c.Craftsman)
+                    .ThenInclude(cr => cr.User)
+                .Include(c => c.Job)
+                .Include(c => c.Messages)
+                    .ThenInclude(m => m.Sender)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+        public IQueryable<Conversation> GetAllConversationsQuery()
+            => _dbSet
+                .Include(c => c.Customer)
+                .Include(c => c.Craftsman)
+                    .ThenInclude(cr => cr.User)
+                .Include(c => c.Job)
+                .Include(c => c.Messages)
+                .AsQueryable();
+
+        public IQueryable<Conversation> GetAllConversationsQueryIgnoreFilters()
+            => _dbSet.IgnoreQueryFilters()
+                .Include(c => c.Customer)
+                .Include(c => c.Craftsman)
+                    .ThenInclude(cr => cr.User)
+                .Include(c => c.Job)
+                .Include(c => c.Messages)
+                .AsQueryable();
+
         public async Task<IEnumerable<Conversation>> GetUserConversationsAsync(int userId)
             => await _dbSet
                 .Include(c => c.Customer)

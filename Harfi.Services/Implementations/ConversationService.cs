@@ -23,27 +23,39 @@ namespace Harfi.Services.Implementations
             _db = db;
         }
 
+       public async Task<ConversationDto> GetOrCreateAsync(int jobId, int customerId, int craftsmanId)
+{
+    var existing = await _db.Conversations
+        .Include(c => c.Messages)
+        .Include(c => c.Customer)
+        .Include(c => c.Craftsman).ThenInclude(cr => cr.User)
+        .FirstOrDefaultAsync(c =>
+            c.JobId == jobId &&
+            c.CustomerId == customerId &&
+            c.CraftsmanId == craftsmanId); // ✅ مباشرة بدون lookup
 
-        public async Task<ConversationDto> GetOrCreateAsync(
-            int jobId, int customerId, int craftsmanId)
-        {
-            var existing = await _convRepo
-                .GetByParticipantsAsync(jobId, customerId, craftsmanId);
+    if (existing != null)
+        return await MapToDtoAsync(existing, customerId);
 
-            if (existing != null)
-                return await MapToDtoAsync(existing, customerId);
+    var conversation = new Conversation
+    {
+        JobId = jobId,
+        CustomerId = customerId,
+        CraftsmanId = craftsmanId, // ✅ Craftsman.Id مباشرة
+        CreatedAt = DateTime.UtcNow
+    };
 
-            var created = await _convRepo.AddAsync(new Conversation
-            {
-                JobId = jobId,
-                CustomerId = customerId,
-                CraftsmanId = craftsmanId
-            });
-            await _convRepo.SaveChangesAsync();
+    _db.Conversations.Add(conversation);
+    await _db.SaveChangesAsync();
 
-            var full = await _convRepo.GetByIdWithDetailsAsync(created.Id);
-            return await MapToDtoAsync(full!, customerId);
-        }
+    var created = await _db.Conversations
+        .Include(c => c.Messages)
+        .Include(c => c.Customer)
+        .Include(c => c.Craftsman).ThenInclude(cr => cr.User)
+        .FirstAsync(c => c.Id == conversation.Id);
+
+    return await MapToDtoAsync(created, customerId);
+}
 
         public Task<bool> IsParticipantAsync(int conversationId, int userId)
             => _convRepo.IsParticipantAsync(conversationId, userId);
@@ -91,13 +103,14 @@ namespace Harfi.Services.Implementations
             return await MapToDtoAsync(c, userId);
         }
 
-        // ── Mapper ────────────────────────────────────────────────
+        // ── Mappers ───────────────────────────────────────────────
         private async Task<ConversationDto> MapToDtoAsync(Conversation c, int userId)
         {
             var isCustomer = c.CustomerId == userId;
             var otherUserId = isCustomer ? c.Craftsman.UserId : c.CustomerId;
             var unreadCount = await _msgRepo.GetUnreadCountAsync(c.Id, userId);
-            var isOnline = await _db.UserConnections.AnyAsync(uc => uc.UserId == otherUserId && uc.IsConnected);
+            var isOnline = await _db.UserConnections
+                .AnyAsync(uc => uc.UserId == otherUserId && uc.IsConnected);
 
             return BuildConversationDto(c, userId, unreadCount, isOnline);
         }

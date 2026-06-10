@@ -1,6 +1,5 @@
 ﻿using Harfi.DTOs.Chat;
 using Harfi.Models.Entities;
-using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -8,6 +7,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Security.Claims;
+using Harfi.Repositories.Data;
 
 namespace Harfi.API.Hubs
 {
@@ -153,6 +153,7 @@ namespace Harfi.API.Hubs
 
             if (!await _convService.IsParticipantAsync(dto.ConversationId, senderId))
                 throw new HubException("الوصول مرفوض.");
+            
             // Save message
             var message = await _msgService.SaveMessageAsync(
                 dto.ConversationId, senderId, dto.Content, dto.MessageType);
@@ -295,12 +296,13 @@ namespace Harfi.API.Hubs
                     .SendAsync("ConversationUpdated", updatedConversation);
             }
         }
+
         [HubMethodName("SetOffline")]
         public async Task SetOffline()
         {
             try
             {
-                var userId = int.Parse(Context.User!.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+                var userId = int.Parse(Context.User!.FindFirst(ClaimTypes.NameIdentifier)!.Value);
 
                 await _db.UserConnections
                   .Where(c => c.ConnectionId == Context.ConnectionId)
@@ -308,7 +310,14 @@ namespace Harfi.API.Hubs
 
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user_{userId}");
 
-                await Clients.Others.SendAsync("UserOffline", userId);
+                var hasOtherConnections = await _db.UserConnections
+                    .AsNoTracking()
+                    .AnyAsync(c => c.UserId == userId && c.IsConnected);
+
+                if (!hasOtherConnections)
+                {
+                    await Clients.Others.SendAsync("UserOffline", userId);
+                }
             }
             catch (Exception ex)
             {

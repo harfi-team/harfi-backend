@@ -25,6 +25,13 @@ public class Review
     [MaxLength(1000)]
     public string? Comment { get; set; }
 
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
+    public int? DeletedByAdminId { get; set; }
+
+    [MaxLength(500)]
+    public string? DeletionReason { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // ── Navigation Properties ──────────────────────────────────

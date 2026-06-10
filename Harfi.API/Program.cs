@@ -1,12 +1,14 @@
 using Harfi.API.Extensions;
 using Harfi.API.Hubs;
 using Harfi.API.Middleware;
+
 using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
 using Harfi.Repositories.Implementations;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
+using AspNetCoreRateLimit;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,11 +20,17 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddDatabase(builder.Configuration)
     .AddRepositories()
-    .AddApplicationServices()
+    .AddApplicationServices(builder.Environment)
     .AddJwtAuthentication(builder.Configuration)
     .AddSwaggerWithJwt()
     .AddHarfiCors(builder.Configuration)
+    .AddHarfiRateLimiting(builder.Configuration)
     .AddControllers();
+
+// Seeder
+
+builder.Services.AddSingleton<CraftsmanChangeInterceptor>();
+
 
 // 1. تسجيل الـ Repository الخاص بالحرفيين
 builder.Services.AddScoped<ICraftsmanRepository, CraftsmanRepository>();
@@ -35,12 +43,15 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 // 3. Seeder
 builder.Services.AddScoped<DataSeeder>();
 
+
+
 var app = builder.Build();
 
 // ═══════════════════════════════════════════════════════════
 //  MIDDLEWARE PIPELINE — ORDER MATTERS
 // ═══════════════════════════════════════════════════════════
 app.UseMiddleware<GlobalExceptionMiddleware>(); // 1st — catches everything
+app.UseIpRateLimiting();
 
 if (app.Environment.IsDevelopment())
 {
@@ -61,6 +72,15 @@ app.MapControllers();
 // Ibrahim - Phase 5
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<NotificationHub>("/hubs/notifications");
+
+// Clean up stale UserConnections from previous server sessions
+using (var cleanupScope = app.Services.CreateScope())
+{
+    var cleanupDb = cleanupScope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var staleCount = await cleanupDb.UserConnections.ExecuteDeleteAsync();
+    if (staleCount > 0)
+        Console.WriteLine($"Cleaned {staleCount} stale UserConnection(s) from previous session.");
+}
 
 // Auto-migrate on startup (Development only)
 if (app.Environment.IsDevelopment())

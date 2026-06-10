@@ -101,6 +101,7 @@ namespace Harfi.Services.Implementations
 
             var savedReview = await _reviewRepository.CreateReviewAsync(review);
 
+            await _reviewRepository.UpdateCraftsmanRatingAsync(review.CraftsmanId);
             if (job.Craftsman != null)
             {
                 var customerName = job.Customer?.Name ?? "أحد العملاء";

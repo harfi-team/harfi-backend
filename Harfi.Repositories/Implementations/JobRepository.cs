@@ -16,6 +16,10 @@ public class JobRepository : IJobRepository
     public async Task<Craftsman?> GetCraftsmanByUserIdAsync(int userId)
     => await _context.Craftsmen.FirstOrDefaultAsync(c => c.UserId == userId);
 
+    public async Task<bool> CraftsmanBelongsToUserAsync(int craftsmanId, int userId)
+        => await _context.Craftsmen
+            .AnyAsync(c => c.Id == craftsmanId && c.UserId == userId);
+
     public async Task<Job?> GetByIdAsync(int id)
         => await _context.Jobs.FirstOrDefaultAsync(j => j.Id == id);
 
