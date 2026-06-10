@@ -303,8 +303,8 @@ namespace Harfi.API.Hubs
                 var userId = int.Parse(Context.User!.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
 
                 await _db.UserConnections
-                    .Where(c => c.UserId == userId)
-                    .ExecuteDeleteAsync();
+                  .Where(c => c.ConnectionId == Context.ConnectionId)
+                  .ExecuteDeleteAsync();
 
                 await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user_{userId}");
 

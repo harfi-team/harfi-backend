@@ -1,4 +1,5 @@
-﻿using Harfi.DTOs.Review;
+﻿using Harfi.DTOs.Chat;
+using Harfi.DTOs.Review;
 using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
@@ -9,11 +10,18 @@ namespace Harfi.Services.Implementations
     public class ReviewService : IReviewService
     {
         private readonly IReviewRepository _reviewRepository;
+        private readonly INotificationService _notificationService;
+        private readonly IRealtimeNotificationPusher _notifPusher;
 
 
-        public ReviewService(IReviewRepository reviewRepository)
+        public ReviewService(
+            IReviewRepository reviewRepository,
+            INotificationService notificationService,
+            IRealtimeNotificationPusher notifPusher)
         {
             _reviewRepository = reviewRepository;
+            _notificationService = notificationService;
+            _notifPusher = notifPusher;
         }
 
         public async Task<CraftsmanReviewsResponseDto> GetCraftsmanReviewsAsync(int craftsmanId)
@@ -92,6 +100,16 @@ namespace Harfi.Services.Implementations
 
 
             var savedReview = await _reviewRepository.CreateReviewAsync(review);
+
+            if (job.Craftsman != null)
+            {
+                var customerName = job.Customer?.Name ?? "أحد العملاء";
+                var reviewNotif = await _notificationService.CreateJobNotificationAsync(
+                    job.Craftsman.UserId, "تقييم جديد",
+                    $"قام {customerName} بتقييمك ⭐ {dto.Stars}/5",
+                    "new_review", job.Id);
+                await _notifPusher.PushAsync(job.Craftsman.UserId, reviewNotif);
+            }
 
             var response = new ReviewResponseDto
             {
