@@ -1,4 +1,6 @@
-﻿using Harfi.Models.Constants;
+﻿
+using Harfi.DTOs.RAG;
+using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -28,38 +30,54 @@ public class DataSeeder
             return;
 
         await SeedAdminAsync();
+        await SeedAiUserAsync();
         await SeedCraftsmanUsersAsync();
         await SeedCustomerUsersAsync();
         await SeedCraftsmanProfilesAsync();
         await SeedJobsAsync();
+        await SeedCommonProblemsAsJobsAsync();
         await SeedReviewsAsync();
         await RecalculateRatingsAsync();
         await SeedConversationsAsync();
         await SeedMessagesAsync();
+        SeedStatus.IsCompleted = true;
+
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  CLEAR ALL DATA (FK-safe order, children first)
-    // ───────────────────────────────────────────────────────────
     private async Task ClearAllDataAsync()
     {
         _logger.LogInformation("Clearing all existing data...");
 
+        await _context.JobFeedbacks.ExecuteDeleteAsync();
+        await _context.AIChatMessages.ExecuteDeleteAsync();
+        await _context.MediaFiles.ExecuteDeleteAsync();
+        await _context.Notifications.ExecuteDeleteAsync();
         await _context.Messages.ExecuteDeleteAsync();
         await _context.Conversations.ExecuteDeleteAsync();
         await _context.Reviews.ExecuteDeleteAsync();
         await _context.RAGDocuments.ExecuteDeleteAsync();
         await _context.Jobs.ExecuteDeleteAsync();
         await _context.Craftsmen.ExecuteDeleteAsync();
+        await _context.RefreshTokens.ExecuteDeleteAsync();
 
-        // Use UserManager for Identity users to respect all ASP.NET Identity cascade rules
         var allUsers = await _context.Users.ToListAsync();
         foreach (var user in allUsers)
             await _userManager.DeleteAsync(user);
 
+        // ── RESEED كل الـ IDENTITY columns من 0 ──────────────────
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('Jobs', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('Craftsmen', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('Reviews', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('Conversations', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('Messages', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('RAGDocuments', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('JobFeedbacks', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('AIChatMessages', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('Notifications', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('RefreshTokens', RESEED, 0)");
+        await _context.Database.ExecuteSqlRawAsync("DBCC CHECKIDENT ('Users', RESEED, 0)");
         _logger.LogInformation("All data cleared. Starting fresh seed...");
     }
-
     // ───────────────────────────────────────────────────────────
     //  ADMIN
     // ───────────────────────────────────────────────────────────
@@ -87,23 +105,91 @@ public class DataSeeder
     }
 
     // ───────────────────────────────────────────────────────────
+    //  AI USER + CRAFTSMAN (required for AI fallback)
+    // ───────────────────────────────────────────────────────────
+    private async Task SeedAiUserAsync()
+    {
+        var aiUser = new User
+        {
+            UserName = "ai@harfi.com",
+            Name = "Harfi AI",
+            Email = "ai@harfi.com",
+            Role = "craftsman",
+            Phone = "00000000000",
+            IsActive = true,
+            IsVerified = true,
+            EmailConfirmed = true,
+            CreatedAt = DateTime.UtcNow.AddYears(-1)
+        };
+
+        var result = await _userManager.CreateAsync(aiUser, "HarfiAI@2024");
+        if (result.Succeeded)
+        {
+            _context.Craftsmen.Add(new Craftsman
+            {
+                UserId = aiUser.Id,
+                ServiceType = "AI",
+                City = "AI",
+                Experience = 99,
+                IsApproved = true,
+                IsAvailable = false,
+                Rating = 0,
+                Bio = "Harfi AI Assistant",
+                NationalIdUrl = "/uploads/ids/ai.jpg",
+                CreatedAt = DateTime.UtcNow.AddYears(-1)
+            });
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("AI user + craftsman seeded: ai@harfi.com");
+        }
+        else
+            _logger.LogWarning("Failed to seed AI user: {Errors}",
+                string.Join("; ", result.Errors.Select(e => e.Description)));
+    }
+
+    // ───────────────────────────────────────────────────────────
     //  CRAFTSMAN USERS (10)
     // ───────────────────────────────────────────────────────────
     private async Task SeedCraftsmanUsersAsync()
     {
         var craftsmanData = new[]
         {
-            (name: "أحمد علي",        phone: "01012345678", email: "ahmed.ali@gmail.com"),
-            (name: "محمد حسن",        phone: "01123456789", email: "mohamed.hassan@gmail.com"),
-            (name: "عبدالله خالد",    phone: "01234567890", email: "abdallah.khaled@gmail.com"),
-            (name: "مصطفى محمود",     phone: "01512345678", email: "mostafa.mahmoud@gmail.com"),
-            (name: "حسين رضا",        phone: "01098765432", email: "hussien.reda@gmail.com"),
-            (name: "كريم سامي",       phone: "01156789012", email: "kareem.samy@gmail.com"),
-            (name: "يوسف عادل",       phone: "01234561234", email: "youssef.adel@gmail.com"),
-            (name: "إبراهيم نصر",     phone: "01567890123", email: "ibrahim.nasr@gmail.com"),
-            (name: "عمرو شريف",       phone: "01023456789", email: "amr.sherif@gmail.com"),
-            (name: "خالد أحمد",       phone: "01134567890", email: "khaled.ahmed@gmail.com")
-        };
+        (name: "أحمد علي", phone: "01012345678", email: "ahmed.ali@gmail.com"),
+        (name: "محمد حسن", phone: "01123456789", email: "mohamed.hassan@gmail.com"),
+        (name: "عبدالله خالد", phone: "01234567890", email: "abdallah.khaled@gmail.com"),
+        (name: "مصطفى محمود", phone: "01512345678", email: "mostafa.mahmoud@gmail.com"),
+        (name: "حسين رضا", phone: "01098765432", email: "hussien.reda@gmail.com"),
+        (name: "كريم سامي", phone: "01156789012", email: "kareem.samy@gmail.com"),
+        (name: "يوسف عادل", phone: "01234561234", email: "youssef.adel@gmail.com"),
+        (name: "إبراهيم نصر", phone: "01567890123", email: "ibrahim.nasr@gmail.com"),
+        (name: "عمرو شريف", phone: "01023456789", email: "amr.sherif@gmail.com"),
+        (name: "خالد أحمد", phone: "01134567890", email: "khaled.ahmed@gmail.com"),
+        (name: "محمود السيد", phone: "01011111111", email: "mahmoud.elsayed@gmail.com"),
+        (name: "طارق إبراهيم", phone: "01022222222", email: "tarek.ibrahim@gmail.com"),
+        (name: "أشرف رمضان", phone: "01033333333", email: "ashraf.ramadan@gmail.com"),
+        (name: "وليد محمد", phone: "01044444444", email: "walid.mohamed@gmail.com"),
+        (name: "سيد عبدالسلام", phone: "01055555555", email: "sayed.abdelsalam@gmail.com"),
+        (name: "هاني عبدالعزيز", phone: "01066666666", email: "hani.abdelaziz@gmail.com"),
+        (name: "شريف فؤاد", phone: "01077777777", email: "sherif.fouad@gmail.com"),
+        (name: "رامي مجدي", phone: "01088888888", email: "ramy.magdy@gmail.com"),
+        (name: "مينا جورج", phone: "01099999999", email: "mina.george@gmail.com"),
+        (name: "علاء السيد", phone: "01111111111", email: "alaa.elsayed@gmail.com"),
+        (name: "إسلام أحمد", phone: "01122222222", email: "eslam.ahmed@gmail.com"),
+        (name: "محمد شوقي", phone: "01133333333", email: "mohamed.shawky@gmail.com"),
+        (name: "أحمد السيد", phone: "01144444444", email: "ahmed.elsayed@gmail.com"),
+        (name: "ياسر جمال", phone: "01155555555", email: "yasser.gamal@gmail.com"),
+        (name: "محمود صبحي", phone: "01166666666", email: "mahmoud.sobhy@gmail.com"),
+        (name: "أمير رمضان", phone: "01177777777", email: "ameer.ramadan@gmail.com"),
+        (name: "عمر خالد", phone: "01188888888", email: "omar.khaled@gmail.com"),
+        (name: "أحمد مجدي", phone: "01199999999", email: "ahmed.magdy@gmail.com"),
+        (name: "خالد السيد", phone: "01211111111", email: "khaled.elsayed@gmail.com"),
+        (name: "مروان عادل", phone: "01222222222", email: "marwan.adel@gmail.com"),
+        (name: "محمد عادل", phone: "01233333333", email: "mohamed.adel@gmail.com"),
+        (name: "أحمد رمضان", phone: "01244444444", email: "ahmed.ramadan@gmail.com"),
+        (name: "مصطفى السيد", phone: "01255555555", email: "mostafa.elsayed@gmail.com"),
+        (name: "كريم محمود", phone: "01266666666", email: "kareem.mahmoud@gmail.com"),
+        (name: "إبراهيم عادل", phone: "01277777777", email: "ibrahim.adel@gmail.com"),
+        (name: "شادي محمد", phone: "01288888888", email: "shady.mohamed@gmail.com")  // 36 users
+    };
 
         var baseDate = DateTime.UtcNow.AddMonths(-6);
 
@@ -129,7 +215,7 @@ public class DataSeeder
                     d.email, string.Join("; ", result.Errors.Select(e => e.Description)));
         }
 
-        _logger.LogInformation("10 craftsman users seeded.");
+        _logger.LogInformation("36 craftsman users seeded (Cairo: 10, other governorates: 26).");
     }
 
     // ───────────────────────────────────────────────────────────
@@ -173,46 +259,70 @@ public class DataSeeder
         _logger.LogInformation("5 customer users seeded.");
     }
 
-    // ───────────────────────────────────────────────────────────
-    //  CRAFTSMAN PROFILES (10)
-    // ───────────────────────────────────────────────────────────
+  
+
     private async Task SeedCraftsmanProfilesAsync()
     {
         var users = await _context.Users
-            .Where(u => u.Role == "craftsman")
+            .Where(u => u.Role == "craftsman" && u.Email != "ai@harfi.com")
             .OrderBy(u => u.CreatedAt)
             .ToListAsync();
 
-        var profiles = new (int userId, string serviceType, string city, string? neighborhood,
+        // 36 profiles: first 10 for Cairo (2 per trade), then 26 other governorates (1 each)
+        var profilesRaw = new (int idx, string serviceType, string city, string? neighborhood,
             decimal? min, decimal? max, int exp, decimal rating, string? bio, string photoId)[]
         {
-            (users[0].Id, "سباك",        "مدينة نصر",   null,            150m, 300m, 8,  4.7m,
-             "سباك محترف خبرة 8 سنوات في تركيب وصيانة جميع أنواع السباكة", "1"),
-            (users[1].Id, "سباك",        "المعادي",     "المعادي",       200m, 400m, 12, 4.5m,
-             "معلم سباكة خبرة 12 سنة في حل مشاكل التسربات وتركيب السخانات", "2"),
-            (users[2].Id, "سباك",        "الزيتون",     "الزيتون",       100m, 250m, 5,  4.2m,
-             "سباك عام بأسعار مناسبة وجودة عالية في الشغل", "3"),
-            (users[3].Id, "كهربائي",     "شبرا",        "شبرا",          200m, 500m, 10, 4.8m,
-             "مهندس كهربائي خبرة 10 سنوات في توصيلات الكهرباء والصيانة", "4"),
-            (users[4].Id, "كهربائي",     "مصر الجديدة", "مصر الجديدة",   250m, 450m, 7,  4.3m,
-             "فني كهرباء منازل ومحلات - تركيب وصيانة جميع الأعمال الكهربائية", "5"),
-            (users[5].Id, "نجار",        "العباسية",    null,            300m, 600m, 15, 4.9m,
-             "نجار موبيليا وباركيه خبرة 15 سنة في صناعة وتركيب الأثاث", "6"),
-            (users[6].Id, "نجار",        "المقطم",      "المقطم",        200m, 500m, 6,  4.0m,
-             "نجار عام - تركيب مطابخ وغرف نوم وأبواب وشبابيك", "7"),
-            (users[7].Id, "فني تكييف",   "حلوان",       "حلوان",         300m, 700m, 9,  4.6m,
-             "فني تكييف متخصص في تركيب وصيانة جميع أنواع المكيفات", "8"),
-            (users[8].Id, "فني تكييف",   "الدقي",       "الدقي",         350m, 800m, 11, 4.4m,
-             "متخصص في صيانة وتركيب التكييفات بأسعار تنافسية", "9"),
-            (users[9].Id, "نقاش",        "الهرم",       "الهرم",         150m, 400m, 4,  3.8m,
-             "نقاش دهانات وجبس بورد - شغل نضيف وبسعر معقول", "10")
+        // ======== القاهرة (2 لكل حرفة) ========
+        (0, "سباك", "القاهرة , مدينة نصر , شارع عباس العقاد", null, 150m, 300m, 8, 4.7m, "سباك محترف", "1"),
+        (1, "سباك", "القاهرة , مصر الجديدة , شارع الميرغني", null, 180m, 350m, 10, 4.6m, "معلم سباكة", "2"),
+        (2, "كهربائي", "القاهرة , مدينة نصر , شارع مكرم عبيد", null, 250m, 500m, 11, 4.8m, "كهربائي منازل", "3"),
+        (3, "كهربائي", "القاهرة , مصر الجديدة , شارع الحجاز", null, 220m, 450m, 8, 4.5m, "فني كهرباء", "4"),
+        (4, "نجار", "القاهرة , مدينة نصر , شارع الطيران", null, 300m, 700m, 15, 4.9m, "نجار أثاث", "5"),
+        (5, "نجار", "القاهرة , مصر الجديدة , شارع الثورة", null, 350m, 800m, 13, 4.8m, "نجار ديكورات", "6"),
+        (6, "فني تكييف", "القاهرة , مدينة نصر , شارع مصطفى النحاس", null, 350m, 800m, 12, 4.8m, "فني تكييف", "7"),
+        (7, "فني تكييف", "القاهرة , مصر الجديدة , شارع النزهة", null, 300m, 700m, 9, 4.5m, "صيانة تكييفات", "8"),
+        (8, "نقاش", "القاهرة , مدينة نصر , شارع عباس العقاد", null, 200m, 500m, 10, 4.7m, "نقاش محترف", "9"),
+        (9, "نقاش", "القاهرة , مصر الجديدة , شارع الميرغني", null, 180m, 450m, 7, 4.3m, "دهانات وديكورات", "10"),
+
+        // ======== باقي المحافظات (26 محافظة، كل محافظة حرفي واحد) ========
+        (10, "نجار", "الجيزة , الدقي , شارع التحرير", null, 300m, 600m, 12, 4.5m, "نجار موبيليا", "11"),
+        (11, "سباك", "الإسكندرية , سموحة , شارع فوزي معاذ", null, 200m, 400m, 10, 4.8m, "سباك محترف", "12"),
+        (12, "كهربائي", "كفر الشيخ , كفر الشيخ , شارع الجمهورية", null, 220m, 500m, 8, 4.5m, "كهربائي", "13"),
+        (13, "فني تكييف", "البحيرة , دمنهور , شارع الجمهورية", null, 300m, 700m, 9, 4.6m, "فني تكييف", "14"),
+        (14, "نقاش", "الغربية , طنطا , شارع البحر", null, 180m, 450m, 7, 4.3m, "نقاش", "15"),
+        (15, "سباك", "الدقهلية , المنصورة , شارع الجيش", null, 170m, 340m, 7, 4.5m, "سباك", "16"),
+        (16, "كهربائي", "الشرقية , الزقازيق , شارع أحمد عرابي", null, 250m, 520m, 11, 4.8m, "كهربائي", "17"),
+        (17, "نجار", "المنوفية , شبين الكوم , شارع الاستاد", null, 280m, 620m, 9, 4.6m, "نجار", "18"),
+        (18, "فني تكييف", "القليوبية , بنها , شارع الجمهورية", null, 320m, 720m, 9, 4.5m, "فني تكييف", "19"),
+        (19, "سباك", "المنيا , المنيا , شارع كورنيش النيل", null, 160m, 320m, 7, 4.3m, "سباك", "20"),
+        (20, "كهربائي", "أسوان , أسوان , شارع السد العالي", null, 250m, 550m, 11, 4.7m, "كهربائي", "21"),
+        (21, "نجار", "بورسعيد , بورسعيد , شارع 23 يوليو", null, 270m, 600m, 10, 4.6m, "نجار", "22"),
+        (22, "نقاش", "السويس , السويس , شارع الجيش", null, 190m, 460m, 7, 4.3m, "نقاش", "23"),
+        (23, "سباك", "دمياط , دمياط , شارع الجلاء", null, 150m, 300m, 8, 4.4m, "سباك", "24"),
+        (24, "كهربائي", "سوهاج , سوهاج , شارع النيل", null, 220m, 480m, 9, 4.5m, "كهربائي", "25"),
+        (25, "نجار", "قنا , قنا , شارع الجمهورية", null, 260m, 580m, 8, 4.4m, "نجار", "26"),
+        (26, "فني تكييف", "الأقصر , الأقصر , شارع الكرنك", null, 320m, 750m, 9, 4.6m, "فني تكييف", "27"),
+        (27, "سباك", "البحر الأحمر , الغردقة , شارع الشيراتون", null, 200m, 400m, 8, 4.5m, "سباك", "28"),
+        (28, "كهربائي", "الوادي الجديد , الخارجة , شارع الجمهورية", null, 220m, 500m, 9, 4.4m, "كهربائي", "29"),
+        (29, "نجار", "مطروح , مرسى مطروح , شارع اسكندرية", null, 250m, 550m, 8, 4.3m, "نجار", "30"),
+        (30, "نقاش", "شمال سيناء , العريش , شارع فلسطين", null, 180m, 420m, 7, 4.2m, "نقاش", "31"),
+        (31, "سباك", "جنوب سيناء , شرم الشيخ , شارع السلام", null, 200m, 450m, 9, 4.6m, "سباك", "32"),
+        (32, "كهربائي", "الفيوم , الفيوم , شارع النيل", null, 220m, 480m, 8, 4.4m, "كهربائي", "33"),
+        (33, "نجار", "بني سويف , بني سويف , شارع الأهرام", null, 260m, 600m, 9, 4.5m, "نجار", "34"),
+        (34, "فني تكييف", "الإسماعيلية , الإسماعيلية , شارع الجمهورية", null, 300m, 700m, 9, 4.6m, "فني تكييف", "35"),
+        (35, "نقاش", "القليوبية , شبرا الخيمة , شارع النصر", null, 190m, 460m, 7, 4.3m, "نقاش", "36")
         };
 
-        foreach (var p in profiles)
+        int added = 0;
+        foreach (var p in profilesRaw)
         {
+            if (p.idx >= users.Count)
+                break;
+
+            var user = users[p.idx];
             _context.Craftsmen.Add(new Craftsman
             {
-                UserId = p.userId,
+                UserId = user.Id,
                 ServiceType = p.serviceType,
                 City = p.city,
                 Neighborhood = p.neighborhood,
@@ -226,108 +336,130 @@ public class DataSeeder
                 NationalIdUrl = $"/uploads/ids/id_{p.photoId}.jpg",
                 CreatedAt = DateTime.UtcNow.AddMonths(-5)
             });
+            added++;
         }
 
         await _context.SaveChangesAsync();
-        _logger.LogInformation("10 craftsman profiles seeded.");
+        _logger.LogInformation("{Count} craftsman profiles seeded (Cairo: 2 per trade, other 26 governorates: 1 each).", added);
     }
-
     // ───────────────────────────────────────────────────────────
     //  JOBS (20) — all completed
     // ───────────────────────────────────────────────────────────
     private async Task SeedJobsAsync()
     {
-        var craftsmen = await _context.Craftsmen.OrderBy(c => c.Id).ToListAsync();
+        var craftsmen = await _context.Craftsmen
+            .Where(c => c.ServiceType != "AI")
+            .OrderBy(c => c.Id)
+            .ToListAsync();
         var customers = await _context.Users
             .Where(u => u.Role == "customer")
             .OrderBy(u => u.CreatedAt)
             .ToListAsync();
 
+        if (craftsmen.Count == 0 || customers.Count == 0)
+        {
+            _logger.LogWarning("No craftsmen or customers found. Jobs not seeded.");
+            return;
+        }
+
         var baseDate = DateTime.UtcNow.AddMonths(-3);
 
         var jobData = new (int craftsmanIdx, int customerIdx, string description, string address,
-            string? problemDesc, string? solutionDesc)[]
-        {
-            (0, 0, "الحنفية بتنقط في الحمام وفيه تسريب تحت الحوض",
-             "15 شارع الجيش، مدينة نصر، القاهرة",
-             "تسريب مياه من الحنفية وتحت الحوض", "تم تغيير الحنفية وإصلاح التسريب"),
+    string? problemDesc, string? solutionDesc)[]
+    {
+(0, 0,
+"الحنفية في المطبخ بتنقط مياه باستمرار حتى بعد القفل",
+"15 شارع الجيش، مدينة نصر، القاهرة",
+"اشتكى العميل من تنقيط مستمر للمياه أدى إلى زيادة فاتورة الاستهلاك. لوحظ وجود ترسبات جيرية وتآكل في الجلدة الداخلية للحنفية.",
+"تم غلق مصدر المياه وفك رأس الحنفية بالكامل وتنظيف الرواسب الجيرية واستبدال الجلدة التالفة ثم إعادة التركيب واختبار الحنفية للتأكد من توقف التنقيط."),
 
-            (0, 1, "المواسير في المطبخ مسدودة والمياه مش بتصرف",
-             "8 شارع الطيران، مدينة نصر، القاهرة",
-             "انسداد كامل في مواسير المطبخ", "تم تسليك المواسير بالضغط العالي"),
+(0, 1,
+"المياه مش بتنزل من حوض المطبخ وبتترجع تاني",
+"8 شارع الطيران، مدينة نصر، القاهرة",
+"انسداد شديد في صرف المطبخ بسبب تراكم الدهون وبقايا الطعام داخل المواسير والسيفون.",
+"تم فك السيفون وتنظيفه بالكامل واستخدام معدات تسليك احترافية ثم غسل المواسير بالمياه المضغوطة واختبار التصريف."),
 
-            (1, 2, "سخان المياه مش بيسخن كويس وبيطفي فجأة",
-             "22 شارع 9، المعادي، القاهرة",
-             "السخان لا يعمل بكفاءة وينطفئ", "تم تنظيف الترموستات واستبدال الهيتر"),
+(1, 2,
+"سخان المياه الكهربائي بيفصل بعد دقائق من التشغيل",
+"22 شارع 9، المعادي، القاهرة",
+"السخان يسخن المياه لفترة قصيرة ثم يتوقف. تم اكتشاف ضعف في عنصر التسخين وخلل في الثرموستات.",
+"تم استبدال عنصر التسخين وضبط الثرموستات وتنظيف الرواسب الكلسية واختبار السخان على عدة دورات تشغيل."),
 
-            (1, 3, "طرمبة المياه في العمارة عطلانة والمياه مش بتوصل للدور الرابع",
-             "4 شارع النصر، المعادي، القاهرة",
-             "طرمبة المياه لا تعمل نهائياً", "تم تغيير الطرمبة بأخري جديدة"),
+(2, 3,
+"فيه ريحة صرف قوية في الحمام مع تسريب مياه",
+"12 شارع أبو بكر، الزيتون، القاهرة",
+"ظهور روائح كريهة وتسريب حول قاعدة الحمام نتيجة تلف الجلدة العازلة وضعف إحكام الوصلات.",
+"تم فك القاعدة واستبدال الجلدة وإعادة تركيب الوصلات واختبار الصرف والتأكد من اختفاء التسريب والروائح."),
 
-            (2, 4, "فيه ريحة في الحمام والمياه بتتسرب من السيفون",
-             "12 شارع أبو بكر، الزيتون، القاهرة",
-             "تسريب من سيفون الحمام", "تم تغيير السيفون بالكامل"),
+(3, 4,
+"القاطع الكهربائي بيفصل أول ما أشغل التكييف",
+"18 شارع شبرا، القاهرة",
+"فصل متكرر للكهرباء عند تشغيل الأحمال العالية بسبب زيادة الحمل وتلف القاطع الرئيسي.",
+"تم قياس الأحمال الكهربائية واستبدال القاطع وإعادة توزيع الأحمال واختبار الدائرة بالكامل."),
 
-            (2, 0, "بانيو الحمام مسدود والمياه واقفة",
-             "3 شارع الترعة، الزيتون، القاهرة",
-             "انسداد في مصرف البانيو", "تم تسليك البانيو وإزالة الدهون المتراكمة"),
+(4, 0,
+"فيه شرارة طالعة من مفتاح النور في الصالة",
+"25 شارع الحجاز، مصر الجديدة، القاهرة",
+"وجود تماس كهربائي داخل المفتاح بسبب احتراق نقاط التوصيل الداخلية.",
+"تم فصل التيار واستبدال المفتاح وفحص الأسلاك وعزل الأجزاء المتضررة واختبار التشغيل."),
 
-            (3, 1, "المفاتيح في الأوضة الكبيرة وقفت وفيه شرارة في اللوحة",
-             "18 شارع شبرا، شبرا، القاهرة",
-             "تماس كهربائي في المفاتيح واللوحة", "تم تغيير المفاتيح وتجديد اللوحة"),
+(5, 1,
+"باب غرفة النوم بيحك في الأرض ومش بيتقفل كويس",
+"6 شارع العباسية، القاهرة",
+"هبوط في مستوى الباب نتيجة ارتخاء المفصلات وتآكل بعض المسامير.",
+"تم ضبط المفصلات واستبدال المسامير وإعادة اتزان الباب والتأكد من سهولة الفتح والغلق."),
 
-            (3, 2, "اللمبات في الشقة كلها بتطفي وتفضل لماعة",
-             "7 شارع أحمد حلمي، شبرا، القاهرة",
-             "عطل في الدائرة الكهربائية العامة", "تم إصلاح العطل وتغيير القواطع"),
+(6, 2,
+"الدولاب أبوابه مفكوكة والأدراج مش بتتحرك",
+"14 شارع رمسيس، العباسية، القاهرة",
+"تلف في المفصلات والسحابات مع ضعف تثبيت بعض الأجزاء الخشبية.",
+"تم استبدال المفصلات والسحابات وتقوية الهيكل الخشبي وضبط الأبواب والأدراج."),
 
-            (4, 3, "المراوح في البيت مش بتشتغل وفصل التيار باستمرار",
-             "25 شارع الحجاز، مصر الجديدة، القاهرة",
-             "انقطاع متكرر في التيار الكهربائي", "تم تغيير الأسلاك وتدعيم الدائرة"),
+(7, 3,
+"التكييف شغال لكن التبريد ضعيف جداً",
+"20 شارع حلوان، القاهرة",
+"انخفاض مستوى الفريون مع تراكم الأتربة على الفلاتر والوحدة الداخلية.",
+"تم تنظيف الفلاتر وشحن الفريون وفحص الضغوط واختبار كفاءة التبريد."),
 
-            (4, 4, "تكييف الهواء مش شغال في الصالة والمفتاح الكهربائي سخن",
-             "10 شارع الميرغني، مصر الجديدة، القاهرة",
-             "ارتفاع درجة حرارة المفتاح الكهربائي للتكييف", "تم استبدال المفتاح الكهربائي"),
+(8, 4,
+"التكييف بينزل مياه على الحائط",
+"11 شارع الملك فيصل، الجيزة",
+"انسداد خط صرف التكثيف أدى إلى رجوع المياه للوحدة الداخلية.",
+"تم تنظيف خط الصرف وإزالة الانسداد وفحص مستوى تركيب الوحدة وتشغيل الجهاز للتأكد من حل المشكلة."),
 
-            (5, 0, "باب الأوضة كسر من المفصلة وعايز تغيير كامل",
-             "6 شارع العباسية، العباسية، القاهرة",
-             "باب خشب مكسور من المفصلات", "تم تركيب باب جديد بمفصلات قوية"),
+(9, 0,
+"الحيطان فيها شروخ وتقشير في الدهان",
+"28 شارع الهرم، الجيزة",
+"وجود شروخ سطحية وتقشر في طبقات الدهان بسبب الرطوبة وسوء التجهيز السابق.",
+"تم معالجة الشروخ وصنفرة الحوائط ووضع طبقة معجون ثم تنفيذ دهان جديد."),
 
-            (5, 1, "دولاب المطبخ واقع من الحائط والأدراج مكسورة",
-             "14 شارع رمسيس، العباسية، القاهرة",
-             "سقوط الدولاب من الحائط", "تم تثبيت الدولاب على الحائط وتغيير الأدراج"),
+(10, 1,
+"شباك خشب مش بيقفل بسبب الرطوبة",
+"10 شارع الجمهورية، كفر الشيخ",
+"انتفاخ أجزاء من الخشب نتيجة تعرضها للرطوبة لفترات طويلة.",
+"تم معالجة الخشب وبرد الأجزاء المتأثرة وضبط المفصلات والقفل."),
 
-            (6, 2, "السرير في الغرفة النوم مكسور من القاعدة",
-             "30 شارع المقطم، المقطم، القاهرة",
-             "قاعدة السرير الخشبية مكسورة", "تم تصنيع قاعدة جديدة وتركيبها"),
+(11, 2,
+"ضغط المياه ضعيف جداً في الشقة",
+"15 شارع سعد زغلول، المنصورة",
+"ضعف تدفق المياه من جميع الحنفيات بسبب انسداد الفلاتر وضعف الطلمبة.",
+"تم تنظيف الفلاتر وفحص الطلمبة وضبط ضغط التشغيل واختبار جميع المخارج."),
 
-            (6, 3, "الشباك خشب متآكل وعايز تغيير الإطارات",
-             "5 شارع اللبيني، المقطم، القاهرة",
-             "إطارات الشبابيك متآكلة بسبب الرطوبة", "تم تغيير إطارات الشبابيك بالكامل"),
+(12, 3,
+"الريموت مش بيشغل التكييف",
+"7 شارع البحر، طنطا",
+"عدم استجابة التكييف للأوامر بسبب عطل في وحدة استقبال الإشارة.",
+"تم استبدال وحدة الاستقبال واختبار الريموت وإعادة ضبط الإعدادات."),
 
-            (7, 4, "التكييف مش بيبرد وبيعمل صوت عالي أثناء الشغل",
-             "20 شارع حلوان، حلوان، القاهرة",
-             "التكييف لا يبرد ويصدر ضوضاء", "تم تنظيف الفلاتر وشحن الفريون"),
+(13, 4,
+"احتراق بريز المطبخ عند تشغيل الأجهزة",
+"9 شارع التحرير، دمنهور",
+"ارتفاع حرارة البريز نتيجة حمل زائد وضعف التوصيلات الداخلية.",
+"تم استبدال البريز وفحص الأسلاك وشد جميع التوصيلات واختبار الأحمال.")
 
-            (7, 0, "التكييف بيشقط مية من الوحدة الداخلية",
-             "11 شارع الملك فيصل، حلوان، القاهرة",
-             "تسريب مياه من الوحدة الداخلية للتكييف", "تم تنظيف صرف التكييف وإزالة الانسداد"),
 
-            (8, 1, "الريموت بتاع التكييف مش شغال والتكييف مش بيستجيب",
-             "9 شارع التحرير، الدقي، القاهرة",
-             "عدم استجابة التكييف للريموت", "تم استبدال الريموت وإصلاح وحدة التحكم"),
+};
 
-            (8, 2, "تكييفين في الشقة محتاجين صيانة وتنظيف شاملة",
-             "16 شارع الدقي، الدقي، القاهرة",
-             "تراكم الأتربة في الفلاتر", "تم عمل صيانة شاملة وتنظيف التكييفين"),
-
-            (9, 3, "عايز دهان كامل للشقة 3 أوض وريسبشن",
-             "28 شارع الهرم، الهرم، الجيزة",
-             "دهانات قديمة متشققة ومتقشرة", "تم دهان الشقة بالكامل بدهان حديث"),
-
-            (9, 4, "حوائط الصالة فيها تشققات وعايزه تليس ودهان جديد",
-             "35 شارع فيصل، الهرم، الجيزة",
-             "تشققات في حوائط الصالة", "تم تلييس ودهان الصالة بالكامل")
-        };
 
         for (int i = 0; i < jobData.Length; i++)
         {
@@ -335,12 +467,16 @@ public class DataSeeder
             var jobDate = baseDate.AddDays(i * 4);
             var completedDays = (i % 7) + 1;
 
+            // التعديل هنا: استخدام modulo لضمان عدم خروج المؤشر عن النطاق
+            int craftsmanIdx = j.craftsmanIdx % craftsmen.Count;
+            int customerIdx = j.customerIdx % customers.Count;
+
             _context.Jobs.Add(new Job
             {
-                CustomerId = customers[j.customerIdx].Id,
-                CraftsmanId = craftsmen[j.craftsmanIdx].Id,
+                CustomerId = customers[customerIdx].Id,
+                CraftsmanId = craftsmen[craftsmanIdx].Id,
                 Status = JobStatusConstants.Done,
-                ServiceType = craftsmen[j.craftsmanIdx].ServiceType,
+                ServiceType = craftsmen[craftsmanIdx].ServiceType,
                 Description = j.description,
                 Address = j.address,
                 ProblemDescription = j.problemDesc,
@@ -351,7 +487,126 @@ public class DataSeeder
         }
 
         await _context.SaveChangesAsync();
-        _logger.LogInformation("20 jobs seeded.");
+        _logger.LogInformation("{Count} jobs seeded.", jobData.Length);
+    }
+    // ───────────────────────────────────────────────────────────
+    //  COMMON PROBLEMS → JOBS (زيادة داتا الـ RAG)
+    // ─────────
+    private async Task SeedCommonProblemsAsJobsAsync()
+    {
+        var craftsmen = await _context.Craftsmen
+            .Where(c => c.ServiceType != "AI")
+            .OrderBy(c => c.Id)
+            .ToListAsync();
+
+        var customers = await _context.Users
+            .Where(u => u.Role == "customer")
+            .OrderBy(u => u.CreatedAt)
+            .ToListAsync();
+
+        if (craftsmen.Count == 0 || customers.Count == 0)
+        {
+            _logger.LogWarning("No craftsmen or customers found. Common problem jobs not seeded.");
+            return;
+        }
+
+        var baseDate = DateTime.UtcNow.AddMonths(-2);
+
+        var problemJobs = new (string serviceType, string description,
+ string address, string problemDesc, string solutionDesc)[]
+ {
+("سباك",
+"الحنفية بتنقط مياه باستمرار",
+"القاهرة",
+"تنقيط مستمر من الحنفية بعد الإغلاق. قد يكون السبب تلف الجلدة أو الرواسب الجيرية أو تآكل قلب الحنفية.",
+"فحص مصدر التسريب ثم استبدال الجلدة أو قلب الحنفية وتنظيف الرواسب وإعادة اختبار التشغيل."),
+
+("سباك",
+"انسداد حوض المطبخ",
+"القاهرة",
+"بطء أو توقف تصريف المياه بسبب تراكم الدهون وبقايا الطعام داخل السيفون أو المواسير.",
+"تنظيف السيفون وتسليك المواسير وغسلها بالمياه الساخنة أو المضغوطة."),
+
+("كهربائي",
+"القاطع الكهربائي بيفصل باستمرار",
+"الجيزة",
+"فصل متكرر للكهرباء بسبب حمل زائد أو قصر كهربائي أو تلف القاطع.",
+"قياس الأحمال وفحص الدوائر واستبدال القاطع إذا لزم الأمر."),
+
+("كهربائي",
+"شرارة من مفتاح الكهرباء",
+"القاهرة",
+"ظهور شرر أو رائحة احتراق نتيجة ضعف التوصيلات أو احتراق نقاط التلامس.",
+"فصل الكهرباء واستبدال المفتاح وفحص الأسلاك المرتبطة به."),
+
+("فني تكييف",
+"التكييف لا يبرد",
+"القاهرة",
+"ضعف التبريد بسبب نقص الفريون أو اتساخ الفلاتر أو مشكلة بالمكثف.",
+"تنظيف الفلاتر وقياس ضغط الفريون وفحص الوحدة الداخلية والخارجية."),
+
+("فني تكييف",
+"نزول مياه من التكييف",
+"الجيزة",
+"تسرب مياه من الوحدة الداخلية نتيجة انسداد خط الصرف أو عدم توازن الوحدة.",
+"تنظيف خط الصرف وضبط مستوى الوحدة واختبار التشغيل."),
+
+("نجار",
+"باب لا يغلق بشكل صحيح",
+"الإسكندرية",
+"احتكاك الباب بالأرض أو الحلق بسبب هبوط المفصلات أو تمدد الخشب.",
+"ضبط المفصلات أو استبدالها ومعالجة الأجزاء المتضررة."),
+
+("نجار",
+"أبواب الدولاب مفكوكة",
+"المنصورة",
+"ضعف المفصلات أو تلف أماكن التثبيت يؤدي إلى عدم إغلاق الأبواب.",
+"استبدال المفصلات وتقوية نقاط التثبيت وإعادة ضبط الأبواب."),
+
+("نقاش",
+"تقشر الدهان",
+"القاهرة",
+"انفصال طبقات الدهان بسبب الرطوبة أو سوء تجهيز الحائط.",
+"إزالة الطبقات التالفة ومعالجة السبب ثم إعادة الدهان."),
+
+("نقاش",
+"شروخ في الحائط",
+"الجيزة",
+"ظهور شروخ سطحية أو متوسطة نتيجة الانكماش أو الرطوبة.",
+"فتح الشروخ ومعالجتها بمواد مناسبة ثم إعادة التشطيب والدهان.")
+
+
+};
+
+
+        int idx = 0;
+        foreach (var p in problemJobs)
+        {
+            // التعديل هنا: استخدام modulo على craftsmen و customers
+            var craftsman = craftsmen.FirstOrDefault(c => c.ServiceType == p.serviceType)
+                            ?? craftsmen[idx % craftsmen.Count];
+            var customer = customers[idx % customers.Count];
+            var jobDate = baseDate.AddDays(idx * 3);
+
+            _context.Jobs.Add(new Job
+            {
+                CustomerId = customer.Id,
+                CraftsmanId = craftsman.Id,
+                Status = JobStatusConstants.Done,
+                ServiceType = p.serviceType,
+                Description = p.description,
+                Address = p.address,
+                ProblemDescription = p.problemDesc,
+                SolutionDescription = p.solutionDesc,
+                CreatedAt = jobDate,
+                CompletedAt = jobDate.AddDays(1)
+            });
+
+            idx++;
+        }
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("{Count} common problem jobs seeded.", problemJobs.Length);
     }
 
     // ───────────────────────────────────────────────────────────
@@ -430,6 +685,7 @@ public class DataSeeder
     private async Task SeedConversationsAsync()
     {
         var jobs = await _context.Jobs
+            .Where(j => j.CraftsmanId != null)
             .OrderBy(j => j.Id)
             .Take(10)
             .ToListAsync();
@@ -542,9 +798,12 @@ public class DataSeeder
 
         foreach (var (convIdx, messages) in messageData)
         {
+            if (convIdx >= conversations.Count) continue;
             var conv = conversations[convIdx];
             var custId = conv.CustomerId;
-            var craftUserId = craftsmanUserIds[conv.CraftsmanId];
+
+            if (!craftsmanUserIds.TryGetValue(conv.CraftsmanId, out var craftUserId))
+                continue;
 
             for (int mIdx = 0; mIdx < messages.Length; mIdx++)
             {
@@ -570,4 +829,5 @@ public class DataSeeder
         await _context.SaveChangesAsync();
         _logger.LogInformation("{Count} messages seeded.", messagesCount);
     }
+   
 }
