@@ -45,7 +45,7 @@ public class JobService : IJobService
 
         var created = await _jobRepository.CreateAsync(job);
 
-        var craftsman = await _craftsmanRepo.GetByIdAsync(dto.CraftsmanId);
+        var craftsman = await _craftsmanRepo.GetByIdAsync(dto.CraftsmanId ?? 0);
         if (craftsman != null)
         {
             var notifDto = await _notificationService.CreateJobNotificationAsync(
@@ -122,6 +122,9 @@ public class JobService : IJobService
         var jobs = await _jobRepository.GetByCraftsmanIdAsync(craftsmanId);
         return jobs.Select(MapToDto);
     }
+
+    public async Task<bool> CraftsmanBelongsToUserAsync(int craftsmanId, int userId)
+        => await _jobRepository.CraftsmanBelongsToUserAsync(craftsmanId, userId);
 
     // ─── Private Helpers ────────────────────────────────────────────────────
 

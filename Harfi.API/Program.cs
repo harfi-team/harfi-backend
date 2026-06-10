@@ -8,6 +8,7 @@ using Harfi.Repositories.Implementations;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
+using AspNetCoreRateLimit;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,12 +20,14 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services
     .AddDatabase(builder.Configuration)
     .AddRepositories()
-    .AddApplicationServices()
+    .AddApplicationServices(builder.Environment)
     .AddJwtAuthentication(builder.Configuration)
     .AddSwaggerWithJwt()
     .AddHarfiCors(builder.Configuration)
+    .AddHarfiRateLimiting(builder.Configuration)
     .AddControllers();
 
+// Seeder
 
 builder.Services.AddSingleton<CraftsmanChangeInterceptor>();
 
@@ -48,6 +51,7 @@ var app = builder.Build();
 //  MIDDLEWARE PIPELINE — ORDER MATTERS
 // ═══════════════════════════════════════════════════════════
 app.UseMiddleware<GlobalExceptionMiddleware>(); // 1st — catches everything
+app.UseIpRateLimiting();
 
 if (app.Environment.IsDevelopment())
 {

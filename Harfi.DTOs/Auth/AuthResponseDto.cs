@@ -11,6 +11,7 @@ public class UserInfoDto
     public string Role { get; set; } = string.Empty;
     public string? Phone { get; set; }
     public string? ProfileImageUrl { get; set; }
+    public int? CraftsmanId { get; set; }
 }
 
 // ── AUTH RESPONSE ─────────────────────────────────────────────
@@ -20,4 +21,5 @@ public class AuthResponseDto
     public string RefreshToken { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
     public UserInfoDto User { get; set; } = null!;
+    public bool RequiresPhoneVerification { get; set; }
 }

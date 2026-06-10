@@ -15,5 +15,7 @@ namespace Harfi.Repositories.Interfaces
         Task<IEnumerable<Craftsman>> GetFilteredCraftsmenAsync(CraftsmanFilterDto filter);
         Task<bool> UpdateAsync(Craftsman craftsman);
         Task<IEnumerable<Craftsman>> GetAllWithUserAsync();
+        IQueryable<Craftsman> GetAllWithUserQuery();
+        Task<Craftsman?> GetByUserIdAsync(int userId);
     }
 }

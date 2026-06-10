@@ -26,6 +26,14 @@ namespace Harfi.Repositories.Implementations
                 .ToListAsync();
         }
 
+        public IQueryable<Craftsman> GetAllWithUserQuery()
+        {
+            return _context.Craftsmen
+                .Include(c => c.User)
+                .AsNoTracking()
+                .AsQueryable();
+        }
+
         public async Task DeleteAsync(int craftsmanId)
         {
             var craftsman = await _context.Craftsmen.FindAsync(craftsmanId);
@@ -42,7 +50,7 @@ namespace Harfi.Repositories.Implementations
 
             var query = _context.Craftsmen
                                 .Include(c => c.User)
-                                .Where(c => c.IsApproved)
+                                .Where(c => c.IsApproved && c.IsAvailable)
                                 .AsQueryable();
 
             // 2. الفلترة بنوع الخدمة (تعديل الـ == إلى .Contains لدعم البحث العربي الجزئي)
@@ -74,6 +82,12 @@ namespace Harfi.Repositories.Implementations
 
             // 7. تنفيذ الكود وإرجاع النتائج
             return await query.ToListAsync();
+        }
+
+        public async Task<Craftsman?> GetByUserIdAsync(int userId)
+        {
+            return await _context.Craftsmen
+                .FirstOrDefaultAsync(c => c.UserId == userId);
         }
 
         public async Task<bool> UpdateAsync(Craftsman craftsman)
