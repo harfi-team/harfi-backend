@@ -1,4 +1,6 @@
-﻿using Harfi.DTOs.RAG;
+﻿
+using Harfi.DTOs.RAG;
+using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -23,32 +25,34 @@ public class RAGService
     private readonly ILogger<RAGService> _logger;
     private readonly AppDbContext _db;
 
+
     private static readonly (string Keyword, string Service)[] KeywordMap =
     [
-        ("باب حديد","حداد"),("بوابة حديد","حداد"),("شباك حديد","حداد"),
-        ("قضبان","حداد"),("درابزين حديد","حداد"),("سور حديد","حداد"),
-        ("حداد","حداد"),("لحام حديد","حداد"),("باب جراج","حداد"),("باب معدن","حداد"),
-        ("باب خشب","نجار"),("شباك خشب","نجار"),("دولاب خشب","نجار"),
-        ("نجار","نجار"),("نجارة","نجار"),("أثاث","نجار"),("باركيه","نجار"),
-        ("سرير مكسور","نجار"),("دولاب","نجار"),("باب بيعلق","نجار"),
-        ("حنفية","سباك"),("صنبور","سباك"),("تسريب مياه","سباك"),
-        ("مواسير","سباك"),("بالوعة","سباك"),("صرف صحي","سباك"),
-        ("سخان مياه","سباك"),("خزان مياه","سباك"),("طلمبة مياه","سباك"),
-        ("مرحاض","سباك"),("سباكة","سباك"),("سيفون","سباك"),
-        ("كهرباء","كهربائي"),("سلك","كهربائي"),("لمبة","كهربائي"),
-        ("قاطع","كهربائي"),("لوحة كهرباء","كهربائي"),("فيشة","كهربائي"),
-        ("مقبس","كهربائي"),("تماس","كهربائي"),("إنارة","كهربائي"),
-        ("طاقة شمسية","كهربائي"),("سولار","كهربائي"),("انفرتر","كهربائي"),
+        ("باب حديد","حدادة"),("بوابة حديد","حدادة"),("شباك حديد","حدادة"),
+        ("قضبان","حدادة"),("درابزين حديد","حدادة"),("سور حديد","حدادة"),
+        ("حداد","حدادة"),("لحام حديد","حدادة"),("باب جراج","حدادة"),("باب معدن","حدادة"),
+        ("باب خشب","نجارة"),("شباك خشب","نجارة"),("دولاب خشب","نجارة"),
+        ("نجار","نجارة"),("نجارة","نجارة"),("أثاث","نجارة"),("باركيه","نجارة"),
+        ("سرير مكسور","نجارة"),("دولاب","نجارة"),("باب بيعلق","نجارة"),
+        ("حنفية","سباكة"),("صنبور","سباكة"),("تسريب مياه","سباكة"),
+        ("مواسير","سباكة"),("بالوعة","سباكة"),("صرف صحي","سباكة"),
+        ("سخان مياه","سباكة"),("خزان مياه","سباكة"),("طلمبة مياه","سباكة"),
+        ("مرحاض","سباكة"),("سباكة","سباكة"),("سيفون","سباكة"),
+        ("كهرباء","كهرباء"),("سلك","كهرباء"),("لمبة","كهرباء"),
+        ("قاطع","كهرباء"),("لوحة كهرباء","كهرباء"),("فيشة","كهرباء"),
+        ("مقبس","كهرباء"),("تماس","كهرباء"),("إنارة","كهرباء"),
+        ("طاقة شمسية","كهرباء"),("سولار","كهرباء"),("انفرتر","كهرباء"),
         ("تكييف","تكييف وتبريد"),("مكيف","تكييف وتبريد"),("فريون","تكييف وتبريد"),
-        ("زجاج مكسور","زجاج وألمنيوم"),("شباك زجاج","زجاج وألمنيوم"),
-        ("شباك ألمنيوم","زجاج وألمنيوم"),("ألمنيوم","زجاج وألمنيوم"),
-        ("سيراميك","سيراميك"),("بلاطة","سيراميك"),("بلاط","سيراميك"),
-        ("رخام","سيراميك"),("بورسلين","سيراميك"),
-        ("دهان","دهان"),("بوية","دهان"),("طلاء","دهان"),("بلاستر","دهان"),
+        ("زجاج مكسور","زجاج ومرايا"),("شباك زجاج","زجاج ومرايا"),("مرايا","زجاج ومرايا"),
+        ("شباك ألمنيوم","ألمنيوم"),("ألمنيوم","ألمنيوم"),("كلادينج","ألمنيوم"),
+        ("سيراميك","تبليط وسيراميك"),("بلاطة","تبليط وسيراميك"),("بلاط","تبليط وسيراميك"),
+        ("رخام","تبليط وسيراميك"),("بورسلين","تبليط وسيراميك"),("تبليط","تبليط وسيراميك"),
+        ("دهان","دهانات"),("بوية","دهانات"),("طلاء","دهانات"),("بلاستر","دهانات"),
         ("تشقق","بناء"),("بناء","بناء"),("ترميم","بناء"),
         ("تشطيب","بناء"),("مقاول","بناء"),
-        ("كاميرا","كاميرات مراقبة"),("مراقبة","كاميرات مراقبة"),("cctv","كاميرات مراقبة"),
-        ("جبس","ديكور وجبس"),("ديكور","ديكور وجبس"),("كورنيش","ديكور وجبس"),
+        ("كاميرا","أمن وكاميرات"),("مراقبة","أمن وكاميرات"),("cctv","أمن وكاميرات"),("انتركوم","أمن وكاميرات"),
+        ("جبس","جبس وأسقف"),("ديكور","جبس وأسقف"),("كورنيش","جبس وأسقف"),
+        ("حشرات","مكافحة حشرات"),("رش","مكافحة حشرات"),
         ("صيانة","صيانة عامة"),
     ];
 
@@ -193,9 +197,6 @@ public class RAGService
         };
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    //  QUERY
-    // ════════════════════════════════════════════════════════════════════════
 
     public async Task<QueryResponse> QueryAsync(QueryRequest request)
     {
@@ -209,6 +210,8 @@ public class RAGService
 
         string? city = !string.IsNullOrEmpty(request.ExtractedCity)
             ? request.ExtractedCity : detectedCity;
+
+        string? userNeighborhood = request.ExtractedDistrict;
 
         _logger.LogInformation("[Query] service={S} city={C} topK={K}",
             service ?? "any", city ?? "any", request.TopK);
@@ -226,87 +229,148 @@ public class RAGService
             return await SqlFallbackAsync(request, service, city, sw);
         }
 
-        var citiesToSearch = BuildCityQueue(city);
-        var verifiedLocal = new List<FinalCraftsman>();
-        var verifiedNearby = new List<FinalCraftsman>();
-        var usedIds = new HashSet<int>();
-        bool isFirstCity = true;
+        const int QdrantFetchMultiplier = 10;
+        int fetchCount = request.TopK * QdrantFetchMultiplier;
 
-        foreach (var searchCity in citiesToSearch)
+        // normalize اسم الخدمة عشان يتطابق مع اللي متخزن في Qdrant
+        string qdrantService = await NormalizeServiceForQdrantAsync(service);
+        _logger.LogInformation("[Query] service normalized: {S} → {Q}", service, qdrantService);
+
+        QdrantSearchResponse qdrantResult;
+        try
         {
-            int totalSoFar = verifiedLocal.Count + verifiedNearby.Count;
-            if (totalSoFar >= request.TopK) break;
+            qdrantResult = await _vectorDb.SearchByServiceOnlyAsync(
+                qEmbed, fetchCount, qdrantService);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("[Query] Qdrant failed: {M}", ex.Message);
+            return await SqlFallbackAsync(request, service, city, sw);
+        }
 
-            int needed = request.TopK - totalSoFar;
+        _logger.LogInformation("[Query] Qdrant returned {N} results for service={S}",
+            qdrantResult.result?.Count ?? 0, qdrantService);
+        _logger.LogInformation("[Query] Sample IDs: {IDs}",
+            string.Join(", ", (qdrantResult.result ?? []).Take(5)
+                .Select(p => GetInt(p.payload, "craftsman_id"))));
 
-            QdrantSearchResponse qdrantResult;
-            try
-            {
-                qdrantResult = await _vectorDb.SearchAsync(
-                    qEmbed, needed * 5, service, searchCity);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning("[Query] Qdrant failed for {C}: {M}", searchCity, ex.Message);
-                isFirstCity = false;
-                continue;
-            }
+        var qdrantScores = (qdrantResult.result ?? [])
+            .Select(p => new { Id = GetInt(p.payload, "craftsman_id"), Score = p.score })
+            .Where(x => x.Id != 0)
+            .GroupBy(x => x.Id)
+            .Select(g => g.OrderByDescending(x => x.Score).First())
+            .ToList();
 
-            var qdrantScores = (qdrantResult.result ?? [])
-                .Select(p => new { Id = GetInt(p.payload, "craftsman_id"), Score = p.score })
-                .Where(x => x.Id != 0 && !usedIds.Contains(x.Id))
-                .GroupBy(x => x.Id)
-                .Select(g => g.OrderByDescending(x => x.Score).First())
-                .OrderByDescending(x => x.Score)
-                .Take(needed * 2)
+        if (qdrantScores.Count == 0)
+            return await SqlFallbackAsync(request, service, city, sw);
+
+        var allIds = qdrantScores.Select(x => x.Id).ToList();
+        var scoreMap = qdrantScores.ToDictionary(x => x.Id, x => x.Score);
+
+        //var allCraftsmen = await _db.Craftsmen
+        //    .Include(c => c.User)
+        //    .Where(c => allIds.Contains(c.Id))
+        //    .ToListAsync();
+        var allCraftsmen = await _db.Craftsmen
+    .Include(c => c.User)
+    .Where(c => allIds.Contains(c.Id) && !c.IsDeleted && c.IsApproved && c.IsAvailable)
+    .ToListAsync();
+
+        _logger.LogInformation("[Query] SQL returned {N} craftsmen for IDs={IDs}",
+            allCraftsmen.Count, string.Join(", ", allIds));
+
+        var localCraftsmen = city is null
+            ? allCraftsmen
+            : allCraftsmen.Where(c => c.City == city).ToList();
+
+        _logger.LogInformation("[Query] Local craftsmen (city={C}): {N}",
+            city ?? "any", localCraftsmen.Count);
+
+        List<FinalCraftsman> verifiedLocal;
+        List<FinalCraftsman> verifiedNearby = [];
+
+        if (localCraftsmen.Count >= request.TopK || city is null)
+        {
+            var topLocal = localCraftsmen
+                .OrderByDescending(c => scoreMap.GetValueOrDefault(c.Id))
+                .Take(request.TopK)
+                .Select(c => new FinalCraftsman(c,
+                    FuseScore(scoreMap.GetValueOrDefault(c.Id), c.Rating), false, city))
                 .ToList();
 
-            if (qdrantScores.Count == 0) { isFirstCity = false; continue; }
+            verifiedLocal = topLocal;
+        }
+        else
+        {
+            var usedIds = new HashSet<int>(localCraftsmen.Select(c => c.Id));
 
-            var ids = qdrantScores.Select(x => x.Id).ToList();
-            var craftsmen = await _db.Craftsmen
-     .Include(c => c.User)
-     .Where(c => ids.Contains(c.Id))
-     .ToListAsync();
-            var craftsmanMap = craftsmen.ToDictionary(c => c.Id);
-
-            var ranked = qdrantScores
-                .Where(x => craftsmanMap.ContainsKey(x.Id))
-                .Select(x => new RankedCraftsman(craftsmanMap[x.Id], x.Score))
+            verifiedLocal = localCraftsmen
+                .OrderByDescending(c => scoreMap.GetValueOrDefault(c.Id))
+                .Select(c => new FinalCraftsman(c,
+                    FuseScore(scoreMap.GetValueOrDefault(c.Id), c.Rating), false, city))
                 .ToList();
 
-            var verified = await VerifyServiceTypeAsync(ranked, service, needed);
+            int stillNeeded = request.TopK - verifiedLocal.Count;
 
-            foreach (var v in verified)
-            {
-                usedIds.Add(v.Craftsman.Id);
-                double fused = 0.7 * v.Score + 0.3 * ((double)v.Craftsman.Rating / 5.0);
-                var fc = new FinalCraftsman(v.Craftsman, fused, !isFirstCity, city);
-                if (isFirstCity) verifiedLocal.Add(fc);
-                else verifiedNearby.Add(fc);
-            }
+            var nearbyCities = NearbyMap.TryGetValue(city, out var nb) ? nb : [];
 
-            isFirstCity = false;
+            var nearbyCandidates = allCraftsmen
+                .Where(c => !usedIds.Contains(c.Id) && nearbyCities.Contains(c.City))
+                .OrderBy(c => Array.IndexOf(nearbyCities, c.City))
+                .ThenByDescending(c => scoreMap.GetValueOrDefault(c.Id))
+                .Take(stillNeeded)
+                .Select(c => new FinalCraftsman(c,
+                    FuseScore(scoreMap.GetValueOrDefault(c.Id), c.Rating), true, city))
+                .ToList();
+
+            verifiedNearby = nearbyCandidates;
         }
 
         var allVerified = verifiedLocal.Concat(verifiedNearby).ToList();
+
+        _logger.LogInformation("[Query] Final: local={L} nearby={NB} total={T}",
+            verifiedLocal.Count, verifiedNearby.Count, allVerified.Count);
+
         if (allVerified.Count == 0)
             return await SqlFallbackAsync(request, service, city, sw);
 
-        // ── Re-rank by district if user provided district ────────────────
-        if (!string.IsNullOrEmpty(request.ExtractedDistrict) && allVerified.Count > 1)
+       
         {
-            allVerified = await ReRankByDistrictAsync(allVerified, request.ExtractedDistrict);
+            var allSqlCandidates = await _db.Craftsmen
+                .Include(c => c.User)
+                .Where(c => !c.IsDeleted && c.IsApproved && c.IsAvailable)
+                .Where(c => c.ServiceType == qdrantService)
+                .OrderByDescending(c => c.Rating)
+                .ToListAsync();
+
+            if (allSqlCandidates.Count > 0)
+            {
+                var foundIds = allVerified.Select(fc => fc.Craftsman.Id).ToHashSet();
+                var missing = allSqlCandidates.Where(c => !foundIds.Contains(c.Id)).ToList();
+
+                _logger.LogInformation("[SafetyNet] Total={T} Found={F} Missing={M}",
+                    allSqlCandidates.Count, foundIds.Count, missing.Count);
+
+                var safetyRanked = await RankByProximityAsync(
+                    allSqlCandidates, city ?? "", qdrantService, request.TopK);
+
+                allVerified = safetyRanked
+                    .Select(c => new FinalCraftsman(
+                        c, (double)c.Rating / 5.0,
+                        city is null || c.City != city, city))
+                    .ToList();
+
+                _logger.LogInformation("[SafetyNet] Final after LLM rerank: {N}", allVerified.Count);
+            }
+        }
+        if (!string.IsNullOrEmpty(userNeighborhood) && allVerified.Count > 1)
+        {
+            allVerified = await ReRankByNeighborhoodAsync(allVerified, userNeighborhood);
         }
 
         string nearbyNote = BuildNearbyNote(city, service, verifiedLocal.Count, verifiedNearby.Count);
         string context = BuildContext(allVerified, verifiedLocal.Count, nearbyNote);
         string answer = await CallGroqAsync(request.Question, context, nearbyNote);
-
-
-        //string nearbyNote = BuildNearbyNote(city, service, verifiedLocal.Count, verifiedNearby.Count);
-        //string context = BuildContext(allVerified, verifiedLocal.Count, nearbyNote);
-        //string answer = await CallGroqAsync(request.Question, context, nearbyNote);
 
         sw.Stop();
 
@@ -335,6 +399,239 @@ public class RAGService
             }).ToList(),
             LatencyMs = sw.ElapsedMilliseconds
         };
+    }
+
+    private async Task<string> NormalizeServiceForQdrantAsync(string service)
+    {
+        // لو موجود في الـ switch العادي رجّعه فوراً بدون LLM call
+        var quick = service switch
+        {
+            "سباك" or "سباكه" => "سباكة",
+            "كهربائي" or "كهربجي" or "كهرباجي" => "كهرباء",
+            "نجار" or "نجاره" or "موبيليا" => "نجارة",
+            "حداد" or "حداده" or "لحام" => "حدادة",
+            "دهان" or "نقاش" or "بوية" or "بويه" => "دهانات",
+            "سيراميك" or "بلاط" or "تبليط" or "رخام" => "تبليط وسيراميك",
+            "تكييف" or "مكيف" or "تبريد" => "تكييف وتبريد",
+            "جبس" or "أسقف" or "اسقف" or "ديكور" => "جبس وأسقف",
+            "زجاج" or "مرايا" or "زجاج وألمنيوم" => "زجاج ومرايا",
+            "ألمنيوم" or "الومنيوم" or "شباك ألمنيوم" => "ألمنيوم",
+            "كاميرا" or "كاميرات" or "مراقبة" or "انتركوم" or "أمن" => "أمن وكاميرات",
+            "حشرات" or "رش" or "تعقيم" => "مكافحة حشرات",
+            "مقاول" or "ترميم" => "بناء",
+            "صيانة" => "صيانة عامة",
+            _ => null  // مش عارفه → روح للـ LLM
+        };
+
+        if (quick is not null)
+        {
+            _logger.LogInformation("[Normalize] Quick match: {S} → {Q}", service, quick);
+            return quick;
+        }
+
+        
+        var validServices = await _db.Craftsmen
+    .Where(c => !c.IsDeleted && c.IsApproved && c.IsAvailable && c.ServiceType != "AI")
+    .Select(c => c.ServiceType)
+    .Distinct()
+    .ToArrayAsync();
+        string prompt =
+            "أنت مساعد لتصنيف الخدمات.\n\n" +
+            "الخدمة المدخلة: [" + service + "]\n\n" +
+            "قائمة الخدمات المتاحة:\n" +
+            string.Join("\n", validServices.Select((s, i) => $"{i + 1}. {s}")) + "\n\n" +
+            "المطلوب: اختر الخدمة الأقرب من القائمة للخدمة المدخلة.\n" +
+            "رد بـ JSON فقط: {\"service\": \"اسم الخدمة من القائمة\"}";
+
+        try
+        {
+            var payload = new
+            {
+                model = _config["Groq:ChatModel"] ?? "llama-3.3-70b-versatile",
+                temperature = 0.0,
+                max_tokens = 50,
+                messages = new[]
+                {
+                new { role = "system", content = prompt },
+                new { role = "user",   content = "صنّف الخدمة" }
+            }
+            };
+
+            var resp = await _groqRotating.PostAsync("openai/v1/chat/completions", payload);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("[Normalize] LLM failed — using original: {S}", service);
+                return service;
+            }
+
+            var result = await resp.Content.ReadFromJsonAsync<GroqResp>();
+            string raw = result?.Choices?.FirstOrDefault()?.Message?.Content?.Trim() ?? "";
+            string json = raw.Replace("```json", "").Replace("```", "").Trim();
+
+            using var doc = JsonDocument.Parse(json);
+            string normalized = doc.RootElement.GetProperty("service").GetString() ?? service;
+
+            // تأكد إن النتيجة من القائمة المسموح بيها
+            if (!validServices.Contains(normalized))
+            {
+                _logger.LogWarning("[Normalize] LLM returned invalid service: {S} — using original", normalized);
+                return service;
+            }
+
+            _logger.LogInformation("[Normalize] LLM: {S} → {Q}", service, normalized);
+            return normalized;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("[Normalize] Exception: {M} — using original", ex.Message);
+            return service;
+        }
+    }
+    private static double FuseScore(double vectorScore, decimal rating)
+        => 0.7 * vectorScore + 0.3 * ((double)rating / 5.0);
+    // ── Safety Net: ترتيب الحرفيين بالقرب من المدينة المكتوبة ───────────────
+    private async Task<List<Harfi.Models.Entities.Craftsman>> RankByProximityAsync(
+        List<Harfi.Models.Entities.Craftsman> candidates, string userCity, string service, int needed)
+    {
+        if (candidates.Count == 0) return [];
+
+        var list = string.Join("\n", candidates.Select(c =>
+            $"ID={c.Id} | التخصص: {c.ServiceType} | المدينة: {c.City} | الحي: {c.Neighborhood ?? ""} | التقييم: {c.Rating}"));
+
+        string prompt =
+            "أنت مساعد لترتيب الحرفيين حسب القرب الجغرافي.\n" +
+            $"المدينة/المحافظة التي أدخلها المستخدم: [{userCity}]\n" +
+            $"التخصص المطلوب: [{service}]\n\n" +
+            "قائمة الحرفيين المتاحين:\n" + list + "\n\n" +
+            "قواعد:\n" +
+            "- رتّب الحرفيين من الأقرب للأبعد لمدينة المستخدم\n" +
+            "- الأولوية: نفس المدينة أو المحافظة أولاً، ثم المجاورة\n" +
+            "- لو المستخدم كتب مدينة (مثل مدينة نصر) اعتبرها في محافظتها (القاهرة)\n" +
+            $"- اختر أفضل {needed} فقط\n" +
+            $"- رد بـ JSON فقط: {{\"ranked_ids\": [ID1, ID2, ...]}}";
+
+        try
+        {
+            var payload = new
+            {
+                model = _config["Groq:ChatModel"] ?? "llama-3.3-70b-versatile",
+                temperature = 0.0,
+                max_tokens = 200,
+                messages = new[]
+                {
+                    new { role = "system", content = prompt },
+                    new { role = "user",   content = "رتّب الحرفيين" }
+                }
+            };
+
+            var resp = await _groqRotating.PostAsync("openai/v1/chat/completions", payload);
+            if (!resp.IsSuccessStatusCode) return candidates.Take(needed).ToList();
+
+            var result = await resp.Content.ReadFromJsonAsync<GroqResp>();
+            string raw = result?.Choices?.FirstOrDefault()?.Message?.Content?.Trim() ?? "";
+            string json = raw.Replace("```json", "").Replace("```", "").Trim();
+
+            using var doc = JsonDocument.Parse(json);
+            var rankedIds = doc.RootElement
+                .GetProperty("ranked_ids")
+                .EnumerateArray()
+                .Select(x => x.GetInt32())
+                .ToList();
+
+            var dict = candidates.ToDictionary(c => c.Id);
+            var reranked = rankedIds
+                .Where(id => dict.ContainsKey(id))
+                .Select(id => dict[id])
+                .Take(needed)
+                .ToList();
+
+            var usedIds = reranked.Select(c => c.Id).ToHashSet();
+            reranked.AddRange(candidates
+                .Where(c => !usedIds.Contains(c.Id))
+                .Take(needed - reranked.Count));
+
+            _logger.LogInformation("[SafetyNet] LLM ranked {N} craftsmen near: {C}", reranked.Count, userCity);
+            return reranked;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("[SafetyNet] RankByProximity failed: {M}", ex.Message);
+            return candidates.Take(needed).ToList();
+        }
+    }
+
+    private async Task<List<FinalCraftsman>> ReRankByNeighborhoodAsync(
+    List<FinalCraftsman> craftsmen, string userLocation)
+    {
+        // جيب الـ Neighborhood من SQL (مدينة + شارع)
+        var ids = craftsmen.Select(fc => fc.Craftsman.Id).ToList();
+        var neighborhoodMap = await _db.Craftsmen
+            .Where(c => ids.Contains(c.Id))
+            .Select(c => new { c.Id, c.Neighborhood })
+            .ToDictionaryAsync(x => x.Id, x => x.Neighborhood ?? "");
+
+        var list = string.Join("\n", craftsmen.Select((fc, i) =>
+        {
+            var nb = neighborhoodMap.TryGetValue(fc.Craftsman.Id, out var n) ? n : "";
+            return $"{i + 1}. ID={fc.Craftsman.Id} | المحافظة: {fc.Craftsman.City} | العنوان: {nb}";
+        }));
+
+        string prompt =
+            "أنت مساعد لترتيب الحرفيين حسب القرب الجغرافي.\n" +
+            "موقع المستخدم: [" + userLocation + "]\n\n" +
+            "قائمة الحرفيين:\n" + list + "\n\n" +
+            "قواعد:\n" +
+            "- رتّب من الأقرب للأبعد بناءً على تشابه المدينة والشارع مع موقع المستخدم\n" +
+            "- الأولوية الأولى: نفس المدينة — الأولوية الثانية: أقرب شارع\n" +
+            "- رد بـ JSON فقط: {\"ranked_ids\": [ID1, ID2, ...]}\n" +
+            "- اذكر كل الـ IDs";
+
+        try
+        {
+            var payload = new
+            {
+                model = _config["Groq:ChatModel"] ?? "llama-3.3-70b-versatile",
+                temperature = 0.0,
+                max_tokens = 200,
+                messages = new[]
+                {
+                new { role = "system", content = prompt },
+                new { role = "user",   content = "رتّب الحرفيين" }
+            }
+            };
+
+            var resp = await _groqRotating.PostAsync("openai/v1/chat/completions", payload);
+            if (!resp.IsSuccessStatusCode) return craftsmen;
+
+            var result = await resp.Content.ReadFromJsonAsync<GroqResp>();
+            string raw = result?.Choices?.FirstOrDefault()?.Message?.Content?.Trim() ?? "";
+            string json = raw.Replace("```json", "").Replace("```", "").Trim();
+
+            using var doc = JsonDocument.Parse(json);
+            var rankedIds = doc.RootElement
+                .GetProperty("ranked_ids")
+                .EnumerateArray()
+                .Select(x => x.GetInt32())
+                .ToList();
+
+            var craftsmanDict = craftsmen.ToDictionary(fc => fc.Craftsman.Id);
+            var reranked = rankedIds
+                .Where(id => craftsmanDict.ContainsKey(id))
+                .Select(id => craftsmanDict[id])
+                .ToList();
+
+            // أي حد نسيه الـ LLM يتضاف في الآخر
+            reranked.AddRange(craftsmen.Where(fc => !rankedIds.Contains(fc.Craftsman.Id)));
+
+            _logger.LogInformation("[ReRank] Reranked {N} craftsmen near: {L}",
+                reranked.Count, userLocation);
+            return reranked;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("[ReRank] Failed: {M}", ex.Message);
+            return craftsmen;
+        }
     }
     // ════════════════════════════════════════════════════════════════════════
     //  Re-rank by district (مدينة + شارع المستخدم)
@@ -531,25 +828,70 @@ public class RAGService
     private async Task<QueryResponse> SqlFallbackAsync(
         QueryRequest req, string? service, string? city, Stopwatch sw)
     {
-        //var top = (await _repo.GetAllAsync())
-        //    .Where(c => service is null || c.ServiceType == service)
-        //    .OrderByDescending(c => c.Rating)
-        //    .Take(req.TopK)
-        //    .ToList();
-        var top = await _db.Craftsmen           // ← استخدم _db مباشرة بدل _repo
-       .Include(c => c.User)               // ← أضف Include
-       .Where(c => c.ServiceType != "AI")  // ← استبعد الـ AI
-       .Where(c => service == null || c.ServiceType == service)
-       .OrderByDescending(c => c.Rating)
-       .Take(req.TopK)
-       .ToListAsync();
+        // ── 1. جلب الحرفيين من DB مع فلتر صحيح ──────────────────────────────
+        var query = _db.Craftsmen
+            .Include(c => c.User)
+            .Where(c => !c.IsDeleted && c.IsApproved && c.IsAvailable)
+            .Where(c => c.ServiceType != "AI")
+            .Where(c => service == null || c.ServiceType == service);
 
+        // لو فيه مدينة، حاول تجيب منها الأول
+        List<Craftsman> top;
+        if (!string.IsNullOrEmpty(city))
+        {
+            top = await query
+                .Where(c => c.City == city)
+                .OrderByDescending(c => c.Rating)
+                .Take(req.TopK)
+                .ToListAsync();
+
+            // لو مفيش في المدينة دي، جرّب المحافظات المجاورة
+            if (top.Count == 0)
+            {
+                var nearbyCities = NearbyMap.TryGetValue(city, out var nb) ? nb : [];
+                if (nearbyCities.Length > 0)
+                {
+                    top = await query
+                        .Where(c => nearbyCities.Contains(c.City))
+                        .OrderByDescending(c => c.Rating)
+                        .Take(req.TopK)
+                        .ToListAsync();
+                }
+            }
+        }
+        else
+        {
+            top = await query
+                .OrderByDescending(c => c.Rating)
+                .Take(req.TopK)
+                .ToListAsync();
+        }
+
+        sw.Stop();
+
+        // ── 2. لو مفيش حرفيين خالص، رجّع رسالة واضحة بدون LLM ────────────────
+        if (top.Count == 0)
+        {
+            string noResultMsg = string.IsNullOrEmpty(service)
+                ? "عذراً، لا يوجد حرفيون متاحون في الوقت الحالي. 😔"
+                : string.IsNullOrEmpty(city)
+                    ? $"عذراً، لا يوجد حرفيون متاحون لخدمة \"{service}\" حالياً. 😔"
+                    : $"عذراً، لا يوجد حرفيون متاحون لخدمة \"{service}\" في {city} أو المحافظات المجاورة حالياً. 😔\nجرّب محافظة أخرى أو تواصل معنا للمساعدة.";
+
+            return new QueryResponse
+            {
+                Answer = noResultMsg,
+                RetrievedCraftsmen = [],
+                LatencyMs = sw.ElapsedMilliseconds
+            };
+        }
+
+        // ── 3. لو فيه حرفيين، ولّد الإجابة من الـ LLM بناءً عليهم فقط ─────────
         string ctx = string.Join("\n\n", top.Select(c =>
             $"[{c.User.Name}] {c.ServiceType} — {c.City}\n" +
             $"خبرة {c.Experience}س | تقييم {c.Rating}/5\n{c.Bio ?? ""}"));
 
         string answer = await CallGroqAsync(req.Question, ctx, null);
-        sw.Stop();
 
         return new QueryResponse
         {
@@ -560,6 +902,7 @@ public class RAGService
                 Name = c.User.Name,
                 ServiceType = c.ServiceType,
                 City = c.City,
+                Neighborhood = c.Neighborhood,
                 Rating = (double)c.Rating,
                 ExperienceYears = c.Experience,
                 RelevantText = (c.Bio ?? "")[..Math.Min(200, (c.Bio ?? "").Length)],
@@ -682,4 +1025,5 @@ public class RAGService
         await _vectorDb.DeletePointAsync(pointId);
         _logger.LogInformation("Deleted Craftsman {Id} from Qdrant", craftsmanId);
     }
+
 }

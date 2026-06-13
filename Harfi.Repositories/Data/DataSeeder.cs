@@ -29,6 +29,8 @@ public class DataSeeder
 
     public async Task SeedAsync()
     {
+       
+
         bool hasUsers = await _context.Users.IgnoreQueryFilters().AnyAsync();
 
         if (!await _context.ServiceTypes.AnyAsync()) await SeedServiceTypesAsync();
@@ -38,6 +40,8 @@ public class DataSeeder
         if (hasUsers)
         {
             _logger.LogInformation("Seed skipped — data already exists.");
+            SeedStatus.IsCompleted = true;  
+
             return;
         }
 
@@ -65,7 +69,13 @@ public class DataSeeder
         await SeedUserConnectionsAsync();
         await SeedIdentityClaimsAsync();
         _logger.LogInformation("Full seed completed successfully — all 20 tables populated.");
+        SeedStatus.IsCompleted = true;
+
     }
+
+
+
+   
     // ═══════════════════════════════════════════════════════════
     //  1. SERVICE TYPES (15 diverse trades)
     // ═══════════════════════════════════════════════════════════
@@ -251,7 +261,7 @@ public class DataSeeder
     {
         var data = new[]
         {
-            new { Email = "ahmed.ali@gmail.com",        Name = "أحمد علي",       Phone = "01012345678", Days = 10  },
+            new { Email = "ahmed.ali@gmail.com",        Name = "احمد علي",       Phone = "01012345678", Days = 10  },
             new { Email = "mohamed.hassan@gmail.com",   Name = "محمد حسن",       Phone = "01123456789", Days = 8   },
             new { Email = "abdallah.khaled@gmail.com",  Name = "عبدالله خالد",    Phone = "01234567890", Days = 30  },
             new { Email = "mostafa.mahmoud@gmail.com",  Name = "مصطفى محمود",    Phone = "01512345678", Days = 7   },
@@ -270,7 +280,30 @@ public class DataSeeder
             new { Email = "marwan.atef@gmail.com",      Name = "مروان عاطف",     Phone = "01099999999", Days = 48  },
             new { Email = "sherif.ashraf@gmail.com",    Name = "شريف أشرف",      Phone = "01100000001", Days = 52  },
             new { Email = "khaled.nasr@gmail.com",      Name = "خالد نصر",       Phone = "01200000002", Days = 58  },
-            new { Email = "george.ramzy@gmail.com",     Name = "جورج رمسي",      Phone = "01500000003", Days = 62  }
+            new { Email = "george.ramzy@gmail.com",     Name = "جورج رمسي",      Phone = "01500000003", Days = 62  },
+
+            new { Email = "karim.ali@gmail.com",       Name = "كريم علي",       Phone = "01011111222", Days = 5  },
+            new { Email = "mahmoud.faris@gmail.com",   Name = "محمود فارس",     Phone = "01022222333", Days = 7  },
+            new { Email = "yasser.nour@gmail.com",     Name = "ياسر نور",       Phone = "01033333444", Days = 9  },
+            new { Email = "ayman.saad@gmail.com",      Name = "أيمن سعد",       Phone = "01044444555", Days = 11 },
+            new { Email = "rami.khattab@gmail.com",    Name = "رامي الخطاب",    Phone = "01055555666", Days = 13 },
+            new { Email = "magdy.hassan@gmail.com",    Name = "مجدي حسن",       Phone = "01066666777", Days = 17 },
+            new { Email = "nabil.rushdy@gmail.com",    Name = "نبيل رشدي",      Phone = "01077777888", Days = 19 },
+            new { Email = "essam.farid@gmail.com",     Name = "عصام فريد",      Phone = "01088888999", Days = 21 },
+            new { Email = "waleed.mansour@gmail.com",  Name = "وليد منصور",     Phone = "01099999111", Days = 23 },
+            new { Email = "ashraf.nagi@gmail.com",     Name = "أشرف ناجي",      Phone = "01111111222", Days = 26 },
+            new { Email = "emad.khalil@gmail.com",     Name = "عماد خليل",      Phone = "01122222333", Days = 28 },
+            new { Email = "hazem.saber@gmail.com",     Name = "حازم صابر",      Phone = "01133333444", Days = 33 },
+            new { Email = "sherif.anwar@gmail.com",    Name = "شريف أنور",      Phone = "01144444555", Days = 36 },
+            new { Email = "amgad.refaat@gmail.com",    Name = "أمجد رفعت",      Phone = "01155555666", Days = 39 },
+            new { Email = "taher.badran@gmail.com",    Name = "طاهر بدران",     Phone = "01166666777", Days = 43 },
+            new { Email = "ibrahim.selim@gmail.com",   Name = "إبراهيم سليم",   Phone = "01177777888", Days = 46 },
+            new { Email = "hassan.morsi@gmail.com",    Name = "حسن مرسي",       Phone = "01188888999", Days = 49 },
+            new { Email = "gamal.fouad@gmail.com",     Name = "جمال فؤاد",      Phone = "01199999111", Days = 53 },
+            new { Email = "samir.lotfy@gmail.com",     Name = "سمير لطفي",      Phone = "01211111222", Days = 56 },
+            new { Email = "medhat.wahba@gmail.com",    Name = "مدحت وهبة",      Phone = "01222222333", Days = 59 },
+            new { Email = "ai@harfi.com",      Name = "AI",       Phone = "01200000002", Days = 58  }
+
         };
         foreach (var d in data)
         {
@@ -299,7 +332,7 @@ public class DataSeeder
     {
         var users = await _context.Users.IgnoreQueryFilters()
             .Where(u => u.Role == "craftsman").OrderBy(u => u.CreatedAt).ToListAsync();
-        if (users.Count < 20) { _logger.LogWarning("Expected 20 craftsman users, got {N}", users.Count); return; }
+        if (users.Count < 21) { _logger.LogWarning("Expected 21 craftsman users, got {N}", users.Count); return; }
         User U(string email) => users.First(u => u.Email == email);
 
         var profiles = new[]
@@ -308,7 +341,7 @@ public class DataSeeder
             new Craftsman { UserId = U("mohamed.hassan@gmail.com").Id,  ServiceType = "كهرباء",         City = "الإسكندرية",     Neighborhood = "سيدي بشر",      PriceRangeMin = 200m, PriceRangeMax = 600m, Experience = 12, IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "مهندس كهربائي خبرة 12 سنة في تمديد الكهرباء والصيانة الشاملة",                     NationalIdUrl = "/uploads/ids/id_2.jpg",  CreatedAt = U("mohamed.hassan@gmail.com").CreatedAt },
             new Craftsman { UserId = U("abdallah.khaled@gmail.com").Id, ServiceType = "دهانات",         City = "الجيزة",          Neighborhood = "الهرم",         PriceRangeMin = 100m, PriceRangeMax = 300m, Experience = 2,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "نقاش دهانات بأسعار مناسبة — دهان داخلي وخارجي",                                       NationalIdUrl = "/uploads/ids/id_3.jpg",  CreatedAt = U("abdallah.khaled@gmail.com").CreatedAt },
             new Craftsman { UserId = U("mostafa.mahmoud@gmail.com").Id, ServiceType = "نجارة",          City = "القاهرة",        Neighborhood = "العباسية",      PriceRangeMin = 300m, PriceRangeMax = 800m, Experience = 8,  IsApproved = true,  IsAvailable = false, IsDeleted = false, Rating = 0m,  Bio = "نجار موبيليا وباركيه خبرة 8 سنوات",                                                    NationalIdUrl = "/uploads/ids/id_4.jpg",  CreatedAt = U("mostafa.mahmoud@gmail.com").CreatedAt },
-            new Craftsman { UserId = U("hussien.reda@gmail.com").Id,    ServiceType = "تكييف وتبريد",   City = "طنطا",            Neighborhood = null,             PriceRangeMin = 250m, PriceRangeMax = 700m, Experience = 1,  IsApproved = false, IsAvailable = false, IsDeleted = true,  Rating = 0m,  Bio = "فني تكييف", RejectionReason = "بيانات الهوية الوطنية غير واضحة", DeletedAt = U("hussien.reda@gmail.com").CreatedAt.AddDays(3), DeletedByAdminId = 1, DeletionReason = "رفض طلب التسجيل: بيانات غير صحيحة", NationalIdUrl = "/uploads/ids/id_5.jpg", CreatedAt = U("hussien.reda@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("hussien.reda@gmail.com").Id,    ServiceType = "تكييف وتبريد",   City = "طنطا",            Neighborhood = "شارع البحر",             PriceRangeMin = 250m, PriceRangeMax = 700m, Experience = 1,  IsApproved = false, IsAvailable = false, IsDeleted = true,  Rating = 0m,  Bio = "فني تكييف", RejectionReason = "بيانات الهوية الوطنية غير واضحة", DeletedAt = U("hussien.reda@gmail.com").CreatedAt.AddDays(3), DeletedByAdminId = 1, DeletionReason = "رفض طلب التسجيل: بيانات غير صحيحة", NationalIdUrl = "/uploads/ids/id_5.jpg", CreatedAt = U("hussien.reda@gmail.com").CreatedAt },
             new Craftsman { UserId = U("kareem.samy@gmail.com").Id,     ServiceType = "سباكة",          City = "المنصورة",        Neighborhood = "المنصورة",      PriceRangeMin = 180m, PriceRangeMax = 500m, Experience = 6,  IsApproved = true,  IsAvailable = false, IsDeleted = true,  Rating = 0m,  Bio = "سباك عام", DeletedAt = U("kareem.samy@gmail.com").CreatedAt.AddMonths(2), DeletedByAdminId = 1, DeletionReason = "شكاوى متعددة من العملاء", NationalIdUrl = "/uploads/ids/id_6.jpg",  CreatedAt = U("kareem.samy@gmail.com").CreatedAt },
             new Craftsman { UserId = U("youssef.adel@gmail.com").Id,    ServiceType = "تبليط وسيراميك", City = "الإسماعيلية",     Neighborhood = "الإسماعيلية",   PriceRangeMin = 200m, PriceRangeMax = 600m, Experience = 5,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "فني تبليط متخصص في السيراميك والرخام والبورسلين",                                    NationalIdUrl = "/uploads/ids/id_7.jpg",  CreatedAt = U("youssef.adel@gmail.com").CreatedAt },
             new Craftsman { UserId = U("ibrahim.nasr@gmail.com").Id,    ServiceType = "كهرباء",         City = "الأقصر",          Neighborhood = "الأقصر",        PriceRangeMin = 150m, PriceRangeMax = 450m, Experience = 9,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "كهربائي معتمد خبرة 9 سنوات في المنازل والمحلات التجارية",                             NationalIdUrl = "/uploads/ids/id_8.jpg",  CreatedAt = U("ibrahim.nasr@gmail.com").CreatedAt },
@@ -323,7 +356,33 @@ public class DataSeeder
             new Craftsman { UserId = U("marwan.atef@gmail.com").Id,     ServiceType = "زجاج ومرايا",    City = "المنيا",          Neighborhood = "المنيا",        PriceRangeMin = 150m, PriceRangeMax = 400m, Experience = 5,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "زجاج ومرايا — تركيب واجهات زجاجية — شبابيك ألمنيوم وزجاج",                           NationalIdUrl = "/uploads/ids/id_17.jpg", CreatedAt = U("marwan.atef@gmail.com").CreatedAt },
             new Craftsman { UserId = U("sherif.ashraf@gmail.com").Id,   ServiceType = "ألمنيوم",        City = "سوهاج",           Neighborhood = "سوهاج",         PriceRangeMin = 200m, PriceRangeMax = 700m, Experience = 7,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "ألمنيوم — شبابيك وأبواب — واجهات كلادينج — مطابخ ألمنيوم",                           NationalIdUrl = "/uploads/ids/id_18.jpg", CreatedAt = U("sherif.ashraf@gmail.com").CreatedAt },
             new Craftsman { UserId = U("khaled.nasr@gmail.com").Id,     ServiceType = "مكافحة حشرات",   City = "الفيوم",          Neighborhood = "الفيوم",        PriceRangeMin = 100m, PriceRangeMax = 300m, Experience = 6,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "مكافحة حشرات وقوارض — رش وتعقيم — مواد آمنة ومعتمدة من وزارة الصحة",                 NationalIdUrl = "/uploads/ids/id_19.jpg", CreatedAt = U("khaled.nasr@gmail.com").CreatedAt },
-            new Craftsman { UserId = U("george.ramzy@gmail.com").Id,    ServiceType = "أمن وكاميرات",   City = "القاهرة",        Neighborhood = "المعادي",       PriceRangeMin = 400m, PriceRangeMax = 1500m, Experience = 8,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "كاميرات مراقبة — أنظمة أمن — إنتركوم — أجهزة إنذار — تركيب وصيانة",                  NationalIdUrl = "/uploads/ids/id_20.jpg", CreatedAt = U("george.ramzy@gmail.com").CreatedAt }
+            new Craftsman { UserId = U("george.ramzy@gmail.com").Id,    ServiceType = "أمن وكاميرات",   City = "القاهرة",        Neighborhood = "المعادي",       PriceRangeMin = 400m, PriceRangeMax = 1500m, Experience = 8,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "كاميرات مراقبة — أنظمة أمن — إنتركوم — أجهزة إنذار — تركيب وصيانة",                  NationalIdUrl = "/uploads/ids/id_20.jpg", CreatedAt = U("george.ramzy@gmail.com").CreatedAt },
+
+            new Craftsman { UserId = U("karim.ali@gmail.com").Id,      ServiceType = "كهرباء",          City = "القاهرة",      Neighborhood = "حلوان , شارع الثورة",              PriceRangeMin = 150m, PriceRangeMax = 400m, Experience = 6,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "كهربائي معتمد — تمديدات ولوحات وصيانة شاملة",                        NationalIdUrl = "/uploads/ids/id_25.jpg", CreatedAt = U("karim.ali@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("mahmoud.faris@gmail.com").Id,  ServiceType = "دهانات",          City = "القاهرة",      Neighborhood = "التجمع الخامس , شارع التسعين",     PriceRangeMin = 100m, PriceRangeMax = 350m, Experience = 7,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "نقاش ديكور داخلي وخارجي — دهان أمريكي وبلاستيك",                     NationalIdUrl = "/uploads/ids/id_26.jpg", CreatedAt = U("mahmoud.faris@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("yasser.nour@gmail.com").Id,    ServiceType = "سباكة",           City = "الجيزة",       Neighborhood = "فيصل , شارع الهرم",                PriceRangeMin = 150m, PriceRangeMax = 450m, Experience = 9,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "سباك متخصص في شبكات المياه والصرف الصحي — خبرة 9 سنوات",             NationalIdUrl = "/uploads/ids/id_27.jpg", CreatedAt = U("yasser.nour@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("ayman.saad@gmail.com").Id,     ServiceType = "تكييف وتبريد",    City = "الجيزة",       Neighborhood = "أكتوبر , شارع جمال عبد الناصر",   PriceRangeMin = 250m, PriceRangeMax = 700m, Experience = 11, IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "فني تكييف معتمد — جميع الماركات — تركيب وصيانة وشحن فريون",          NationalIdUrl = "/uploads/ids/id_28.jpg", CreatedAt = U("ayman.saad@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("rami.khattab@gmail.com").Id,   ServiceType = "نجارة",           City = "الإسكندرية",   Neighborhood = "سموحة , شارع فوزي معاذ",           PriceRangeMin = 200m, PriceRangeMax = 600m, Experience = 8,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "نجار أثاث وديكور — أبلكاش وخشب طبيعي — تصنيع وتركيب",               NationalIdUrl = "/uploads/ids/id_29.jpg", CreatedAt = U("rami.khattab@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("magdy.hassan@gmail.com").Id,   ServiceType = "سباكة",           City = "الإسكندرية",   Neighborhood = "المنتزه , شارع أبو قير",           PriceRangeMin = 180m, PriceRangeMax = 500m, Experience = 10, IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "سباك عام — تسليك وكشف تسريبات وصيانة سخانات",                        NationalIdUrl = "/uploads/ids/id_30.jpg", CreatedAt = U("magdy.hassan@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("nabil.rushdy@gmail.com").Id,   ServiceType = "كهرباء",          City = "المنصورة",     Neighborhood = "المنصورة , شارع الجمهورية",        PriceRangeMin = 150m, PriceRangeMax = 450m, Experience = 7,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "كهربائي خبرة 7 سنوات — صيانة وتمديدات وقواطع",                       NationalIdUrl = "/uploads/ids/id_31.jpg", CreatedAt = U("nabil.rushdy@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("essam.farid@gmail.com").Id,    ServiceType = "سباكة",           City = "أسيوط",        Neighborhood = "أسيوط , شارع بورسعيد",             PriceRangeMin = 120m, PriceRangeMax = 350m, Experience = 5,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "سباك عام — مواسير وصرف صحي وخلاطات",                                  NationalIdUrl = "/uploads/ids/id_32.jpg", CreatedAt = U("essam.farid@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("waleed.mansour@gmail.com").Id, ServiceType = "نجارة",           City = "بورسعيد",      Neighborhood = "بورسعيد , شارع الجمهورية",         PriceRangeMin = 200m, PriceRangeMax = 550m, Experience = 6,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "نجار أبواب وموبيليا — خشب وMDF — تصنيع وتركيب وصيانة",               NationalIdUrl = "/uploads/ids/id_33.jpg", CreatedAt = U("waleed.mansour@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("ashraf.nagi@gmail.com").Id,    ServiceType = "تبليط وسيراميك", City = "دمنهور",       Neighborhood = "دمنهور , شارع الحرية",             PriceRangeMin = 150m, PriceRangeMax = 400m, Experience = 8,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "معلم سيراميك وبورسلين ورخام — تركيب وصيانة — ضمان على الشغل",       NationalIdUrl = "/uploads/ids/id_34.jpg", CreatedAt = U("ashraf.nagi@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("emad.khalil@gmail.com").Id,    ServiceType = "كهرباء",          City = "المنيا",       Neighborhood = "المنيا , شارع الجمهورية",          PriceRangeMin = 130m, PriceRangeMax = 380m, Experience = 6,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "كهربائي منازل ومحلات — تمديدات وصيانة وأعطال",                       NationalIdUrl = "/uploads/ids/id_35.jpg", CreatedAt = U("emad.khalil@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("hazem.saber@gmail.com").Id,    ServiceType = "سباكة",           City = "سوهاج",        Neighborhood = "سوهاج , شارع بورسعيد",             PriceRangeMin = 110m, PriceRangeMax = 320m, Experience = 4,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "سباك عام — تركيب وصيانة شبكات المياه والصرف",                         NationalIdUrl = "/uploads/ids/id_36.jpg", CreatedAt = U("hazem.saber@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("sherif.anwar@gmail.com").Id,   ServiceType = "نجارة",           City = "الفيوم",       Neighborhood = "الفيوم , شارع سعد زغلول",          PriceRangeMin = 180m, PriceRangeMax = 500m, Experience = 7,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "نجار أثاث وأبواب — خشب طبيعي وأبلكاش — تصميم وتنفيذ",               NationalIdUrl = "/uploads/ids/id_37.jpg", CreatedAt = U("sherif.anwar@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("amgad.refaat@gmail.com").Id,   ServiceType = "دهانات",          City = "بني سويف",     Neighborhood = "بني سويف , شارع الحرية",           PriceRangeMin = 90m,  PriceRangeMax = 280m, Experience = 5,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "نقاش داخلي وخارجي — بلاستيك وبوية زيتية — أسعار مناسبة",             NationalIdUrl = "/uploads/ids/id_38.jpg", CreatedAt = U("amgad.refaat@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("taher.badran@gmail.com").Id,   ServiceType = "سباكة",           City = "الأقصر",       Neighborhood = "الأقصر , شارع المدينة",            PriceRangeMin = 130m, PriceRangeMax = 380m, Experience = 8,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "سباك محترف — تسريبات وصرف صحي وسخانات — خبرة 8 سنوات",              NationalIdUrl = "/uploads/ids/id_39.jpg", CreatedAt = U("taher.badran@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("ibrahim.selim@gmail.com").Id,  ServiceType = "كهرباء",          City = "الإسماعيلية",  Neighborhood = "الإسماعيلية , شارع السلطان حسين",  PriceRangeMin = 160m, PriceRangeMax = 430m, Experience = 9,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "كهربائي معتمد — منازل ومحلات وعقارات — صيانة وتمديدات",              NationalIdUrl = "/uploads/ids/id_40.jpg", CreatedAt = U("ibrahim.selim@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("hassan.morsi@gmail.com").Id,   ServiceType = "نجارة",           City = "طنطا",         Neighborhood = "طنطا , شارع البحر",                PriceRangeMin = 200m, PriceRangeMax = 580m, Experience = 6,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "نجار موبيليا وباركيه — تصنيع وتركيب — ضمان على الشغل",               NationalIdUrl = "/uploads/ids/id_41.jpg", CreatedAt = U("hassan.morsi@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("gamal.fouad@gmail.com").Id,    ServiceType = "تكييف وتبريد",    City = "السويس",       Neighborhood = "السويس , شارع الجيش",              PriceRangeMin = 250m, PriceRangeMax = 700m, Experience = 10, IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "فني تكييف محترف — تركيب وصيانة وشحن فريون — جميع الماركات",          NationalIdUrl = "/uploads/ids/id_42.jpg", CreatedAt = U("gamal.fouad@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("samir.lotfy@gmail.com").Id,    ServiceType = "سباكة",           City = "كفر الشيخ",    Neighborhood = "كفر الشيخ , شارع بورسعيد",         PriceRangeMin = 120m, PriceRangeMax = 350m, Experience = 5,  IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "سباك عام — مواسير وخلاطات وصرف صحي",                                  NationalIdUrl = "/uploads/ids/id_43.jpg", CreatedAt = U("samir.lotfy@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("medhat.wahba@gmail.com").Id,   ServiceType = "حدادة",           City = "قنا",          Neighborhood = "قنا , شارع الجمهورية",             PriceRangeMin = 300m, PriceRangeMax = 900m, Experience = 12, IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "حداد أبواب ودرابزين وقضبان — أشغال حديد فنية — خبرة 12 سنة",         NationalIdUrl = "/uploads/ids/id_44.jpg", CreatedAt = U("medhat.wahba@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("ai@harfi.com").Id,    ServiceType = "AI",   City = "AI",        Neighborhood = "AI",       PriceRangeMin = 400m, PriceRangeMax = 1500m, Experience = 8,  IsApproved = true,  IsAvailable = false,  IsDeleted = false, Rating = 0m,  Bio = "AI Assistant",  NationalIdUrl = "/uploads/ids/id_20.jpg", CreatedAt = U("ai@harfi.com").CreatedAt }
+
+
+
+
         };
         await _context.Craftsmen.AddRangeAsync(profiles);
         await _context.SaveChangesAsync();
