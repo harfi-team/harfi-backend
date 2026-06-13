@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddSingleton<CraftsmanChangeInterceptor>();
 // ═══════════════════════════════════════════════════════════
 //  SERVICES — via ServiceExtensions (one line per group)
 // ═══════════════════════════════════════════════════════════
@@ -29,7 +30,7 @@ builder.Services
 
 // Seeder
 
-builder.Services.AddSingleton<CraftsmanChangeInterceptor>();
+//builder.Services.AddSingleton<CraftsmanChangeInterceptor>();
 
 
 // 1. تسجيل الـ Repository الخاص بالحرفيين

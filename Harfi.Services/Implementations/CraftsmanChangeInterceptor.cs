@@ -1,4 +1,5 @@
-﻿using Harfi.DTOs.RAG; // أو الـ namespace اللي فيه SeedStatus
+﻿
+using Harfi.DTOs.RAG;
 using Harfi.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -11,7 +12,11 @@ namespace Harfi.Services.Implementations
     {
         private readonly IServiceProvider _serviceProvider;
 
-        private readonly List<(int CraftsmanId, EntityState State)> _changes = new();
+        // ThreadLocal علشان كل request يبقى عنده list منفصلة
+        private readonly AsyncLocal<List<(int CraftsmanId, EntityState State)>> _changes = new();
+
+        private List<(int CraftsmanId, EntityState State)> Changes =>
+            _changes.Value ??= new List<(int, EntityState)>();
 
         public CraftsmanChangeInterceptor(IServiceProvider serviceProvider)
         {
@@ -23,22 +28,14 @@ namespace Harfi.Services.Implementations
             InterceptionResult<int> result,
             CancellationToken cancellationToken = default)
         {
-            // أثناء الـ Seeding متعملش أي حاجة
             if (!SeedStatus.IsCompleted)
-            {
-                return base.SavingChangesAsync(
-                    eventData,
-                    result,
-                    cancellationToken);
-            }
+                return base.SavingChangesAsync(eventData, result, cancellationToken);
 
             var context = eventData.Context;
-
             if (context != null)
             {
-                _changes.Clear();
-
-                _changes.AddRange(
+                Changes.Clear();
+                Changes.AddRange(
                     context.ChangeTracker
                         .Entries<Craftsman>()
                         .Where(e =>
@@ -49,10 +46,7 @@ namespace Harfi.Services.Implementations
                 );
             }
 
-            return base.SavingChangesAsync(
-                eventData,
-                result,
-                cancellationToken);
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
         }
 
         public override async ValueTask<int> SavedChangesAsync(
@@ -60,33 +54,17 @@ namespace Harfi.Services.Implementations
             int result,
             CancellationToken cancellationToken = default)
         {
-            // أثناء الـ Seeding متعملش أي حاجة
             if (!SeedStatus.IsCompleted)
-            {
-                return await base.SavedChangesAsync(
-                    eventData,
-                    result,
-                    cancellationToken);
-            }
+                return await base.SavedChangesAsync(eventData, result, cancellationToken);
 
-            if (!_changes.Any())
-            {
-                return await base.SavedChangesAsync(
-                    eventData,
-                    result,
-                    cancellationToken);
-            }
+            if (!Changes.Any())
+                return await base.SavedChangesAsync(eventData, result, cancellationToken);
 
             using var scope = _serviceProvider.CreateScope();
+            var ragService = scope.ServiceProvider.GetRequiredService<RAGService>();
+            var logger = scope.ServiceProvider.GetRequiredService<ILogger<CraftsmanChangeInterceptor>>();
 
-            var ragService =
-                scope.ServiceProvider.GetRequiredService<RAGService>();
-
-            var logger =
-                scope.ServiceProvider.GetRequiredService<
-                    ILogger<CraftsmanChangeInterceptor>>();
-
-            foreach (var (craftsmanId, state) in _changes)
+            foreach (var (craftsmanId, state) in Changes.ToList())
             {
                 try
                 {
@@ -94,54 +72,32 @@ namespace Harfi.Services.Implementations
                     {
                         case EntityState.Added:
                         case EntityState.Modified:
-
-                            await ragService
-                                .UpsertCraftsmanToVectorDbAsync(craftsmanId);
-
-                            logger.LogInformation(
-                                "Craftsman {CraftsmanId} synced to Qdrant",
-                                craftsmanId);
-
+                            await ragService.UpsertCraftsmanToVectorDbAsync(craftsmanId);
+                            logger.LogInformation("[CDC] ✓ Craftsman {Id} upserted in Qdrant", craftsmanId);
                             break;
 
                         case EntityState.Deleted:
-
-                            // لو عندك ميثود حذف فعلها هنا
-                            // await ragService.DeleteCraftsmanFromVectorDbAsync(craftsmanId);
-
-                            logger.LogInformation(
-                                "Craftsman {CraftsmanId} deleted from Qdrant",
-                                craftsmanId);
-
+                            await ragService.DeleteCraftsmanFromVectorDbAsync(craftsmanId);
+                            logger.LogInformation("[CDC] ✓ Craftsman {Id} deleted from Qdrant", craftsmanId);
                             break;
                     }
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(
-                        ex,
-                        "Failed syncing Craftsman {CraftsmanId}",
-                        craftsmanId);
+                    logger.LogError(ex, "[CDC] ✗ Failed syncing Craftsman {Id}", craftsmanId);
                 }
             }
 
-            _changes.Clear();
-
-            return await base.SavedChangesAsync(
-                eventData,
-                result,
-                cancellationToken);
+            Changes.Clear();
+            return await base.SavedChangesAsync(eventData, result, cancellationToken);
         }
 
         public override async Task SaveChangesFailedAsync(
             DbContextErrorEventData eventData,
             CancellationToken cancellationToken = default)
         {
-            _changes.Clear();
-
-            await base.SaveChangesFailedAsync(
-                eventData,
-                cancellationToken);
+            Changes.Clear();
+            await base.SaveChangesFailedAsync(eventData, cancellationToken);
         }
     }
 }

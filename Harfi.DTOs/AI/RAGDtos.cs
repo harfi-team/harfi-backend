@@ -4,6 +4,18 @@ namespace Harfi.DTOs.RAG;
 
 // ── RAG DTOs ──────────────────────────────────────────────────────────────────
 
+
+
+
+public class CraftsmenResultDto
+{
+    public List<RetrievedCraftsmanDto> Craftsmen { get; set; } = new();
+    public string? Service { get; set; }
+    public string? City { get; set; }
+}
+
+
+
 public class QueryRequest
 {
     public string Question { get; set; } = string.Empty;
@@ -131,6 +143,8 @@ public class LlmExtractionResult
     public string Missing { get; set; } = "all";
     public string? QuestionToAsk { get; set; }
     public bool ShowServicesList { get; set; }
+    public string? District { get; set; }  // ← أضف
+
     public bool ShowCitiesList { get; set; }
 }
 
@@ -210,14 +224,6 @@ public class AnalyzeMediaDto
     public int? ExtractedCount { get; set; }
     public string? ExtractedDistrict { get; set; }  // ← جديد
 
-
-
-
-
-
-
-
-
     public int? UserId { get; set; }   // ← ضيف ده
     public string? SessionId { get; set; }   // ← ضيف ده
 }
@@ -246,6 +252,8 @@ public class AiSessionMessageDto
     public DateTime CreatedAt { get; set; }
     public List<string> Images { get; set; } = new();
     public string? Audio { get; set; }
+    public CraftsmenResultDto? CraftsmenResult { get; set; }  // ← جديد
+
 }
 
 public class AiSessionDetailDto
@@ -264,6 +272,8 @@ public class SaveMessageFormDto
     public string? ToolUsed { get; set; }
     public List<IFormFile>? Images { get; set; }
     public IFormFile? Audio { get; set; }
+    public string? CraftsmenJson { get; set; }  // ← جديد
+
 }
 public class CraftsmanSolutionDto
 {

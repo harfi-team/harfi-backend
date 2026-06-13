@@ -32,7 +32,12 @@ public class VectorDbService
     public async Task EnsureCollectionAsync()
     {
         var check = await _http.GetAsync($"collections/{Col}");
-        if (check.IsSuccessStatusCode) { _logger.LogInformation("Collection '{C}' exists", Col); return; }
+        if (check.IsSuccessStatusCode)
+        {
+            _logger.LogInformation("Collection '{C}' exists", Col);
+            await EnsurePayloadIndexesAsync(); // ← ضيف السطر ده
+            return;
+        }
 
         var resp = await _http.PutAsJsonAsync($"collections/{Col}", new
         {
@@ -44,8 +49,8 @@ public class VectorDbService
                 $"Qdrant create error: {await resp.Content.ReadAsStringAsync()}");
 
         _logger.LogInformation("Collection '{C}' created (dim={D})", Col, VecDim);
+        await EnsurePayloadIndexesAsync(); // ← وهنا كمان
     }
-
     public async Task AddChunksAsync(List<CraftsmanChunk> chunks)
     {
         var points = chunks.Select(c => new
@@ -65,7 +70,7 @@ public class VectorDbService
     }
 
     public async Task<QdrantSearchResponse> SearchAsync(
-        float[] embedding, int topK, string? serviceType, string? city)
+    float[] embedding, int topK, string? serviceType, string? city)
     {
         var must = new List<object>();
         if (!string.IsNullOrEmpty(serviceType))
@@ -77,11 +82,10 @@ public class VectorDbService
             ? new { vector = embedding, limit = topK, with_payload = true, filter = new { must } }
             : new { vector = embedding, limit = topK, with_payload = true };
 
-        var resp = await _http.PostAsJsonAsync($"collections/{Col}/points/search", body);
-
-        if (!resp.IsSuccessStatusCode)
-            resp = await _http.PostAsJsonAsync($"collections/{Col}/points/search",
-                new { vector = embedding, limit = topK, with_payload = true });
+        // ← استخدم WriteOpts عشان Arabic strings متتعملش Unicode escape
+        var json = JsonSerializer.Serialize(body, WriteOpts);
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"collections/{Col}/points/search", content);
 
         if (!resp.IsSuccessStatusCode)
             throw new InvalidOperationException(
@@ -90,7 +94,6 @@ public class VectorDbService
         return await resp.Content.ReadFromJsonAsync<QdrantSearchResponse>(Opts)
                ?? new QdrantSearchResponse();
     }
-
     public async Task<int> CountAsync()
     {
         var resp = await _http.PostAsJsonAsync($"collections/{Col}/points/count", new { exact = true });
@@ -176,9 +179,11 @@ public class VectorDbService
         byte[] hash = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
         return new Guid(hash).ToString();
     }
+
     public async Task DeletePointAsync(string pointId)
     {
-        var payload = new { ids = new[] { pointId } };
+        var uuid = ToUuid(pointId);   // ← حول لـ UUID زي ما بيتحفظ
+        var payload = new { ids = new[] { uuid } };
         var response = await _http.PostAsJsonAsync($"collections/{Col}/points/delete", payload);
         if (!response.IsSuccessStatusCode)
         {
@@ -186,4 +191,62 @@ public class VectorDbService
             throw new InvalidOperationException($"Qdrant delete failed: {error}");
         }
     }
+
+
+    /// <summary>
+    /// يجيب كل الحرفيين من نفس نوع الخدمة فقط — بدون فلتر على المدينة.
+    /// الفلترة بالمحافظة بتحصل في C# بعدين.
+    /// </summary>
+    public async Task<QdrantSearchResponse> SearchByServiceOnlyAsync(
+        float[] embedding, int topK, string serviceType)
+    {
+        var body = new
+        {
+            vector = embedding,
+            limit = topK,
+            with_payload = true,
+            filter = new
+            {
+                must = new[]
+                {
+                new { key = "service_type", match = new { value = serviceType } }
+            }
+            }
+        };
+
+        var json = JsonSerializer.Serialize(body, WriteOpts);
+        //var content = new StringContent(json, Encoding.UTF8, "application/json");
+        var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        var resp = await _http.PostAsync($"collections/{Col}/points/search", content);
+
+        if (!resp.IsSuccessStatusCode)
+            throw new InvalidOperationException(
+                $"Qdrant search error: {await resp.Content.ReadAsStringAsync()}");
+
+        return await resp.Content.ReadFromJsonAsync<QdrantSearchResponse>(Opts)
+               ?? new QdrantSearchResponse();
+    }
+    public async Task EnsurePayloadIndexesAsync()
+    {
+        foreach (var field in new[] { "service_type", "city" })
+        {
+            var body = JsonSerializer.Serialize(
+                new { field_name = field, field_schema = "keyword" }, WriteOpts);
+            var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+            var resp = await _http.PutAsync($"collections/{Col}/index", content);
+
+            if (resp.IsSuccessStatusCode)
+                _logger.LogInformation("[Index] Created payload index: {F}", field);
+            else
+            {
+                var err = await resp.Content.ReadAsStringAsync();
+                if (!err.Contains("already exists"))
+                    _logger.LogWarning("[Index] Failed for {F}: {E}", field, err);
+                else
+                    _logger.LogInformation("[Index] Already exists: {F}", field);
+            }
+        }
+
+    }
+
 }

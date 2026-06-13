@@ -109,9 +109,64 @@ public class AIController : ControllerBase
             });
         }
 
+        #region C
 
+        //// ── 2.5. المستخدم عاوز خطوات لتخصص مش في المنصة ─────────────────
+        //if (request.Intent == UserIntent.WantSteps
+        //    && request.ExtractedService is null
+        //    && !string.IsNullOrEmpty(lastUserMsg))
+        //{
+        //    var unknownSteps = await _solution.GetSolutionStepsAsync(
+        //        lastUserMsg, lastUserMsg);
 
+        //    string unknownStepsMsg =
+        //        "🔧 إليك خطوات عملية يمكنك تجربتها:\n\n" +
+        //        string.Join("\n", unknownSteps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
 
+        //    sw.Stop();
+        //    return Ok(new Chat3Response
+        //    {
+        //        IsComplete = false,
+        //        Message = unknownStepsMsg,
+        //        SolutionSteps = unknownSteps,
+        //        ExtractedService = null,        // ← null = الزرار يتخفى
+        //        ExtractedCity = request.ExtractedCity,
+        //        ExtractedCount = request.ExtractedCount,
+        //        FollowUpState = SolutionFollowUpState.WaitingAnswer,
+        //        LastProblemDescription = lastUserMsg,
+        //        ProblemClarificationAttempts = 0,
+        //        LatencyMs = sw.ElapsedMilliseconds
+        //    });
+        //}
+        #endregion
+        // ── 2.5. المستخدم عاوز خطوات لتخصص مش في المنصة ─────────────────
+        if (request.Intent == UserIntent.WantSteps
+            && request.ExtractedService is null
+            && request.FollowUpState == SolutionFollowUpState.None  // ← أضف الشرط ده
+            && !string.IsNullOrEmpty(lastUserMsg))
+        {
+            var unknownSteps = await _solution.GetSolutionStepsAsync(
+                lastUserMsg, lastUserMsg);
+
+            string unknownStepsMsg =
+                "🔧 إليك خطوات عملية يمكنك تجربتها:\n\n" +
+                string.Join("\n", unknownSteps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
+
+            sw.Stop();
+            return Ok(new Chat3Response
+            {
+                IsComplete = false,
+                Message = unknownStepsMsg,
+                SolutionSteps = unknownSteps,
+                ExtractedService = null,
+                ExtractedCity = request.ExtractedCity,
+                ExtractedCount = request.ExtractedCount,
+                FollowUpState = SolutionFollowUpState.WaitingAnswer,
+                LastProblemDescription = lastUserMsg,
+                ProblemClarificationAttempts = 0,
+                LatencyMs = sw.ElapsedMilliseconds
+            });
+        }
         // ── 3. لو اختار "خطوات حل" ───────────────────────────────────────
         if (request.Intent == UserIntent.WantSteps
             && request.ExtractedService is not null)
@@ -312,7 +367,37 @@ public class AIController : ControllerBase
                     LatencyMs = sw.ElapsedMilliseconds
                 });
             }
+            #region C2
+            // ── 3B. بننتظر تفاصيل انهي جزء لسه فيه مشكلة ────────────────
+            //if (request.FollowUpState == SolutionFollowUpState.WaitingDetail)
+            //{
+            //    string newProblem = lastUserMsg.Trim();
+            //    if (string.IsNullOrEmpty(newProblem))
+            //        newProblem = request.LastProblemDescription ?? request.ExtractedService;
 
+            //    var newSteps = await _solution.GetSolutionStepsAsync(
+            //        request.ExtractedService, newProblem);
+
+            //    string newStepsMsg =
+            //        "بناءً على التفاصيل الإضافية التي ذكرتها، إليك خطوات أكثر تحديداً: 🔍\n\n" +
+            //        string.Join("\n", newSteps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
+
+            //    sw.Stop();
+            //    return Ok(new Chat3Response
+            //    {
+            //        IsComplete = false,
+            //        Message = newStepsMsg,
+            //        SolutionSteps = newSteps,
+            //        ExtractedService = request.ExtractedService,
+            //        ExtractedCity = request.ExtractedCity,
+            //        ExtractedCount = request.ExtractedCount,
+            //        FollowUpState = SolutionFollowUpState.WaitingAnswer,
+            //        LastProblemDescription = newProblem,
+            //        ProblemClarificationAttempts = 0,
+            //        LatencyMs = sw.ElapsedMilliseconds
+            //    });
+            //}
+            #endregion
             // ── 3B. بننتظر تفاصيل انهي جزء لسه فيه مشكلة ────────────────
             if (request.FollowUpState == SolutionFollowUpState.WaitingDetail)
             {
@@ -320,34 +405,53 @@ public class AIController : ControllerBase
                 if (string.IsNullOrEmpty(newProblem))
                     newProblem = request.LastProblemDescription ?? request.ExtractedService;
 
-                var newSteps = await _solution.GetSolutionStepsAsync(
-                    request.ExtractedService, newProblem);
+                // ✅ لو المستخدم بيتكلم عن موضوع جديد → reset وابعته للـ LLM
+                bool looksLikeNewTopic =
+                    request.ExtractedService is not null &&
+                    newProblem.Length > 3 &&
+                    !newProblem.Contains(request.ExtractedService.Split(' ')[0]) &&
+                    (newProblem.Contains("عاوز") || newProblem.Contains("محتاج") ||
+                     newProblem.Contains("فيه مشكله") || newProblem.Contains("عندي مشكله") ||
+                     newProblem.Contains("مشكلة في") || newProblem.Contains("مشكله في"));
 
-                string newStepsMsg =
-                    "بناءً على التفاصيل الإضافية التي ذكرتها، إليك خطوات أكثر تحديداً: 🔍\n\n" +
-                    string.Join("\n", newSteps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
-
-                sw.Stop();
-                return Ok(new Chat3Response
+                if (looksLikeNewTopic)
                 {
-                    IsComplete = false,
-                    Message = newStepsMsg,
-                    SolutionSteps = newSteps,
-                    ExtractedService = request.ExtractedService,
-                    ExtractedCity = request.ExtractedCity,
-                    ExtractedCount = request.ExtractedCount,
-                    FollowUpState = SolutionFollowUpState.WaitingAnswer,
-                    LastProblemDescription = newProblem,
-                    ProblemClarificationAttempts = 0,
-                    LatencyMs = sw.ElapsedMilliseconds
-                });
+                    request.ExtractedService = null;
+                    request.FollowUpState = SolutionFollowUpState.None;
+                    request.Intent = UserIntent.NotAskedYet;
+                    // يكمل لـ section 4 (LLM) تلقائياً
+                }
+                else
+                {
+                    var newSteps = await _solution.GetSolutionStepsAsync(
+                        request.ExtractedService, newProblem);
+
+                    string newStepsMsg =
+                        "بناءً على التفاصيل الإضافية التي ذكرتها، إليك خطوات أكثر تحديداً: 🔍\n\n" +
+                        string.Join("\n", newSteps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
+
+                    sw.Stop();
+                    return Ok(new Chat3Response
+                    {
+                        IsComplete = false,
+                        Message = newStepsMsg,
+                        SolutionSteps = newSteps,
+                        ExtractedService = request.ExtractedService,
+                        ExtractedCity = request.ExtractedCity,
+                        ExtractedCount = request.ExtractedCount,
+                        FollowUpState = SolutionFollowUpState.WaitingAnswer,
+                        LastProblemDescription = newProblem,
+                        ProblemClarificationAttempts = 0,
+                        LatencyMs = sw.ElapsedMilliseconds
+                    });
+                }
             }
 
-
+          
             // ── 3C. الحالة العادية — جيب خطوات ──────────────────────────
             string problem = (request.ProblemClarificationAttempts > 0 && lastUserMsg.Length > 5)
-     ? lastUserMsg
-     : ExtractProblemDescription(request.Messages, request.ExtractedService);
+                ? lastUserMsg
+                : ExtractProblemDescription(request.Messages, request.ExtractedService);
 
             _logger.LogInformation("[3C] problem='{P}' service='{S}' equal={E}",
                 problem, request.ExtractedService, problem == request.ExtractedService);
@@ -370,12 +474,22 @@ public class AIController : ControllerBase
                 });
             }
 
+            // ✅ نضمن إن الـ LLM يجيب خطوات للتخصص الصح مش للمحادثة القديمة
+            string problemForSteps = (problem == request.ExtractedService || string.IsNullOrEmpty(problem))
+                ? request.ExtractedService
+                : $"{request.ExtractedService}: {problem}";
+
             var steps = await _solution.GetSolutionStepsAsync(
-                request.ExtractedService, problem);
+                request.ExtractedService, problemForSteps);
 
             string stepsMsg =
                 "🔧 إليك خطوات عملية يمكنك تجربتها:\n\n" +
                 string.Join("\n", steps.Select((s, i) => $"✦ الخطوة {i + 1}: {s}"));
+
+            bool serviceExistsInDb = await _db.Craftsmen
+                .AnyAsync(c => !c.IsDeleted && c.IsApproved && c.IsAvailable
+                            && c.ServiceType == request.ExtractedService
+                            && c.ServiceType != "AI");
 
             sw.Stop();
             return Ok(new Chat3Response
@@ -383,15 +497,16 @@ public class AIController : ControllerBase
                 IsComplete = false,
                 Message = stepsMsg,
                 SolutionSteps = steps,
-                ExtractedService = request.ExtractedService,
+                ExtractedService = serviceExistsInDb ? request.ExtractedService : null,
                 ExtractedCity = request.ExtractedCity,
                 ExtractedCount = request.ExtractedCount,
                 FollowUpState = SolutionFollowUpState.WaitingAnswer,
-                LastProblemDescription = problem,
+                LastProblemDescription = problemForSteps,
                 ProblemClarificationAttempts = 0,
                 LatencyMs = sw.ElapsedMilliseconds
             });
         }
+
         // ── 3.5. رسالة حرة بتطلب خطوات ──────────────────────────────────
         if (request.ExtractedService is not null
             && request.Intent == UserIntent.NotAskedYet
@@ -419,7 +534,6 @@ public class AIController : ControllerBase
                 LatencyMs = sw.ElapsedMilliseconds
             });
         }
-
         // ── 4. LLM يحلل المحادثة ──────────────────────────────────────────
         var extraction = await _intent.ExtractAsync(
             messages: request.Messages,
@@ -463,6 +577,10 @@ public class AIController : ControllerBase
         {
             // ── 6A. سألنا عن المدينة/الشارع في الرسالة السابقة → امسك الإجابة ──
             string? district = request.ExtractedDistrict;
+            // ✅ لو مش موجود في الـ request، شوف لو الـ LLM شافه
+            if (string.IsNullOrEmpty(district))
+                district = extraction.District;
+
             if (string.IsNullOrEmpty(district))
             {
                 // تحقق: هل الرسالة السابقة من الـ assistant كانت سؤال عن المدينة؟
@@ -527,8 +645,16 @@ public class AIController : ControllerBase
             IsComplete = false,
             Message = extraction.QuestionToAsk ?? "وضّحلي أكتر من فضلك.",
             ShowServicesList = extraction.ShowServicesList,
+            //ServicesList = extraction.ShowServicesList
+            //                       ? IntentService.ValidServices.ToList() : [],
             ServicesList = extraction.ShowServicesList
-                                   ? IntentService.ValidServices.ToList() : [],
+               ? await _db.Craftsmen
+                     .Where(c => !c.IsDeleted && c.IsApproved && c.IsAvailable && c.ServiceType != "AI")
+                     .Select(c => c.ServiceType)
+                     .Distinct()
+                     .OrderBy(s => s)
+                     .ToListAsync()
+               : [],
             ShowCitiesList = extraction.ShowCitiesList,
             CitiesList = extraction.ShowCitiesList
                                    ? IntentService.ValidCities.ToList() : [],
@@ -572,6 +698,8 @@ public class AIController : ControllerBase
 
     private static string ExtractProblemDescription(List<ChatMsg> messages, string serviceType)
     {
+        if (string.IsNullOrEmpty(serviceType))
+            return messages.LastOrDefault(m => m.Role == "user")?.Content ?? "";
         string[] nonDescriptive =
 [
     "ينفع", "عندي مشكله", "عندي مشكلة", "في مشكلة",
@@ -600,12 +728,14 @@ public class AIController : ControllerBase
             .ToList();
 
         if (!meaningful.Any()) return serviceType;
-
-        return meaningful.OrderByDescending(m => m.Content.Length).First().Content;
+        return meaningful.Last().Content;
+        //return meaningful.OrderByDescending(m => m.Content.Length).First().Content;
     }
 
     private static bool IsCountOnlyRequest(string msg, string serviceType)
     {
+        if (string.IsNullOrEmpty(serviceType)) return false;
+
         bool hasNumber = msg.Any(char.IsDigit) ||
                          msg.Contains("واحد") || msg.Contains("اتنين") ||
                          msg.Contains("تلاتة") || msg.Contains("اربعة") ||
@@ -933,7 +1063,8 @@ public class AIController : ControllerBase
             var content = new StringContent(json, Encoding.UTF8, "application/json");
 
             using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
-            const string n8nUrl = "https://ahmeddabish2.app.n8n.cloud/webhook/analyze-media";
+            //const string n8nUrl = "https://ahmeddabish2.app.n8n.cloud/webhook/analyze-media";
+            const string n8nUrl = "https://habibaanezar.app.n8n.cloud/webhook/analyze-media";
 
             var n8nResp = await http.PostAsync(n8nUrl, content);
             string respBody = await n8nResp.Content.ReadAsStringAsync();
@@ -1109,10 +1240,8 @@ public class AIController : ControllerBase
         return Ok(sessions);
     }
 
-    // ════════════════════════════════════════════════════════════════
-    //  GET /api/AI/sessions/{userId}/{sessionId}
-    //  جيب رسائل محادثة كاملة (مع تفكيك الـ media markers)
-    // ════════════════════════════════════════════════════════════════
+    
+
     [HttpGet("sessions/{userId:int}/{sessionId}")]
     public async Task<IActionResult> GetSessionDetail(int userId, string sessionId)
     {
@@ -1125,7 +1254,19 @@ public class AIController : ControllerBase
 
         var messages = rows.Select(m =>
         {
-            var (text, imgs, aud) = ParseContent(m.Content);
+            var (text, imgs, aud, craftsmenJson) = ParseContent(m.Content);
+            CraftsmenResultDto? craftsmenResult = null;
+            if (!string.IsNullOrEmpty(craftsmenJson))
+            {
+                try
+                {
+                    craftsmenResult = System.Text.Json.JsonSerializer.Deserialize<CraftsmenResultDto>(
+                        craftsmenJson,
+                        new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+                    );
+                }
+                catch { /* ignore */ }
+            }
             return new AiSessionMessageDto
             {
                 Id = m.Id,
@@ -1133,7 +1274,8 @@ public class AIController : ControllerBase
                 Content = text,
                 Images = imgs,
                 Audio = aud,
-                CreatedAt = m.CreatedAt
+                CreatedAt = m.CreatedAt,
+                CraftsmenResult = craftsmenResult
             };
         }).ToList();
 
@@ -1147,7 +1289,6 @@ public class AIController : ControllerBase
             Messages = messages
         });
     }
-
     // ════════════════════════════════════════════════════════════════
     //  POST /api/AI/sessions/message
     //  احفظ رسالة (مع صور/صوت اختياري) — multipart/form-data
@@ -1194,7 +1335,8 @@ public class AIController : ControllerBase
         }
 
         // ── حفظ الـ record في AIChatMessages ──
-        var content = BuildContent(dto.Content ?? "", imageUrls, audioUrl);
+        //var content = BuildContent(dto.Content ?? "", imageUrls, audioUrl);
+        var content = BuildContent(dto.Content ?? "", imageUrls, audioUrl, dto.CraftsmenJson);
         var msg = new AIChatMessage
         {
             UserId = dto.UserId,
@@ -1243,7 +1385,8 @@ public class AIController : ControllerBase
         // ── امسح الملفات من wwwroot ──
         foreach (var m in rows)
         {
-            var (_, imgs, aud) = ParseContent(m.Content);
+            //var (_, imgs, aud) = ParseContent(m.Content);
+            var (_, imgs, aud, _) = ParseContent(m.Content);
             foreach (var u in imgs) TryDeleteFile(u);
             TryDeleteFile(aud);
         }
@@ -1254,27 +1397,27 @@ public class AIController : ControllerBase
         _logger.LogInformation("[AI/Delete] session={S} count={N}", sessionId, rows.Count);
         return Ok(new { deleted = rows.Count });
     }
-    // ════════════════════════════════════════════════════════════════
-    //  Media Markers Helpers
-    //  الـ Content بيتخزن بصيغة:
-    //  {{IMG:/AiChat/images/x.jpg}}{{AUD:/AiChat/audio/y.wav}}النص الأصلي
-    // ════════════════════════════════════════════════════════════════
-
-    private static string BuildContent(string text, List<string> images, string? audio)
+  
+    private static string BuildContent(string text, List<string> images, string? audio, string? craftsmenJson = null)
     {
         var sb = new System.Text.StringBuilder();
         foreach (var u in images)
             sb.Append("{{IMG:").Append(u).Append("}}");
         if (!string.IsNullOrEmpty(audio))
             sb.Append("{{AUD:").Append(audio).Append("}}");
+        if (!string.IsNullOrEmpty(craftsmenJson))
+            //sb.Append("{{CRAFTSMEN:").Append(craftsmenJson).Append("}}");
+            sb.Append("\n__CRAFTSMEN__:").Append(craftsmenJson).Append(":__END_CRAFTSMEN__\n");
+
         sb.Append(text);
         return sb.ToString();
     }
 
-    private static (string text, List<string> images, string? audio) ParseContent(string content)
+    private static (string text, List<string> images, string? audio, string? craftsmenJson) ParseContent(string content)
     {
         var imgs = new List<string>();
         string? aud = null;
+        string? craftsmenJson = null;
         string text = content ?? "";
 
         var imgRx = new System.Text.RegularExpressions.Regex(@"\{\{IMG:([^}]+)\}\}");
@@ -1287,17 +1430,26 @@ public class AIController : ControllerBase
         if (audMatch.Success) aud = audMatch.Groups[1].Value;
         text = audRx.Replace(text, "");
 
-        return (text.Trim(), imgs, aud);
+        //var craftsmenRx = new System.Text.RegularExpressions.Regex(@"\{\{CRAFTSMEN:(.*?)\}\}", System.Text.RegularExpressions.RegexOptions.Singleline);
+        var craftsmenRx = new System.Text.RegularExpressions.Regex(@"\n__CRAFTSMEN__:(.*?):__END_CRAFTSMEN__\n", System.Text.RegularExpressions.RegexOptions.Singleline);
+
+        var craftsmenMatch = craftsmenRx.Match(text);
+        if (craftsmenMatch.Success) craftsmenJson = craftsmenMatch.Groups[1].Value;
+        text = craftsmenRx.Replace(text, "");
+
+        return (text.Trim(), imgs, aud, craftsmenJson);
     }
 
+    
     private static string CleanMediaMarkers(string content)
     {
         if (string.IsNullOrEmpty(content)) return "";
         var rx1 = new System.Text.RegularExpressions.Regex(@"\{\{IMG:[^}]+\}\}");
         var rx2 = new System.Text.RegularExpressions.Regex(@"\{\{AUD:[^}]+\}\}");
-        return rx2.Replace(rx1.Replace(content, ""), "").Trim();
+        //var rx3 = new System.Text.RegularExpressions.Regex(@"\{\{CRAFTSMEN:.*?\}\}", System.Text.RegularExpressions.RegexOptions.Singleline);
+        var rx3 = new System.Text.RegularExpressions.Regex(@"\n__CRAFTSMEN__:.*?:__END_CRAFTSMEN__\n", System.Text.RegularExpressions.RegexOptions.Singleline);
+        return rx3.Replace(rx2.Replace(rx1.Replace(content, ""), ""), "").Trim();
     }
-
     private void TryDeleteFile(string? relUrl)
     {
         if (string.IsNullOrEmpty(relUrl)) return;
@@ -1341,123 +1493,6 @@ public class AIController : ControllerBase
             return "محادثة جديدة";
         }
     }
-
-
-
-    //// ════════════════════════════════════════════════════════════════════════
-    ////  POST /api/AI/craftsman/submit-solution
-    ////  الحرفي بيرسل خطوات الحل → LLM يصلحها → تتحفظ في DB + Qdrant
-    //// ════════════════════════════════════════════════════════════════════════
-    //[HttpPost("craftsman/submit-solution")]
-    //public async Task<IActionResult> SubmitCraftsmanSolution([FromBody] CraftsmanSolutionDto dto)
-    //{
-    //    if (string.IsNullOrWhiteSpace(dto.ServiceType))
-    //        return BadRequest(new { error = "التخصص مطلوب" });
-
-    //    if (dto.Steps is null || dto.Steps.Count == 0)
-    //        return BadRequest(new { error = "الخطوات مطلوبة" });
-
-    //    // ── 1. LLM يصلح الخطوات ──────────────────────────────────────────
-    //    string rawSteps = string.Join("\n", dto.Steps.Select((s, i) => $"{i + 1}. {s}"));
-
-    //    string prompt =
-    //        $"أنت حرفي متخصص في {dto.ServiceType}.\n\n" +
-    //        $"المشكلة: {dto.ProblemDescription}\n\n" +
-    //        $"الخطوات اللي كتبها الحرفي:\n{rawSteps}\n\n" +
-    //        "المطلوب:\n" +
-    //        "1. صحح الأخطاء الإملائية\n" +
-    //        "2. رتب الخطوات بشكل منطقي لو محتاج\n" +
-    //        "3. اكتبها بالعربية المصرية الشعبية البسيطة\n" +
-    //        "4. كل خطوة تبدأ بفعل أمر واضح زي: افتح، افصل، نظف، ربط...\n" +
-    //        "5. متزودش ولا تنقص خطوات — بس صحح ورتب اللي موجود\n\n" +
-    //        "رد بـ JSON فقط بدون أي كلام:\n" +
-    //        "{\"steps\": [\"الخطوة الأولى\", \"الخطوة التانية\", ...]}";
-
-    //    List<string> fixedSteps;
-    //    try
-    //    {
-    //        string raw = await _groq.CompleteAsync(prompt, maxTokens: 600);
-    //        string json = raw.Replace("```json", "").Replace("```", "").Trim();
-    //        using var doc = JsonDocument.Parse(json);
-    //        fixedSteps = doc.RootElement
-    //            .GetProperty("steps")
-    //            .EnumerateArray()
-    //            .Select(e => e.GetString() ?? "")
-    //            .Where(s => !string.IsNullOrWhiteSpace(s))
-    //            .ToList();
-
-    //        if (fixedSteps.Count == 0) throw new Exception("steps فاضية");
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        _logger.LogWarning("[SubmitSolution] LLM fix failed: {M} — using raw steps", ex.Message);
-    //        fixedSteps = dto.Steps; // fallback للخطوات الأصلية
-    //    }
-
-    //    // ── 2. حضّر الـ fields للـ RAG ────────────────────────────────────
-    //    var (desc, prob, sol) = await PrepareRagFieldsAsync(
-    //        dto.ServiceType,
-    //        dto.ProblemDescription ?? dto.ServiceType,
-    //        fixedSteps);
-
-    //    // ── 3. احفظ في DB ────────────────────────────────────────────────
-    //    if (dto.UserId <= 0)
-    //        return BadRequest(new { error = "userId مطلوب" });
-
-    //    var userCraftsman = await _db.Craftsmen
-    //        .FirstOrDefaultAsync(c => c.UserId == dto.UserId);
-    //    int craftsmanId = dto.CraftsmanId > 0
-    //        ? dto.CraftsmanId
-    //        : userCraftsman?.Id
-    //          ?? (await _db.Craftsmen.FirstOrDefaultAsync(c =>
-    //              c.UserId == _db.Users
-    //                  .Where(u => u.Email == "ai@harfi.com")
-    //                  .Select(u => u.Id)
-    //                  .FirstOrDefault()))!.Id;
-
-    //    var job = new Job
-    //    {
-    //        CustomerId = dto.UserId,
-    //        CraftsmanId = craftsmanId,
-    //        Status = "AI",
-    //        ServiceType = dto.ServiceType,
-    //        Description = desc,
-    //        Address = "AI",
-    //        ProblemImageUrl = "AI",
-    //        ProblemDescription = prob,
-    //        SolutionDescription = sol,
-    //        CreatedAt = DateTime.UtcNow,
-    //        CompletedAt = DateTime.UtcNow,
-    //        UpdatedAt = DateTime.UtcNow
-    //    };
-    //    _db.Jobs.Add(job);
-    //    await _db.SaveChangesAsync();
-    //    _logger.LogInformation("[SubmitSolution] ✓ Job saved Id={JobId}", job.Id);
-
-    //    // ── 4. RAGDocument ────────────────────────────────────────────────
-    //    var ragDoc = new RAGDocument
-    //    {
-    //        JobId = job.Id,
-    //        ChromaDocumentId = "AI",
-    //        ChunkType = "solution",
-    //        EmbeddingModel = "voyage-3",
-    //        CreatedAt = DateTime.UtcNow
-    //    };
-    //    _db.RAGDocuments.Add(ragDoc);
-    //    await _db.SaveChangesAsync();
-
-    //    // ── 5. Ingest في Qdrant ───────────────────────────────────────────
-    //    int upserted = await _solution.IngestSingleJobSolutionAsync(job.Id);
-    //    _logger.LogInformation("[SubmitSolution] ✓ Qdrant upserted={N}", upserted);
-
-    //    return Ok(new
-    //    {
-    //        jobId = job.Id,
-    //        upserted,
-    //        originalSteps = dto.Steps,
-    //        fixedSteps
-    //    });
-    //}
 
     // ════════════════════════════════════════════════════════════════════════
     //  POST /api/AI/craftsman/check-and-submit-solution
@@ -1578,5 +1613,14 @@ public class AIController : ControllerBase
             Upserted = upserted,
             FixedSteps = fixedSteps
         });
-    } 
+    }
+
+
+    [HttpPost("qdrant-indexes")]
+    public async Task<IActionResult> EnsureQdrantIndexes(
+    [FromServices] VectorDbService vectorDb)
+    {
+        await vectorDb.EnsurePayloadIndexesAsync();
+        return Ok("Indexes ensured");
+    }
 }

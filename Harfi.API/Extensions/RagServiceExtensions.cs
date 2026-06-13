@@ -41,6 +41,11 @@ public static class RagServiceExtensions
             client.BaseAddress = new Uri(
                 config["Qdrant:BaseUrl"] ?? "http://localhost:6400/");
             client.Timeout = TimeSpan.FromSeconds(30);
+
+            // Qdrant Cloud requires API key — ignored if empty (local dev)
+            var apiKey = config["Qdrant:ApiKey"];
+            if (!string.IsNullOrWhiteSpace(apiKey) && apiKey != "SET_VIA_USER_SECRETS")
+                client.DefaultRequestHeaders.Add("api-key", apiKey);
         });
 
         services.AddScoped<EmbeddingService>();
