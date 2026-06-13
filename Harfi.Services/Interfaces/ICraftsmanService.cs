@@ -10,5 +10,7 @@ namespace Harfi.Services.Interfaces
         Task<bool> UpdateCraftsmanAsync(int id, UpdateCraftsmanDto dto);
         Task<IEnumerable<CraftsmanDto>> GetFilteredCraftsmenAsync(CraftsmanFilterDto filter);
         Task<string?> UploadProfileImageAsync(int craftsmanId, IFormFile file);
+        Task<IEnumerable<ServiceLookupDto>> GetActiveServicesAsync();
+        Task<IEnumerable<CityLookupDto>> GetActiveCitiesAsync();
     }
 }

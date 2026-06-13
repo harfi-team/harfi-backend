@@ -31,4 +31,17 @@ namespace Harfi.DTOs.Craftsman
         public DateTime CreatedAt { get; set; }
 
     }
+
+    public class ServiceLookupDto
+    {
+        public string NameAr { get; set; } = string.Empty;
+        public string NameEn { get; set; } = string.Empty;
+        public string Icon { get; set; } = string.Empty;
+    }
+
+    public class CityLookupDto
+    {
+        public string NameAr { get; set; } = string.Empty;
+        public string NameEn { get; set; } = string.Empty;
+    }
 }

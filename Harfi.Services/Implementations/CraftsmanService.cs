@@ -158,5 +158,78 @@ namespace Harfi.Services.Implementations
 
             return result.Succeeded ? imageUrl : null;
         }
+        // غيري الـ Return Type في الـ Interface والـ Service للـ DTOs الجديدة
+        public async Task<IEnumerable<ServiceLookupDto>> GetActiveServicesAsync()
+        {
+            var activeServices = await _craftsmanRepository.GetActiveServicesAsync();
+
+            // تحويل كل اسم خدمة عربي للـ DTO الكامل باستخدام الدالة المساعدة
+            return activeServices.Select(serviceAr => MapServiceDetails(serviceAr));
+        }
+
+        public async Task<IEnumerable<CityLookupDto>> GetActiveCitiesAsync()
+        {
+            var activeCities = await _craftsmanRepository.GetActiveCitiesAsync();
+
+            // تحويل كل اسم مدينة عربي للـ DTO الكامل
+            return activeCities.Select(cityAr => MapCityDetails(cityAr));
+        }
+
+        // ---------------- الدوال المساعدة (Translators) ----------------
+
+        private ServiceLookupDto MapServiceDetails(string serviceAr)
+        {
+            // استخدام Switch Expression (طريقة حديثة ونظيفة جداً في C#)
+            return serviceAr.Trim() switch
+            {
+                "سباكة" => new ServiceLookupDto { NameAr = "سباكة", NameEn = "Plumbing", Icon = "plumbing" },
+                "كهرباء" => new ServiceLookupDto { NameAr = "كهرباء", NameEn = "Electrical", Icon = "electric_bolt" },
+                "دهانات" => new ServiceLookupDto { NameAr = "دهانات", NameEn = "Painting", Icon = "format_paint" },
+                "نجارة" => new ServiceLookupDto { NameAr = "نجارة", NameEn = "Carpentry", Icon = "carpenter" },
+                "تكييف وتبريد" => new ServiceLookupDto { NameAr = "تكييف وتبريد", NameEn = "HVAC & Cooling", Icon = "ac_unit" },
+                "تبريد وتكييف" => new ServiceLookupDto { NameAr = "تبريد وتكييف", NameEn = "HVAC / AC", Icon = "ac_unit" }, // للحفاظ على التوافق القديم
+                "ألمنيوم" => new ServiceLookupDto { NameAr = "ألمنيوم", NameEn = "Aluminum", Icon = "window" },
+                "أعمال ألمنيوم" => new ServiceLookupDto { NameAr = "أعمال ألمنيوم", NameEn = "Aluminum Works", Icon = "window" }, // للحفاظ على التوافق القديم
+                "أمن وكاميرات" => new ServiceLookupDto { NameAr = "أمن وكاميرات", NameEn = "Security & Cameras", Icon = "videocam" },
+                "تبليط وسيراميك" => new ServiceLookupDto { NameAr = "تبليط وسيراميك", NameEn = "Tiling & Ceramics", Icon = "grid_on" },
+                "جبس وأسقف" => new ServiceLookupDto { NameAr = "جبس وأسقف", NameEn = "Gypsum & Ceilings", Icon = "texture" },
+                "حدادة" => new ServiceLookupDto { NameAr = "حدادة", NameEn = "Blacksmith", Icon = "shield_with_heart" },
+                "زجاج ومرايا" => new ServiceLookupDto { NameAr = "زجاج ومرايا", NameEn = "Glass & Mirrors", Icon = "filter_frames" },
+                "مكافحة حشرات" => new ServiceLookupDto { NameAr = "مكافحة حشرات", NameEn = "Pest Control", Icon = "pest_control" },
+
+                // إضافات عامة أخرى (من الكود القديم الخاص بك)
+                "نظافة" => new ServiceLookupDto { NameAr = "نظافة", NameEn = "Cleaning", Icon = "cleaning_services" },
+                "بناء" => new ServiceLookupDto { NameAr = "بناء", NameEn = "Construction", Icon = "construction" },
+                "صيانة عامة" => new ServiceLookupDto { NameAr = "صيانة عامة", NameEn = "General Maintenance", Icon = "build" },
+                "نقل أثاث" => new ServiceLookupDto { NameAr = "نقل أثاث", NameEn = "Furniture Moving", Icon = "local_shipping" },
+                "جبس" => new ServiceLookupDto { NameAr = "جبس", NameEn = "Gypsum", Icon = "texture" },
+
+                // الـ Fallback
+                _ => new ServiceLookupDto { NameAr = serviceAr, NameEn = serviceAr, Icon = "build_circle" }
+            };
+        }
+
+        private CityLookupDto MapCityDetails(string cityAr)
+        {
+            return cityAr.Trim() switch
+            {
+                "القاهرة" => new CityLookupDto { NameAr = "القاهرة", NameEn = "Cairo" },
+                "الإسكندرية" => new CityLookupDto { NameAr = "الإسكندرية", NameEn = "Alexandria" },
+                "الجيزة" => new CityLookupDto { NameAr = "الجيزة", NameEn = "Giza" },
+                "المنصورة" => new CityLookupDto { NameAr = "المنصورة", NameEn = "Mansoura" },
+                "أسيوط" => new CityLookupDto { NameAr = "أسيوط", NameEn = "Assiut" },
+                "الإسماعيلية" => new CityLookupDto { NameAr = "الإسماعيلية", NameEn = "Ismailia" },
+                "الأقصر" => new CityLookupDto { NameAr = "الأقصر", NameEn = "Luxor" },
+                "الفيوم" => new CityLookupDto { NameAr = "الفيوم", NameEn = "Fayoum" },
+                "المنيا" => new CityLookupDto { NameAr = "المنيا", NameEn = "Minya" },
+                "بني سويف" => new CityLookupDto { NameAr = "بني سويف", NameEn = "Beni Suef" },
+                "بورسعيد" => new CityLookupDto { NameAr = "بورسعيد", NameEn = "Port Said" },
+                "دمنهور" => new CityLookupDto { NameAr = "دمنهور", NameEn = "Damanhour" },
+                "سوهاج" => new CityLookupDto { NameAr = "سوهاج", NameEn = "Sohag" },
+                // Fallback
+                _ => new CityLookupDto { NameAr = cityAr, NameEn = cityAr }
+            };
+        }
+
     }
 }

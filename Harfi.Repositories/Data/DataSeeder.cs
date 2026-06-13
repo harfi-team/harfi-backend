@@ -270,7 +270,12 @@ public class DataSeeder
             new { Email = "marwan.atef@gmail.com",      Name = "مروان عاطف",     Phone = "01099999999", Days = 48  },
             new { Email = "sherif.ashraf@gmail.com",    Name = "شريف أشرف",      Phone = "01100000001", Days = 52  },
             new { Email = "khaled.nasr@gmail.com",      Name = "خالد نصر",       Phone = "01200000002", Days = 58  },
-            new { Email = "george.ramzy@gmail.com",     Name = "جورج رمسي",      Phone = "01500000003", Days = 62  }
+            new { Email = "george.ramzy@gmail.com",     Name = "جورج رمسي",      Phone = "01500000003", Days = 62  },
+            new { Email = "tanta.plumber@gmail.com",   Name = "محمود السيد",   Phone = "01000011111", Days = 5  },
+            new { Email = "tanta.electric@gmail.com",  Name = "طارق محمود",    Phone = "01000022222", Days = 6  },
+            new { Email = "tanta.carpenter@gmail.com", Name = "سعيد النجار",   Phone = "01000033333", Days = 7  },
+            new { Email = "tanta.painter@gmail.com",   Name = "عمر النقاش",    Phone = "01000044444", Days = 8  },
+            new { Email = "tanta.hvac@gmail.com",      Name = "كريم تكييف",    Phone = "01000055555", Days = 9  }
         };
         foreach (var d in data)
         {
@@ -299,7 +304,7 @@ public class DataSeeder
     {
         var users = await _context.Users.IgnoreQueryFilters()
             .Where(u => u.Role == "craftsman").OrderBy(u => u.CreatedAt).ToListAsync();
-        if (users.Count < 20) { _logger.LogWarning("Expected 20 craftsman users, got {N}", users.Count); return; }
+        if (users.Count < 25) { _logger.LogWarning("Expected 20 craftsman users, got {N}", users.Count); return; }
         User U(string email) => users.First(u => u.Email == email);
 
         var profiles = new[]
@@ -323,7 +328,12 @@ public class DataSeeder
             new Craftsman { UserId = U("marwan.atef@gmail.com").Id,     ServiceType = "زجاج ومرايا",    City = "المنيا",          Neighborhood = "المنيا",        PriceRangeMin = 150m, PriceRangeMax = 400m, Experience = 5,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "زجاج ومرايا — تركيب واجهات زجاجية — شبابيك ألمنيوم وزجاج",                           NationalIdUrl = "/uploads/ids/id_17.jpg", CreatedAt = U("marwan.atef@gmail.com").CreatedAt },
             new Craftsman { UserId = U("sherif.ashraf@gmail.com").Id,   ServiceType = "ألمنيوم",        City = "سوهاج",           Neighborhood = "سوهاج",         PriceRangeMin = 200m, PriceRangeMax = 700m, Experience = 7,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "ألمنيوم — شبابيك وأبواب — واجهات كلادينج — مطابخ ألمنيوم",                           NationalIdUrl = "/uploads/ids/id_18.jpg", CreatedAt = U("sherif.ashraf@gmail.com").CreatedAt },
             new Craftsman { UserId = U("khaled.nasr@gmail.com").Id,     ServiceType = "مكافحة حشرات",   City = "الفيوم",          Neighborhood = "الفيوم",        PriceRangeMin = 100m, PriceRangeMax = 300m, Experience = 6,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "مكافحة حشرات وقوارض — رش وتعقيم — مواد آمنة ومعتمدة من وزارة الصحة",                 NationalIdUrl = "/uploads/ids/id_19.jpg", CreatedAt = U("khaled.nasr@gmail.com").CreatedAt },
-            new Craftsman { UserId = U("george.ramzy@gmail.com").Id,    ServiceType = "أمن وكاميرات",   City = "القاهرة",        Neighborhood = "المعادي",       PriceRangeMin = 400m, PriceRangeMax = 1500m, Experience = 8,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "كاميرات مراقبة — أنظمة أمن — إنتركوم — أجهزة إنذار — تركيب وصيانة",                  NationalIdUrl = "/uploads/ids/id_20.jpg", CreatedAt = U("george.ramzy@gmail.com").CreatedAt }
+            new Craftsman { UserId = U("george.ramzy@gmail.com").Id,    ServiceType = "أمن وكاميرات",   City = "القاهرة",        Neighborhood = "المعادي",       PriceRangeMin = 400m, PriceRangeMax = 1500m, Experience = 8,  IsApproved = true,  IsAvailable = true,  IsDeleted = false, Rating = 0m,  Bio = "كاميرات مراقبة — أنظمة أمن — إنتركوم — أجهزة إنذار — تركيب وصيانة",                  NationalIdUrl = "/uploads/ids/id_20.jpg", CreatedAt = U("george.ramzy@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("tanta.plumber@gmail.com").Id, ServiceType = "سباكة", City = "طنطا", Neighborhood = "سيجر", PriceRangeMin = 150m, PriceRangeMax = 400m, Experience = 5, IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "سباك ممتاز متخصص في الصيانة المنزلية", NationalIdUrl = "/uploads/ids/id_tanta_1.jpg", CreatedAt = U("tanta.plumber@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("tanta.electric@gmail.com").Id, ServiceType = "كهرباء", City = "طنطا", Neighborhood = "المحطة", PriceRangeMin = 200m, PriceRangeMax = 500m, Experience = 7, IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "فني كهرباء خبرة في تأسيس وصيانة شبكات الكهرباء", NationalIdUrl = "/uploads/ids/id_tanta_2.jpg", CreatedAt = U("tanta.electric@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("tanta.carpenter@gmail.com").Id, ServiceType = "نجارة", City = "طنطا", Neighborhood = "المرشحة", PriceRangeMin = 250m, PriceRangeMax = 600m, Experience = 10, IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "نجار موبيليا وتصليح أثاث بجودة عالية", NationalIdUrl = "/uploads/ids/id_tanta_3.jpg", CreatedAt = U("tanta.carpenter@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("tanta.painter@gmail.com").Id, ServiceType = "دهانات", City = "طنطا", Neighborhood = "سعيد", PriceRangeMin = 100m, PriceRangeMax = 300m, Experience = 4, IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "نقاش وتشطيبات داخلية وخارجية بأسعار منافسة", NationalIdUrl = "/uploads/ids/id_tanta_4.jpg", CreatedAt = U("tanta.painter@gmail.com").CreatedAt },
+            new Craftsman { UserId = U("tanta.hvac@gmail.com").Id, ServiceType = "تكييف وتبريد", City = "طنطا", Neighborhood = "كفر عصام", PriceRangeMin = 300m, PriceRangeMax = 700m, Experience = 8, IsApproved = true, IsAvailable = true, IsDeleted = false, Rating = 0m, Bio = "صيانة وتركيب جميع أنواع المكيفات وشحن فريون", NationalIdUrl = "/uploads/ids/id_tanta_5.jpg", CreatedAt = U("tanta.hvac@gmail.com").CreatedAt }
         };
         await _context.Craftsmen.AddRangeAsync(profiles);
         await _context.SaveChangesAsync();

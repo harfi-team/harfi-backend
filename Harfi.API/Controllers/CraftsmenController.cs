@@ -2,6 +2,7 @@ using Harfi.DTOs.Craftsman;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -114,6 +115,34 @@ namespace Harfi.API.Controllers
                 return NotFound(new { message = "عذراً، هذا الحرفي غير موجود حالياً." });
 
             return Ok(new { url });
+        }
+
+        [HttpGet("active-services")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetActiveServices()
+        {
+            var services = await _craftsmanService.GetActiveServicesAsync();
+
+            if (!services.Any())
+            {
+                return NotFound(new { message = "لم يتم العثور على أي خدمات متاحة حالياً." });
+            }
+
+            return Ok(services); // هيرجع JSON فيه NameAr, NameEn, Icon
+        }
+
+        [HttpGet("active-cities")]
+        [AllowAnonymous]
+        public async Task<IActionResult> GetActiveCities()
+        {
+            var cities = await _craftsmanService.GetActiveCitiesAsync();
+
+            if (!cities.Any())
+            {
+                return NotFound(new { message = "لم يتم العثور على أي مدن يتواجد بها حرفيون حالياً." });
+            }
+
+            return Ok(cities); // هيرجع JSON فيه NameAr, NameEn
         }
     }
 }
