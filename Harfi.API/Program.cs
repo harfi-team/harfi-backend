@@ -73,7 +73,15 @@ app.MapControllers();
 app.MapHub<ChatHub>("/hubs/chat");
 app.MapHub<NotificationHub>("/hubs/notifications");
 
-// Clean up stale UserConnections from previous server sessions
+// 1. Auto-migrate on startup (Development only) - لازم دي تكون الأول
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
+// 2. Clean up stale UserConnections from previous server sessions - تيجي بعدها
 using (var cleanupScope = app.Services.CreateScope())
 {
     var cleanupDb = cleanupScope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -82,13 +90,6 @@ using (var cleanupScope = app.Services.CreateScope())
         Console.WriteLine($"Cleaned {staleCount} stale UserConnection(s) from previous session.");
 }
 
-// Auto-migrate on startup (Development only)
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.Migrate();
-}
 
 // Seed default data (admin + demo data)
 using (var scope = app.Services.CreateScope())

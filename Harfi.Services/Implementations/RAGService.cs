@@ -1,4 +1,4 @@
-﻿using Harfi.DTOs.RAG;
+using Harfi.DTOs.RAG;
 using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Microsoft.EntityFrameworkCore;
@@ -104,7 +104,7 @@ public class RAGService
         ["مطروح"] = ["الإسكندرية", "البحيرة", "كفر الشيخ", "الغربية", "المنوفية", "طنطا", "الجيزة", "القاهرة", "الدقهلية", "المنصورة", "جنوب سيناء", "دمياط", "الشرقية", "الزقازيق", "الفيوم", "بني سويف", "المنيا", "الإسماعيلية", "بورسعيد", "السويس", "أسيوط", "سوهاج", "قنا", "الأقصر", "أسوان", "شمال سيناء", "البحر الأحمر"],
         ["شمال سيناء"] = ["الإسماعيلية", "بورسعيد", "السويس", "الشرقية", "القاهرة", "الزقازيق", "الجيزة", "جنوب سيناء", "المنصورة", "الغربية", "طنطا", "المنوفية", "دمياط", "الدقهلية", "كفر الشيخ", "الإسكندرية", "البحيرة", "الفيوم", "بني سويف", "المنيا", "مطروح", "أسيوط", "سوهاج", "قنا", "الأقصر", "أسوان", "البحر الأحمر"],
         ["جنوب سيناء"] = ["السويس", "الإسماعيلية", "البحر الأحمر", "شمال سيناء", "بورسعيد", "القاهرة", "الشرقية", "الزقازيق", "الجيزة", "قنا", "الأقصر", "أسوان", "الغربية", "طنطا", "المنوفية", "دمياط", "الدقهلية", "كفر الشيخ", "الإسكندرية", "البحيرة", "مطروح", "الفيوم", "بني سويف", "المنيا", "أسيوط", "سوهاج", "المنصورة"],
-        ["البحر الأحمر"] = ["السويس", "جنوب سيناء", "الأقصر", "قنا", "أسوان", "سوهاج", "الإسماعيلية", "بورسعيد", "القاهرة", "الجيزة", "أسيوط", "المنيا", "بني سويف", "الفيوم", "الشرقية", "الزقازيق", "المنصورة", "الغربية", "طنطا", "المنوفية", "دمياط", "الدقهلية", "كفر الشيخ", "الإسكندرية", "البحيرة", "مطروح", "شمال سيناء"],
+        ["البحر الأحمر"] = ["السويس", "جنوب سيناء", "الأقصر", "قنا", "أسوان", "سوهاج", "الإسماعيلية", "بورسعيد", "القاهرة", "الجيزة", "أسيوط", "المنيا", "بني سويف", "الفيوم", "الشرقية", "الزقازيق", "المنصورة", "الغربية", "طنطا", "المنوفية", "دمياط", "الدقهلية", "كفر الشيخ", "المنوفية", "دمياط", "الدقهلية", "كفر الشيخ", "الإسكندرية", "البحيرة", "مطروح", "شمال سيناء"],
     };
 
     public RAGService(
@@ -130,7 +130,10 @@ public class RAGService
 
     public async Task<IngestResponse> IngestAllCraftsmenAsync(int fromId = 0)
     {
-        var allEnum = await _repo.GetAllAsync();
+        var allEnum = await _repo.GetQueryable()
+            .Include(c => c.User)
+            .Include(c => c.Service)
+            .ToListAsync();
         var all = allEnum.ToList();
         var craftsmen = fromId > 0 ? all.Where(c => c.Id >= fromId).ToList() : all;
 
@@ -266,6 +269,8 @@ public class RAGService
             var ids = qdrantScores.Select(x => x.Id).ToList();
             var craftsmen = await _db.Craftsmen
      .Include(c => c.User)
+     .Include(c => c.Service)
+     .Include(c => c.CityNavigation)
      .Where(c => ids.Contains(c.Id))
      .ToListAsync();
             var craftsmanMap = craftsmen.ToDictionary(c => c.Id);
@@ -280,7 +285,7 @@ public class RAGService
             foreach (var v in verified)
             {
                 usedIds.Add(v.Craftsman.Id);
-                double fused = 0.7 * v.Score + 0.3 * ((double)v.Craftsman.Rating / 5.0);
+                double fused = 0.7 * v.Score + 0.3 * ((double)(v.Craftsman.Rating ?? 0) / 5.0);
                 var fc = new FinalCraftsman(v.Craftsman, fused, !isFirstCity, city);
                 if (isFirstCity) verifiedLocal.Add(fc);
                 else verifiedNearby.Add(fc);
@@ -320,10 +325,10 @@ public class RAGService
                 {
                     Id = c.Id,
                     Name = c.User.Name,
-                    ServiceType = c.ServiceType,
-                    City = c.City,
+                    ServiceType = c.Service?.NameAr ?? "غير محدد",
+                    City = c.CityNavigation?.NameAr ?? "",
                     Neighborhood = c.Neighborhood,
-                    Rating = (double)c.Rating,
+                    Rating = (double)(c.Rating ?? 0),
                     ExperienceYears = c.Experience,
                     PriceRangeMin = c.PriceRangeMin,
                     PriceRangeMax = c.PriceRangeMax,
@@ -347,8 +352,8 @@ public class RAGService
         var ids = craftsmen.Select(fc => fc.Craftsman.Id).ToList();
         var addressMap = await _db.Craftsmen
             .Where(c => ids.Contains(c.Id))
-            .Select(c => new { c.Id, c.City })  // City فيها العنوان الكامل
-            .ToDictionaryAsync(x => x.Id, x => x.City ?? "");
+            .Select(c => new { c.Id, City = c.CityNavigation != null ? c.CityNavigation.NameAr + " - " + c.CityNavigation.Governorate : "" })
+            .ToDictionaryAsync(x => x.Id, x => x.City);
 
         // ابعت للـ LLM يرتبهم
         var list = string.Join("\n", craftsmen.Select((fc, i) =>
@@ -425,7 +430,7 @@ public class RAGService
         if (candidates.Count == 0) return [];
 
         var list = string.Join("\n", candidates.Select((c, i) =>
-            $"{i + 1}. ID={c.Craftsman.Id} | {c.Craftsman.User.Name} | التخصص: {c.Craftsman.ServiceType} | {c.Craftsman.City}"));
+            $"{i + 1}. ID={c.Craftsman.Id} | {c.Craftsman.User.Name} | التخصص: {c.Craftsman.Service?.NameAr ?? "غير محدد"} | {c.Craftsman.CityNavigation?.NameAr ?? ""}"));
 
         string prompt =
             "أنت مساعد للتحقق من تخصصات الحرفيين.\n" +
@@ -478,7 +483,7 @@ public class RAGService
 
     private static List<RankedCraftsman> HardFilter(
         List<RankedCraftsman> candidates, string service, int needed)
-        => candidates.Where(c => c.Craftsman.ServiceType == service).Take(needed).ToList();
+        => candidates.Where(c => c.Craftsman.Service?.NameAr == service || c.Craftsman.Service?.NameEn == service).Take(needed).ToList();
 
     // ════════════════════════════════════════════════════════════════════════
     //  Helpers
@@ -519,7 +524,7 @@ public class RAGService
             var c = fc.Craftsman;
             string tag = fc.IsNearby ? " ★ من محافظة مجاورة" : "";
             sb.AppendLine($"[{i}] {c.User.Name}{tag}");
-            sb.AppendLine($"    التخصص: {c.ServiceType} | المدينة: {c.City}");
+            sb.AppendLine($"    التخصص: {c.Service?.NameAr ?? "غير محدد"} | المدينة: {c.CityNavigation?.NameAr ?? ""}");
             sb.AppendLine($"    الخبرة: {c.Experience} سنة | التقييم: {c.Rating}/5.0");
             sb.AppendLine($"    {c.Bio ?? ""}");
             sb.AppendLine();
@@ -536,16 +541,17 @@ public class RAGService
         //    .OrderByDescending(c => c.Rating)
         //    .Take(req.TopK)
         //    .ToList();
-        var top = await _db.Craftsmen           // ← استخدم _db مباشرة بدل _repo
-       .Include(c => c.User)               // ← أضف Include
-       .Where(c => c.ServiceType != "AI")  // ← استبعد الـ AI
-       .Where(c => service == null || c.ServiceType == service)
+        var top = await _db.Craftsmen
+       .Include(c => c.User)
+       .Include(c => c.Service)
+       .Include(c => c.CityNavigation)
+       .Where(c => service == null || (c.Service != null && (c.Service.NameAr == service || c.Service.NameEn == service)))
        .OrderByDescending(c => c.Rating)
        .Take(req.TopK)
        .ToListAsync();
 
         string ctx = string.Join("\n\n", top.Select(c =>
-            $"[{c.User.Name}] {c.ServiceType} — {c.City}\n" +
+            $"[{c.User.Name}] {c.Service?.NameAr ?? "غير محدد"} — {c.CityNavigation?.NameAr ?? ""}\n" +
             $"خبرة {c.Experience}س | تقييم {c.Rating}/5\n{c.Bio ?? ""}"));
 
         string answer = await CallGroqAsync(req.Question, ctx, null);
@@ -558,12 +564,12 @@ public class RAGService
             {
                 Id = c.Id,
                 Name = c.User.Name,
-                ServiceType = c.ServiceType,
-                City = c.City,
-                Rating = (double)c.Rating,
+                ServiceType = c.Service?.NameAr ?? "غير محدد",
+                City = c.CityNavigation?.NameAr ?? "",
+                Rating = (double)(c.Rating ?? 0),
                 ExperienceYears = c.Experience,
                 RelevantText = (c.Bio ?? "")[..Math.Min(200, (c.Bio ?? "").Length)],
-                SimilarityScore = (double)c.Rating / 5.0,
+                SimilarityScore = (double)(c.Rating ?? 0) / 5.0,
                 IsNearby = false
             }).ToList(),
             LatencyMs = sw.ElapsedMilliseconds

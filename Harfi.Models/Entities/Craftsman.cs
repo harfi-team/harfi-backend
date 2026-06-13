@@ -13,12 +13,10 @@ public class Craftsman
     public int UserId { get; set; }
 
     [Required]
-    [MaxLength(50)]
-    public string ServiceType { get; set; } = string.Empty;
+    public int ServiceTypeId { get; set; }
 
     [Required]
-    [MaxLength(100)]
-    public string City { get; set; } = string.Empty;
+    public int CityId { get; set; }
 
     [MaxLength(100)]
     public string? Neighborhood { get; set; }
@@ -50,7 +48,7 @@ public class Craftsman
 
     /// <summary>Computed from Reviews — do NOT update manually</summary>
     [Column(TypeName = "decimal(3,2)")]
-    public decimal Rating { get; set; } = 0;
+    public decimal? Rating { get; set; } = null;
 
     [MaxLength(1000)]
     public string? Bio { get; set; }
@@ -63,6 +61,8 @@ public class Craftsman
 
     // ── Navigation Properties ──────────────────────────────────
     public User User { get; set; } = null!;
+    public virtual ServiceType? Service { get; set; }
+    public virtual City? CityNavigation { get; set; }
     public ICollection<Job> Jobs { get; set; } = new List<Job>();
     public ICollection<Review> Reviews { get; set; } = new List<Review>();
     public ICollection<Conversation> Conversations { get; set; } = new List<Conversation>();

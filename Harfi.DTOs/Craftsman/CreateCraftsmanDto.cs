@@ -13,12 +13,10 @@ namespace Harfi.DTOs.Craftsman
         public int UserId { get; set; } // لربطه بحساب المستخدم الأساسي المفتوح حالياً
 
         [Required]
-        [StringLength(50)]
-        public string ServiceType { get; set; } = string.Empty; // مثال: سباكة، كهرباء، نجارة
+        public int ServiceTypeId { get; set; } // تم الربط بجدول أنواع الخدمات
 
         [Required]
-        [StringLength(100)]
-        public string City { get; set; } = string.Empty;
+        public int CityId { get; set; }
 
         [StringLength(100)]
         public string? Neighborhood { get; set; } // المنطقة أو الحي (nullable)

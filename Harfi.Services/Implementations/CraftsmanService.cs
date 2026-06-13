@@ -1,4 +1,4 @@
-﻿using Harfi.DTOs.Craftsman;
+using Harfi.DTOs.Craftsman;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
@@ -45,8 +45,8 @@ namespace Harfi.Services.Implementations
             var craftsman = new Craftsman
             {
                 UserId = createCraftsmanDto.UserId,
-                ServiceType = createCraftsmanDto.ServiceType,
-                City = createCraftsmanDto.City,
+                ServiceTypeId = createCraftsmanDto.ServiceTypeId,
+                CityId = createCraftsmanDto.CityId,
                 Neighborhood = createCraftsmanDto.Neighborhood,
                 PriceRangeMin = createCraftsmanDto.PriceRangeMin,
                 PriceRangeMax = createCraftsmanDto.PriceRangeMax,
@@ -70,8 +70,10 @@ namespace Harfi.Services.Implementations
             var craftsman = await _craftsmanRepository.GetByIdAsync(id);
             if (craftsman == null) return null;
 
-            // تحميل بيانات المستخدم المرتبط لتجنب null reference
+            // تحميل بيانات المستخدم والخدمة والمدينة المرتبطة
             await _craftsmanRepository.LoadReferenceAsync(craftsman, c => c.User);
+            await _craftsmanRepository.LoadReferenceAsync(craftsman, c => c.Service);
+            await _craftsmanRepository.LoadReferenceAsync(craftsman, c => c.CityNavigation);
 
             return new CraftsmanDto
             {
@@ -81,7 +83,14 @@ namespace Harfi.Services.Implementations
                 Email = craftsman.User?.Email ?? string.Empty,
                 Phone = craftsman.User?.Phone,
                 ProfileImageUrl = craftsman.User?.ProfileImageUrl,
-                City = craftsman.City,
+                ServiceTypeId = craftsman.ServiceTypeId,
+                ServiceNameAr = craftsman.Service?.NameAr,
+                ServiceNameEn = craftsman.Service?.NameEn,
+                ServiceName = craftsman.Service?.NameAr, // Default to Arabic
+                CityId = craftsman.CityId,
+                CityNameAr = craftsman.CityNavigation?.NameAr,
+                CityNameEn = craftsman.CityNavigation?.NameEn,
+                Governorate = craftsman.CityNavigation?.Governorate,
                 Neighborhood = craftsman.Neighborhood,
                 PriceRangeMin = craftsman.PriceRangeMin,
                 PriceRangeMax = craftsman.PriceRangeMax,
@@ -109,8 +118,14 @@ namespace Harfi.Services.Implementations
                 Email = c.User?.Email ?? string.Empty,
                 Phone = c.User?.Phone,
                 ProfileImageUrl = c.User?.ProfileImageUrl,
-                ServiceType = c.ServiceType,
-                City = c.City,
+                ServiceTypeId = c.ServiceTypeId,
+                ServiceNameAr = c.Service?.NameAr,
+                ServiceNameEn = c.Service?.NameEn,
+                ServiceName = c.Service?.NameAr, // Default to Arabic
+                CityId = c.CityId,
+                CityNameAr = c.CityNavigation?.NameAr,
+                CityNameEn = c.CityNavigation?.NameEn,
+                Governorate = c.CityNavigation?.Governorate,
                 Neighborhood = c.Neighborhood,
                 PriceRangeMin = c.PriceRangeMin,
                 PriceRangeMax = c.PriceRangeMax,
@@ -129,7 +144,8 @@ namespace Harfi.Services.Implementations
             if (craftsman == null) return false;
 
             // تحديث البيانات=
-            craftsman.City = dto.City;
+            craftsman.ServiceTypeId = dto.ServiceTypeId;
+            craftsman.CityId = dto.CityId;
             craftsman.Neighborhood = dto.Neighborhood;
             craftsman.PriceRangeMin = dto.PriceRangeMin;
             craftsman.PriceRangeMax = dto.PriceRangeMax;

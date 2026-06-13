@@ -23,6 +23,7 @@ namespace Harfi.Repositories.Implementations
         {
             return await _context.Craftsmen
                 .Include(c => c.User)
+                .Include(c => c.CityNavigation)
                 .ToListAsync();
         }
 
@@ -30,6 +31,7 @@ namespace Harfi.Repositories.Implementations
         {
             return _context.Craftsmen
                 .Include(c => c.User)
+                .Include(c => c.CityNavigation)
                 .AsNoTracking()
                 .AsQueryable();
         }
@@ -46,42 +48,94 @@ namespace Harfi.Repositories.Implementations
 
         public async Task<IEnumerable<Craftsman>> GetFilteredCraftsmenAsync(CraftsmanFilterDto filter)
         {
-            // 1. جلب الحرفيين المعتمدين من الداتابيز
-
+            // 1. القائمة الأساسية للحرفيين المعتمدين والمتاحين
             var query = _context.Craftsmen
-                                .Include(c => c.User)
-                                .Where(c => c.IsApproved && c.IsAvailable)
-                                .AsQueryable();
+                .Include(c => c.User)
+                .Include(c => c.Service)
+                .Include(c => c.CityNavigation)
+                .Where(c => c.IsApproved && c.IsAvailable)
+                .AsQueryable();
 
-            // 2. الفلترة بنوع الخدمة (تعديل الـ == إلى .Contains لدعم البحث العربي الجزئي)
-            if (!string.IsNullOrEmpty(filter.ServiceType))
+            // 2. الفلترة بنوع الخدمة
+            if (!string.IsNullOrWhiteSpace(filter.ServiceType))
             {
-                query = query.Where(c => c.ServiceType.Contains(filter.ServiceType));
+                var normalizedSearch = NormalizeSearchTerm(filter.ServiceType);
+
+                // نجيب كل الخدمات من قاعدة البيانات
+                // (ServiceTypes جدول صغير — غالباً أقل من 30 سجل)
+                var allServices = await _context.ServiceTypes.AsNoTracking().ToListAsync();
+
+                // نعمل الفلترة في الذاكرة (C#) لتجنب REPLACE التسلسلي في SQL
+                var matchingIds = allServices
+                    .Where(s => NormalizeSearchTerm(s.NameAr ?? "").Contains(normalizedSearch) ||
+                               (s.NameEn ?? "").ToLower().Contains(normalizedSearch.ToLower()))
+                    .Select(s => s.Id)
+                    .ToHashSet();
+
+                if (matchingIds.Count == 0)
+                    return Enumerable.Empty<Craftsman>();
+
+                query = query.Where(c => matchingIds.Contains(c.ServiceTypeId));
             }
 
-            // 3. الفلترة بالمدينة (تعديل الـ == إلى .Contains لدعم البحث العربي الجزئي)
-            if (!string.IsNullOrEmpty(filter.City))
+            // 3. الفلترة بالمدينة (دعم اللغتين العربي والإنجليزي)
+            if (!string.IsNullOrWhiteSpace(filter.City))
             {
-                query = query.Where(c => c.City.Contains(filter.City));
+                var normalizedSearch = NormalizeSearchTerm(filter.City);
+
+                // نجيب كل المدن (Cities جدول صغير — 18 مدينة)
+                var allCities = await _context.Cities.AsNoTracking().ToListAsync();
+
+                // نبحث عن أفضل مطابقة في الذاكرة
+                var matchedIds = allCities
+                    .Where(c => NormalizeSearchTerm(c.NameAr ?? "").Contains(normalizedSearch) ||
+                               (c.NameEn ?? "").ToLower().Contains(normalizedSearch.ToLower()))
+                    .Select(c => c.Id)
+                    .ToHashSet();
+
+                if (matchedIds.Count != 0)
+                {
+                    query = query.Where(c => matchedIds.Contains(c.CityId));
+                }
+                else
+                {
+                    // fallback — بحث مباشر في النص (إن كان البحث بالاسم ما لقى تطابق)
+                    query = query.Where(c => c.CityNavigation != null &&
+                        (c.CityNavigation.NameAr.Contains(normalizedSearch) ||
+                         c.CityNavigation.NameEn.Contains(normalizedSearch)));
+                }
             }
 
-            // 4. الحد الأدنى للتقييم
-            if (filter.MinRating.HasValue)
+            // 4. الحد الأدنى للتقييم (يُطبق فقط إذا كان أكبر من صفر)
+            // إذا كان 0، لا نقوم بالفلترة للسماح بظهور الحرفيين الجدد (null rating)
+            if (filter.MinRating.HasValue && filter.MinRating > 0)
             {
-                query = query.Where(c => c.Rating >= filter.MinRating.Value);
+                query = query.Where(c => c.Rating.HasValue && c.Rating >= filter.MinRating.Value);
             }
 
-            // 5. الحد الأدنى لسنوات الخبرة
-            if (filter.MinExperience.HasValue)
+            // 5. الحد الأدنى لسنوات الخبرة (يُطبق فقط إذا كان أكبر من صفر)
+            if (filter.MinExperience.HasValue && filter.MinExperience > 0)
             {
                 query = query.Where(c => c.Experience >= filter.MinExperience.Value);
             }
 
-            // 6. الترتيب من الأعلى تقييماً للأقل
-            query = query.OrderByDescending(c => c.Rating);
+            // 6. الترتيب التنازلي حسب التقييم (الحرفيين بدون تقييم يظهرون في النهاية)
+            query = query.OrderByDescending(c => c.Rating.HasValue)
+                         .ThenByDescending(c => c.Rating);
 
-            // 7. تنفيذ الكود وإرجاع النتائج
             return await query.ToListAsync();
+        }
+
+        private string NormalizeSearchTerm(string term)
+        {
+            if (string.IsNullOrEmpty(term)) return term;
+            return term.Trim()
+                       .Replace("+", " ")
+                       .Replace("أ", "ا")
+                       .Replace("إ", "ا")
+                       .Replace("آ", "ا")
+                       .Replace("ة", "ه")
+                       .Replace("ى", "ي");
         }
 
         public async Task<Craftsman?> GetByUserIdAsync(int userId)

@@ -65,18 +65,19 @@ public class ChunkingService
     //}
     public List<CraftsmanChunk> ChunkCraftsman(Craftsman craftsman)
     {
-        string problems = ServiceProblems.TryGetValue(craftsman.ServiceType, out var list)
-            ? string.Join("، ", list) : craftsman.ServiceType;
+        var serviceName = craftsman.Service?.NameAr ?? "غير محدد";
+        string problems = ServiceProblems.TryGetValue(serviceName, out var list)
+            ? string.Join("، ", list) : serviceName;
 
         string name = craftsman.User?.Name ?? $"حرفي #{craftsman.Id}";
         string bio = craftsman.Bio ?? "";
 
         // ── استخراج المحافظة فقط ─────────────────────────────
-        string governorate = ExtractGovernorate(craftsman.City);
+        string governorate = craftsman.CityNavigation?.Governorate ?? craftsman.CityNavigation?.NameAr ?? "";
 
         string fullText =
             $"الحرفي: {name}\n" +
-            $"التخصص: {craftsman.ServiceType}\n" +
+            $"التخصص: {serviceName}\n" +
             $"المحافظة: {governorate}\n" +        // ← بقى محافظة مش مدينة كاملة
             $"الخبرة: {craftsman.Experience} سنة | التقييم: {craftsman.Rating}/5.0\n" +
             $"يحل مشاكل مثل: {problems}\n" +
@@ -95,9 +96,9 @@ public class ChunkingService
             {
                 ["craftsman_id"]     = craftsman.Id.ToString(),
                 ["name"]             = name,
-                ["service_type"]     = craftsman.ServiceType,
+                ["service_type"]     = serviceName,
                 ["city"]             = governorate,     // ← الـ city metadata بقت المحافظة فقط
-                ["rating"]           = craftsman.Rating.ToString("F1"),
+                ["rating"]           = craftsman.Rating?.ToString("F1") ?? "0.0",
                 ["experience_years"] = craftsman.Experience.ToString(),
                 ["text"]             = fullText
             }
@@ -107,15 +108,4 @@ public class ChunkingService
 
 
 
-    private static string ExtractGovernorate(string fullCity)
-    {
-        if (string.IsNullOrWhiteSpace(fullCity))
-            return fullCity ?? string.Empty;
-
-        // Split على أي من الفواصل العربية أو الإنجليزية
-        var separators = new[] { ',', '،' };
-        var firstPart = fullCity.Split(separators, StringSplitOptions.RemoveEmptyEntries)
-                                .FirstOrDefault()?.Trim();
-        return firstPart ?? fullCity;
-    }
 }

@@ -39,6 +39,7 @@ public class AppDbContext : IdentityUserContext<User, int>
         {
             e.ToTable("Users");
             e.HasIndex(u => u.Email).IsUnique();
+            e.Property(u => u.Name).IsUnicode(true);
             e.Property(u => u.IsActive).HasDefaultValue(true);
             e.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });
@@ -48,14 +49,22 @@ public class AppDbContext : IdentityUserContext<User, int>
         {
             e.HasIndex(c => c.UserId).IsUnique(); // 1:1 with Users
 
-            e.HasOne(c => c.User)
-             .WithOne(u => u.CraftsmanProfile)
-             .HasForeignKey<Craftsman>(c => c.UserId)
+            e.HasOne(c => c.Service)
+             .WithMany(s => s.Craftsmen)
+             .HasForeignKey(c => c.ServiceTypeId)
              .OnDelete(DeleteBehavior.Restrict);
 
+            e.HasOne(c => c.CityNavigation)
+             .WithMany(ci => ci.Craftsmen)
+             .HasForeignKey(c => c.CityId)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasIndex(c => c.CityId);
+
+            e.Property(c => c.Neighborhood).IsUnicode(true);
+            e.Property(c => c.Bio).IsUnicode(true);
             e.Property(c => c.IsApproved).HasDefaultValue(false);
             e.Property(c => c.IsAvailable).HasDefaultValue(true);
-            e.Property(c => c.Rating).HasDefaultValue(0m);
             e.Property(c => c.Experience).HasDefaultValue(0);
             e.Property(c => c.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             e.Property(c => c.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
@@ -75,7 +84,10 @@ public class AppDbContext : IdentityUserContext<User, int>
              .HasForeignKey(j => j.CraftsmanId)
              .OnDelete(DeleteBehavior.Restrict);
 
-            e.Property(j => j.Status).HasDefaultValue("مفتوح");
+            e.Property(j => j.Status).HasDefaultValue("مفتوح").IsUnicode(true);
+            e.Property(j => j.ServiceType).IsUnicode(true);
+            e.Property(j => j.Description).IsUnicode(true);
+            e.Property(j => j.Address).IsUnicode(true);
             e.Property(j => j.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
             e.Property(j => j.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
 
@@ -123,6 +135,7 @@ public class AppDbContext : IdentityUserContext<User, int>
              .IsRequired(false)
              .OnDelete(DeleteBehavior.Restrict);
 
+            e.Property(m => m.Content).IsUnicode(true);
             e.Property(m => m.MessageType).HasDefaultValue("text");
             e.Property(m => m.IsRead).HasDefaultValue(false);
             e.Property(m => m.SentAt).HasDefaultValueSql("GETUTCDATE()");
@@ -148,6 +161,7 @@ public class AppDbContext : IdentityUserContext<User, int>
              .HasForeignKey(r => r.CraftsmanId)
              .OnDelete(DeleteBehavior.Restrict);
 
+            e.Property(r => r.Comment).IsUnicode(true);
             e.Property(r => r.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });
 
@@ -170,6 +184,8 @@ public class AppDbContext : IdentityUserContext<User, int>
              .HasForeignKey(n => n.ConversationId)
              .OnDelete(DeleteBehavior.SetNull);
 
+            e.Property(n => n.Title).IsUnicode(true);
+            e.Property(n => n.Body).IsUnicode(true);
             e.Property(n => n.IsRead).HasDefaultValue(false);
             e.Property(n => n.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });
@@ -202,6 +218,7 @@ public class AppDbContext : IdentityUserContext<User, int>
 
             e.HasIndex(a => a.SessionId); // frequently queried to load session history
 
+            e.Property(a => a.Content).IsUnicode(true);
             e.Property(a => a.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
         });
 
@@ -318,6 +335,7 @@ public class AppDbContext : IdentityUserContext<User, int>
         {
             e.ToTable("ServiceTypes");
             e.Property(s => s.IsActive).HasDefaultValue(true);
+            e.Property(s => s.NameAr).IsUnicode(true);
             e.HasIndex(s => s.NameAr).IsUnique();
             e.HasIndex(s => s.NameEn).IsUnique();
         });
@@ -327,6 +345,7 @@ public class AppDbContext : IdentityUserContext<User, int>
         {
             e.ToTable("Cities");
             e.Property(c => c.IsActive).HasDefaultValue(true);
+            e.Property(c => c.NameAr).IsUnicode(true);
             e.HasIndex(c => c.NameAr).IsUnique();
             e.HasIndex(c => c.NameEn).IsUnique();
         });

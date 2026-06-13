@@ -105,6 +105,7 @@ public static class ServiceExtensions
         services.AddScoped<IMessageService, MessageService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IAdminConversationService, AdminConversationService>();
+        services.AddScoped<IServiceTypeService, ServiceTypeService>();
         services.AddSignalR();
         services.AddHttpContextAccessor();
         services.AddScoped<IImageservice, Imageservice>();

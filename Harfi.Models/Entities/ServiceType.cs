@@ -21,4 +21,7 @@ public class ServiceType
     public string? Icon { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    // ── Navigation Properties ──────────────────────────────────
+    public virtual ICollection<Craftsman> Craftsmen { get; set; } = new List<Craftsman>();
 }

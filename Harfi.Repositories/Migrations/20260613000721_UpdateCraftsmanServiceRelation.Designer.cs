@@ -4,6 +4,7 @@ using Harfi.Repositories.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Harfi.Repositories.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260613000721_UpdateCraftsmanServiceRelation")]
+    partial class UpdateCraftsmanServiceRelation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -214,8 +217,11 @@ namespace Harfi.Repositories.Migrations
                         .IsUnicode(true)
                         .HasColumnType("nvarchar(1000)");
 
-                    b.Property<int>("CityId")
-                        .HasColumnType("int");
+                    b.Property<string>("City")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .IsUnicode(true)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
@@ -284,8 +290,6 @@ namespace Harfi.Repositories.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CityId");
 
                     b.HasIndex("ServiceTypeId");
 
@@ -1163,12 +1167,6 @@ namespace Harfi.Repositories.Migrations
 
             modelBuilder.Entity("Harfi.Models.Entities.Craftsman", b =>
                 {
-                    b.HasOne("Harfi.Models.Entities.City", "CityNavigation")
-                        .WithMany("Craftsmen")
-                        .HasForeignKey("CityId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("Harfi.Models.Entities.ServiceType", "Service")
                         .WithMany("Craftsmen")
                         .HasForeignKey("ServiceTypeId")
@@ -1180,8 +1178,6 @@ namespace Harfi.Repositories.Migrations
                         .HasForeignKey("Harfi.Models.Entities.Craftsman", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("CityNavigation");
 
                     b.Navigation("Service");
 
@@ -1379,11 +1375,6 @@ namespace Harfi.Repositories.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-                });
-
-            modelBuilder.Entity("Harfi.Models.Entities.City", b =>
-                {
-                    b.Navigation("Craftsmen");
                 });
 
             modelBuilder.Entity("Harfi.Models.Entities.Conversation", b =>

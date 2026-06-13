@@ -12,7 +12,8 @@ namespace Harfi.DTOs.Craftsman
         public string Fullname { get; set; } = string.Empty;
         public string ProfileImageUrl { get; set; } = string.Empty;
 
-        public string City { get; set; } = string.Empty;
+        public int ServiceTypeId { get; set; }
+        public int CityId { get; set; }
         public string? Neighborhood { get; set; }
         public decimal? PriceRangeMin { get; set; }
         public decimal? PriceRangeMax { get; set; }

@@ -74,12 +74,14 @@ public class AdminService : IAdminService
     {
         // Admin context: must include soft-deleted users' craftsmen for pending-list review
         var query = _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
+            .Include(c => c.Service)
             .Where(c => !c.IsApproved && !c.IsDeleted);
 
         if (!string.IsNullOrEmpty(city))
-            query = query.Where(c => c.City.Contains(city));
+            query = query.Where(c => c.CityNavigation != null &&
+                (c.CityNavigation.NameAr.Contains(city) || c.CityNavigation.NameEn.Contains(city)));
         if (!string.IsNullOrEmpty(serviceType))
-            query = query.Where(c => c.ServiceType.Contains(serviceType));
+            query = query.Where(c => c.Service != null && (c.Service.NameAr.Contains(serviceType) || c.Service.NameEn.Contains(serviceType)));
 
         var total = await query.CountAsync();
         var items = await query
@@ -97,8 +99,9 @@ public class AdminService : IAdminService
                 FullName = c.User?.Name ?? string.Empty,
                 Email = c.User?.Email ?? string.Empty,
                 Phone = c.User?.Phone,
-                ServiceType = c.ServiceType,
-                City = c.City,
+                ServiceType = c.Service?.NameAr ?? "غير محدد",
+                CityNameAr = c.CityNavigation?.NameAr,
+                CityNameEn = c.CityNavigation?.NameEn,
                 Neighborhood = c.Neighborhood,
                 Experience = c.Experience,
                 NationalIdUrl = c.NationalIdUrl,
@@ -116,12 +119,14 @@ public class AdminService : IAdminService
     {
         // Admin context: must include soft-deleted users' craftsmen for approved-list review
         var query = _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
+            .Include(c => c.Service)
             .Where(c => c.IsApproved && !c.IsDeleted);
 
         if (!string.IsNullOrEmpty(city))
-            query = query.Where(c => c.City.Contains(city));
+            query = query.Where(c => c.CityNavigation != null &&
+                (c.CityNavigation.NameAr.Contains(city) || c.CityNavigation.NameEn.Contains(city)));
         if (!string.IsNullOrEmpty(serviceType))
-            query = query.Where(c => c.ServiceType.Contains(serviceType));
+            query = query.Where(c => c.Service != null && (c.Service.NameAr.Contains(serviceType) || c.Service.NameEn.Contains(serviceType)));
         if (minRating.HasValue)
             query = query.Where(c => c.Rating >= minRating.Value);
 
@@ -141,8 +146,9 @@ public class AdminService : IAdminService
                 FullName = c.User?.Name ?? string.Empty,
                 Email = c.User?.Email ?? string.Empty,
                 Phone = c.User?.Phone,
-                ServiceType = c.ServiceType,
-                City = c.City,
+                ServiceType = c.Service?.NameAr ?? "غير محدد",
+                CityNameAr = c.CityNavigation?.NameAr,
+                CityNameEn = c.CityNavigation?.NameEn,
                 Neighborhood = c.Neighborhood,
                 Experience = c.Experience,
                 Rating = c.Rating,
@@ -160,6 +166,7 @@ public class AdminService : IAdminService
     {
         // Admin context: must bypass !c.IsDeleted filter to find rejected (soft-deleted) craftsmen
         var query = _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
+            .Include(c => c.Service)
             .Where(c => c.IsDeleted);
 
         var total = await query.CountAsync();
@@ -178,8 +185,9 @@ public class AdminService : IAdminService
                 FullName = c.User?.Name ?? string.Empty,
                 Email = c.User?.Email ?? string.Empty,
                 Phone = c.User?.Phone,
-                ServiceType = c.ServiceType,
-                City = c.City,
+                ServiceType = c.Service?.NameAr ?? "غير محدد",
+                CityNameAr = c.CityNavigation?.NameAr,
+                CityNameEn = c.CityNavigation?.NameEn,
                 RejectionReason = c.RejectionReason,
                 CreatedAt = c.CreatedAt,
                 DeletedAt = c.DeletedAt
@@ -194,8 +202,10 @@ public class AdminService : IAdminService
     {
         // Admin context: must include soft-deleted craftsmen and their related data for investigation
         var craftsman = await _craftsmanRepo.GetAllWithUserQuery().IgnoreQueryFilters()
+            .Include(c => c.Service)
             .Include(c => c.Jobs)
             .Include(c => c.Reviews)
+            .Include(c => c.CityNavigation)
             .FirstOrDefaultAsync(c => c.Id == id)
             ?? throw new KeyNotFoundException("الحرفي غير موجود.");
 
@@ -207,8 +217,9 @@ public class AdminService : IAdminService
             Email = craftsman.User?.Email ?? string.Empty,
             Phone = craftsman.User?.Phone,
             ProfileImageUrl = craftsman.User?.ProfileImageUrl,
-            ServiceType = craftsman.ServiceType,
-            City = craftsman.City,
+            ServiceType = craftsman.Service?.NameAr ?? "غير محدد",
+            CityNameAr = craftsman.CityNavigation?.NameAr,
+            CityNameEn = craftsman.CityNavigation?.NameEn,
             Neighborhood = craftsman.Neighborhood,
             PriceRangeMin = craftsman.PriceRangeMin,
             PriceRangeMax = craftsman.PriceRangeMax,
@@ -934,7 +945,9 @@ public class AdminService : IAdminService
     public async Task<CraftsmanAnalyticsDto> GetCraftsmanAnalyticsAsync()
     {
         // Admin context: analytics must count all craftsmen including soft-deleted
-        var all = await _craftsmanRepo.GetQueryable().IgnoreQueryFilters().ToListAsync();
+        var all = await _craftsmanRepo.GetQueryable().IgnoreQueryFilters()
+            .Include(c => c.Service)
+            .ToListAsync();
 
         return new CraftsmanAnalyticsDto
         {
@@ -943,10 +956,10 @@ public class AdminService : IAdminService
             Approved = all.Count(c => c.IsApproved && !c.IsDeleted),
             Rejected = all.Count(c => c.IsDeleted),
             Suspended = all.Count(c => !c.IsAvailable && c.IsApproved && !c.IsDeleted),
-            AverageRating = all.Where(c => c.Rating > 0).Select(c => (double)c.Rating).DefaultIfEmpty(0).Average(),
-            ByServiceType = all.Where(c => !c.IsDeleted).GroupBy(c => c.ServiceType)
+            AverageRating = all.Where(c => c.Rating > 0).Select(c => (double)(c.Rating ?? 0m)).DefaultIfEmpty(0).Average(),
+            ByServiceType = all.Where(c => !c.IsDeleted).GroupBy(c => c.Service?.NameAr ?? "غير محدد")
                 .ToDictionary(g => g.Key, g => g.Count()),
-            ByCity = all.Where(c => !c.IsDeleted).GroupBy(c => c.City)
+            ByCity = all.Where(c => !c.IsDeleted && c.CityNavigation != null).GroupBy(c => c.CityNavigation.NameAr)
                 .ToDictionary(g => g.Key, g => g.Count())
         };
     }
@@ -1021,9 +1034,11 @@ public class AdminService : IAdminService
             case "craftsmen":
                 // Admin context: export must include all craftsmen including soft-deleted
                 var craftsmen = await _craftsmanRepo.GetAllWithUserQuery()
-                    .IgnoreQueryFilters().ToListAsync();
+                    .IgnoreQueryFilters()
+                    .Include(c => c.Service)
+                    .ToListAsync();
                 lines.Add("Id,FullName,ServiceType,City,IsApproved,Rating");
-                lines.AddRange(craftsmen.Select(c => $"{c.Id},{c.User?.Name},{c.ServiceType},{c.City},{c.IsApproved},{c.Rating}"));
+                lines.AddRange(craftsmen.Select(c => $"{c.Id},{c.User?.Name},{c.Service?.NameAr ?? "غير محدد"},{c.CityNavigation?.NameAr ?? ""},{c.IsApproved},{c.Rating}"));
                 break;
             case "jobs":
                 var jobs = await _jobRepo.FindAsync(j => true);
@@ -1099,8 +1114,9 @@ public class AdminService : IAdminService
 
         // Admin context: must consider all non-deleted craftsmen including those whose User is deleted
         var activeCraftsmen = await _craftsmanRepo.GetQueryable().IgnoreQueryFilters()
-            .Where(c => c.ServiceType == entity.NameAr && !c.IsDeleted)
+            .Where(c => c.ServiceTypeId == id && !c.IsDeleted)
             .ToListAsync();
+
         if (activeCraftsmen.Any())
             return AdminActionResponse.Fail("لا يمكن حذف نوع الخدمة لأنه مستخدم من قبل حرفيين نشطين.");
 

@@ -21,4 +21,7 @@ public class City
     public string? Governorate { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    // ── Navigation Properties ──────────────────────────────────
+    public ICollection<Craftsman> Craftsmen { get; set; } = new List<Craftsman>();
 }
