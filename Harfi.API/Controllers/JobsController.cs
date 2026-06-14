@@ -1,6 +1,7 @@
 ﻿using Harfi.DTOs.Job;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
@@ -12,10 +13,12 @@ namespace Harfi.API.Controllers;
 public class JobsController : ControllerBase
 {
     private readonly IJobService _jobService;
+    private readonly IImageservice _imageService;
 
-    public JobsController(IJobService jobService)
+    public JobsController(IJobService jobService, IImageservice imageService)
     {
         _jobService = jobService;
+        _imageService = imageService;
     }
 
     [HttpPost]
@@ -25,6 +28,24 @@ public class JobsController : ControllerBase
         var customerId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
         var result = await _jobService.CreateJobAsync(customerId, dto);
         return CreatedAtAction(nameof(CreateJob), result);
+    }
+
+    [HttpPost("upload-image")]
+    [Authorize(Roles = "customer")]
+    public async Task<IActionResult> UploadJobImage([FromForm] IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest(new { message = "يرجى اختيار صورة للرفع." });
+
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp" };
+        if (!allowedTypes.Contains(file.ContentType))
+            return BadRequest(new { message = "نوع الملف غير مدعوم. الأنواع المسموحة: JPG, PNG, WEBP." });
+
+        if (file.Length > 5 * 1024 * 1024)
+            return BadRequest(new { message = "حجم الصورة يجب أن لا يتجاوز 5 ميجابايت." });
+
+        var url = await _imageService.SaveImageAsync(file, "jobs");
+        return Ok(new { url });
     }
 
     [HttpPut("{id}/accept")]
