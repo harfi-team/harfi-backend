@@ -85,45 +85,9 @@ namespace Harfi.API.Controllers
             return Ok(result);
         }
 
-        //  POST /api/reviews/rag-feedback
-        //  Any logged-in user can give feedback on AI guides
 
-        /// <summary>
-        /// Record user feedback on an AI self-fix guide.
-        /// 
-        /// Called when user clicks:
-        ///   "المحتوى ساعدني ✓"       → feedbackType: "helpful"
-        ///   "ما زلت بحاجة لحرفي"    → feedbackType: "need_craftsman"
-        /// 
-        /// Request body: { "ragDocumentId": 7, "feedbackType": "helpful" }
-        /// 
-        /// Returns:
-        ///   200 OK     → feedback saved, confirmation message returned
-        ///   400 BadReq → invalid feedbackType or duplicate
-        ///   401 Unauth → not logged in
-        [HttpPost("rag-feedback")]
-        [Authorize] // Any role can give feedback (customer or craftsman)
-        public async Task<IActionResult> SubmitRagFeedback(
-            [FromBody] CreateJobFeedbackDto dto)
-        {
-            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (userIdClaim == null || !int.TryParse(userIdClaim, out int userId))
-                return Unauthorized(new { message = "رمز المصادقة غير صالح" });
+       
 
-            var userRole = User.FindFirst(ClaimTypes.Role)?.Value;
-            if (userRole == "craftsman")
-            {
-                return Ok(new
-                {
-                    redirect = true,
-                    url = "/api/craftsmen",
-                    message = "يرجى استخدام endpoint الحرفيين"
-                });
-            }
-
-            var result = await _feedbackService.SubmitFeedbackAsync(dto, userId);
-            return Ok(new { message = result });
-        }
     }
 
 }
