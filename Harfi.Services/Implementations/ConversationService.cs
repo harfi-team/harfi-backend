@@ -97,10 +97,27 @@ namespace Harfi.Services.Implementations
 
         public async Task<ConversationDto?> GetByIdAsync(int conversationId, int userId)
         {
-            var c = await _convRepo.GetByIdWithDetailsAsync(conversationId);
+            var c = await _convRepo.GetByIdIfVisibleAsync(conversationId, userId);
             if (c == null) return null;
-            if (c.CustomerId != userId && c.Craftsman?.UserId != userId) return null;
             return await MapToDtoAsync(c, userId);
+        }
+
+        public async Task<bool> HideConversationAsync(int conversationId, int userId)
+        {
+            var c = await _convRepo.GetByIdWithDetailsAsync(conversationId);
+            if (c == null) return false;
+
+            if (c.CustomerId == userId)
+                c.CustomerHiddenAt = DateTime.UtcNow;
+            else if (c.Craftsman.UserId == userId)
+                c.CraftsmanHiddenAt = DateTime.UtcNow;
+            else
+                return false;
+
+            c.UpdatedAt = DateTime.UtcNow;
+            _convRepo.Update(c);
+            await _convRepo.SaveChangesAsync();
+            return true;
         }
 
         // ── Mappers ───────────────────────────────────────────────

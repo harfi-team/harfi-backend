@@ -27,6 +27,19 @@ namespace Harfi.Repositories.Implementations
                     .Take(1))
                 .FirstOrDefaultAsync(c => c.Id == id);
 
+        public async Task<Conversation?> GetByIdIfVisibleAsync(int id, int userId)
+            => await _dbSet
+                .Include(c => c.Customer)
+                .Include(c => c.Craftsman)
+                    .ThenInclude(cr => cr.User)
+                .Include(c => c.Messages
+                    .OrderByDescending(m => m.SentAt)
+                    .Take(1))
+                .FirstOrDefaultAsync(c =>
+                    c.Id == id &&
+                    ((c.CustomerId == userId && c.CustomerHiddenAt == null) ||
+                     (c.Craftsman.UserId == userId && c.CraftsmanHiddenAt == null)));
+
         public async Task<Conversation?> GetByIdWithMessagesAsync(int id)
             => await _dbSet
                 .Include(c => c.Customer)
@@ -63,7 +76,8 @@ namespace Harfi.Repositories.Implementations
                 .Include(c => c.Messages
                     .OrderByDescending(m => m.SentAt)
                     .Take(1))
-                .Where(c => c.CustomerId == userId || c.Craftsman.UserId == userId)
+                .Where(c => (c.CustomerId == userId && c.CustomerHiddenAt == null) ||
+                            (c.Craftsman.UserId == userId && c.CraftsmanHiddenAt == null))
                 .OrderByDescending(c => c.LastMessageAt ?? c.CreatedAt)
                 .ToListAsync();
 

@@ -113,7 +113,24 @@ namespace Harfi.API.Controllers
             return NoContent();
         }
 
-                // DELETE /api/conversations/{id}/messages/{messageId}
+                // DELETE /api/conversations/{id} – per-user hide
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            if (id <= 0) return BadRequest("معرف المحادثة غير صالح.");
+
+            var userId = GetUserId();
+
+            if (!await _convService.IsParticipantAsync(id, userId))
+                return Forbid();
+
+            var hidden = await _convService.HideConversationAsync(id, userId);
+            if (!hidden) return NotFound();
+
+            return NoContent();
+        }
+
+        // DELETE /api/conversations/{id}/messages/{messageId}
         [HttpDelete("{id}/messages/{messageId}")]
         public async Task<IActionResult> DeleteMessage(int id, int messageId)
         {

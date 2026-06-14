@@ -8,5 +8,6 @@ namespace Harfi.Services.Interfaces
         Task<bool> IsParticipantAsync(int conversationId, int userId);
         Task<IEnumerable<ConversationDto>> GetUserConversationsAsync(int userId);
         Task<ConversationDto?> GetByIdAsync(int conversationId, int userId);
+        Task<bool> HideConversationAsync(int conversationId, int userId);
     }
 }

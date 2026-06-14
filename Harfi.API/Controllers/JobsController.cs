@@ -66,6 +66,17 @@ public class JobsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetJobById(int id)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var role = User.FindFirstValue(ClaimTypes.Role)!;
+        var result = await _jobService.GetJobByIdAsync(id, userId, role);
+        if (result == null)
+            return Forbid();
+        return Ok(result);
+    }
+
     [HttpGet("craftsman/{id}")]
     public async Task<IActionResult> GetCraftsmanJobs(int id)
     {

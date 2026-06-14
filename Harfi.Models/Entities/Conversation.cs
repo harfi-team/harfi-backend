@@ -24,6 +24,12 @@ public class Conversation
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    /// <summary>When the customer hid this conversation (per-user hide).</summary>
+    public DateTime? CustomerHiddenAt { get; set; }
+
+    /// <summary>When the craftsman hid this conversation (per-user hide).</summary>
+    public DateTime? CraftsmanHiddenAt { get; set; }
+
     // ── Navigation Properties ──────────────────────────────────
     public Job Job { get; set; } = null!;
     public User Customer { get; set; } = null!;

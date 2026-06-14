@@ -1,8 +1,10 @@
 ﻿using Harfi.DTOs.Job;
 using Harfi.Models.Constants;
 using Harfi.Models.Entities;
+using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace Harfi.Services.Implementations;
 
@@ -12,18 +14,20 @@ public class JobService : IJobService
     private readonly INotificationService _notificationService;
     private readonly ICraftsmanRepository _craftsmanRepo;
     private readonly IRealtimeNotificationPusher _notifPusher;
-
+    private readonly AppDbContext _db;
 
     public JobService(
     IJobRepository jobRepository,
     INotificationService notificationService,
     ICraftsmanRepository craftsmanRepo,
-    IRealtimeNotificationPusher notifPusher)
+    IRealtimeNotificationPusher notifPusher,
+    AppDbContext db)
     {
         _jobRepository = jobRepository;
         _notificationService = notificationService;
         _craftsmanRepo = craftsmanRepo;
         _notifPusher = notifPusher;
+        _db = db;
     }
 
     public async Task<JobResponseDto> CreateJobAsync(int customerId, CreateJobDto dto)
@@ -65,6 +69,23 @@ public class JobService : IJobService
 
         var updated = await _jobRepository.UpdateAsync(job);
 
+        // auto-create conversation if none exists
+        var existingConv = await _db.Conversations
+            .FirstOrDefaultAsync(c => c.JobId == job.Id);
+        if (existingConv == null)
+        {
+            var newConv = new Conversation
+            {
+                JobId = job.Id,
+                CustomerId = job.CustomerId,
+                CraftsmanId = job.CraftsmanId!.Value,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.Conversations.Add(newConv);
+            await _db.SaveChangesAsync();
+            job.Conversation = newConv;
+        }
+
         // notify customer
         var notifAccepted = await _notificationService.CreateJobNotificationAsync(
         job.CustomerId, "تم قبول طلبك",
@@ -72,7 +93,8 @@ public class JobService : IJobService
         "job_accepted", job.Id);
         await _notifPusher.PushAsync(job.CustomerId, notifAccepted);
 
-        return MapToDto(updated);
+        return MapToDto(job);
+
     }
 
     public async Task<JobResponseDto> RejectJobAsync(int jobId, int craftsmanId)
@@ -126,6 +148,32 @@ public class JobService : IJobService
     public async Task<bool> CraftsmanBelongsToUserAsync(int craftsmanId, int userId)
         => await _jobRepository.CraftsmanBelongsToUserAsync(craftsmanId, userId);
 
+    public async Task<JobResponseDto?> GetJobByIdAsync(int jobId, int userId, string role)
+    {
+        var job = await _jobRepository.GetByIdAsync(jobId);
+        if (job == null) return null;
+
+        if (role == "admin")
+            return MapToDto(job);
+
+        if (role == "customer")
+        {
+            if (job.CustomerId != userId)
+                return null;
+            return MapToDto(job);
+        }
+
+        if (role == "craftsman")
+        {
+            var craftsman = await _jobRepository.GetCraftsmanByUserIdAsync(userId);
+            if (craftsman == null || job.CraftsmanId != craftsman.Id)
+                return null;
+            return MapToDto(job);
+        }
+
+        return null;
+    }
+
     // ─── Private Helpers ────────────────────────────────────────────────────
 
     private async Task<Job> GetAndValidateJob(int jobId, int craftsmanUserId, string requiredStatus)
@@ -150,7 +198,9 @@ public class JobService : IJobService
     {
         Id = job.Id,
         CustomerId = job.CustomerId,
+        CustomerName = job.Customer?.Name,
         CraftsmanId = job.CraftsmanId,
+        CraftsmanName = job.Craftsman?.User?.Name,
         Status = job.Status,
         ServiceType = job.ServiceType,
         Description = job.Description,
@@ -161,6 +211,7 @@ public class JobService : IJobService
         SolutionDescription = job.SolutionDescription,
         CreatedAt = job.CreatedAt,
         CompletedAt = job.CompletedAt,
-        UpdatedAt = job.UpdatedAt
+        UpdatedAt = job.UpdatedAt,
+        ConversationId = job.Conversation?.Id
     };
 }

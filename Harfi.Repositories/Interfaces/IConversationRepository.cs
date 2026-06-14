@@ -6,6 +6,7 @@ namespace Harfi.Repositories.Interfaces
     {
         Task<Conversation?> GetByParticipantsAsync(int jobId, int customerId, int craftsmanId);
         Task<Conversation?> GetByIdWithDetailsAsync(int id);
+        Task<Conversation?> GetByIdIfVisibleAsync(int id, int userId);
         Task<Conversation?> GetByIdWithMessagesAsync(int id);
         Task<IEnumerable<Conversation>> GetUserConversationsAsync(int userId);
         Task<bool> IsParticipantAsync(int conversationId, int userId);
