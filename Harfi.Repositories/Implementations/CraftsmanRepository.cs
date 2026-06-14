@@ -100,7 +100,7 @@ namespace Harfi.Repositories.Implementations
         public async Task<IEnumerable<string>> GetActiveServicesAsync()
         {
             return await _context.Craftsmen
-                .Where(c => !c.IsDeleted && c.IsApproved && !string.IsNullOrWhiteSpace(c.ServiceType))
+                .Where(c => !c.IsDeleted && c.IsApproved && c.IsAvailable && !string.IsNullOrWhiteSpace(c.ServiceType))
                 .Select(c => c.ServiceType)
                 .Distinct()
                 .ToListAsync();
@@ -109,7 +109,7 @@ namespace Harfi.Repositories.Implementations
         public async Task<IEnumerable<string>> GetActiveCitiesAsync()
         {
             return await _context.Craftsmen
-                .Where(c => !c.IsDeleted && c.IsApproved && !string.IsNullOrWhiteSpace(c.City))
+                .Where(c => !c.IsDeleted && c.IsApproved && c.IsAvailable && !string.IsNullOrWhiteSpace(c.City))
                 .Select(c => c.City)
                 .Distinct()
                 .ToListAsync();
