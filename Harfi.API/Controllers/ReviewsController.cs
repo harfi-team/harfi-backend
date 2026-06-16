@@ -16,7 +16,6 @@ namespace Harfi.API.Controllers
         private readonly IReviewService _reviewService;
         private readonly IJobFeedbackService _feedbackService;
 
-     
         public ReviewsController(
             IReviewService reviewService,
             IJobFeedbackService feedbackService)
