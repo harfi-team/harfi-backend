@@ -278,6 +278,7 @@ public class SaveMessageFormDto
 public class CraftsmanSolutionDto
 {
     public int UserId { get; set; }          // ← أضف ده
+    public int JobId { get; set; }                          // ← أضف السطر ده
 
     public string ServiceType { get; set; } = "";           // "سباك" / "كهربائي"
     public string? ProblemDescription { get; set; }         // وصف المشكلة

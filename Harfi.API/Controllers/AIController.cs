@@ -1582,6 +1582,32 @@ public class AIController : ControllerBase
             problemText,
             fixedSteps);
 
+        // ── لو JobId موجود → UPDATE الـ job الموجودة ────────────────────────
+        if (dto.JobId > 0)
+        {
+            var existingJob = await _db.Jobs.FirstOrDefaultAsync(j => j.Id == dto.JobId);
+            if (existingJob is null)
+                return BadRequest(new { error = "الطلب مش موجود" });
+
+            existingJob.SolutionDescription = sol;
+            existingJob.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+            _logger.LogInformation("[CheckAndSubmit] ✓ Job updated Id={JobId}", existingJob.Id);
+
+            int upserted = await _solution.IngestSingleJobSolutionAsync(existingJob.Id);
+            _logger.LogInformation("[CheckAndSubmit] ✓ Qdrant upserted={N}", upserted);
+
+            return Ok(new CheckAndSubmitResultDto
+            {
+                Accepted = true,
+                Message = "تم قبول الخطوات وحفظها بنجاح ✅",
+                JobId = existingJob.Id,
+                Upserted = upserted,
+                FixedSteps = fixedSteps
+            });
+        }
+
+        // ── fallback: مفيش JobId → INSERT جديد ──────────────────────────────
         var job = new Job
         {
             CustomerId = dto.UserId,
@@ -1602,19 +1628,18 @@ public class AIController : ControllerBase
         _logger.LogInformation("[CheckAndSubmit] ✓ Job saved Id={JobId}", job.Id);
 
         // ── 6. Ingest في Qdrant ───────────────────────────────────────────────
-        int upserted = await _solution.IngestSingleJobSolutionAsync(job.Id);
-        _logger.LogInformation("[CheckAndSubmit] ✓ Qdrant upserted={N}", upserted);
+        int upsertedNew = await _solution.IngestSingleJobSolutionAsync(job.Id);
+        _logger.LogInformation("[CheckAndSubmit] ✓ Qdrant upserted={N}", upsertedNew);
 
         return Ok(new CheckAndSubmitResultDto
         {
             Accepted = true,
             Message = "تم قبول الخطوات وحفظها بنجاح ✅",
             JobId = job.Id,
-            Upserted = upserted,
+            Upserted = upsertedNew,
             FixedSteps = fixedSteps
         });
     }
-
 
     [HttpPost("qdrant-indexes")]
     public async Task<IActionResult> EnsureQdrantIndexes(
