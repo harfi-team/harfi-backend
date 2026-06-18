@@ -30,6 +30,9 @@ public class User : IdentityUser<int>
     [MaxLength(500)]
     public string? DeletionReason { get; set; }
 
+    public string? PasswordResetCode { get; set; }
+    public DateTime? PasswordResetCodeExpiry { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // ── Navigation Properties ──────────────────────────────────

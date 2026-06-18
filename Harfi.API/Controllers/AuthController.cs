@@ -153,6 +153,47 @@ public class AuthController : ControllerBase
         return Ok(new { success = true, message });
     }
 
+    // ── POST /api/auth/forgot-password ────────────────────────
+    /// <summary>إرسال رابط إعادة تعيين كلمة المرور إلى البريد الإلكتروني</summary>
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        await _authService.ForgotPasswordAsync(dto.Email);
+        return Ok(new { message = "إذا كان البريد الإلكتروني مسجلاً لدينا، ستصلك رسالة لإعادة تعيين كلمة المرور." });
+    }
+
+    // ── POST /api/auth/reset-password ─────────────────────────
+    /// <summary>إعادة تعيين كلمة المرور باستخدام الرابط المرسل</summary>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            await _authService.ResetPasswordAsync(dto);
+            return Ok(new { message = "تم إعادة تعيين كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     // ── POST /api/auth/send-phone-code ─────────────────────────
     [HttpPost("send-phone-code")]
     [Authorize]
