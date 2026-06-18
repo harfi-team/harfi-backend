@@ -913,6 +913,37 @@ public class AdminService : IAdminService
             .Where(c => c.Rating > 0)
             .AverageAsync(c => (double?)c.Rating) ?? 0.0;
 
+        var recentCraftsmen = await _craftsmanRepo.GetAllWithUserQuery()
+            .IgnoreQueryFilters()
+            .Where(c => !c.IsDeleted)
+            .OrderByDescending(c => c.CreatedAt)
+            .Take(5)
+            .Select(c => new RecentCraftsmanDto
+            {
+                Id = c.Id,
+                FullName = c.User != null ? c.User.Name : string.Empty,
+                ProfileImageUrl = c.User != null ? c.User.ProfileImageUrl : null,
+                ServiceType = c.ServiceType,
+                City = c.City,
+                Status = c.IsApproved ? "موافق عليه" :
+                         c.RejectionReason != null ? "مرفوض" : "قيد المراجعة",
+                CreatedAt = c.CreatedAt
+            })
+            .ToListAsync();
+
+        var recentOrders = await _jobRepo.GetQueryable()
+            .Include(j => j.Customer)
+            .OrderByDescending(j => j.CreatedAt)
+            .Take(5)
+            .Select(j => new RecentOrderDto
+            {
+                Id = j.Id,
+                ServiceType = j.ServiceType,
+                Status = j.Status,
+                CreatedAt = j.CreatedAt
+            })
+            .ToListAsync();
+
         return new AdminOverviewDto
         {
             TotalUsers        = totalUsers,
@@ -924,7 +955,9 @@ public class AdminService : IAdminService
             PendingReports    = pendingReports,
             TotalReviews      = totalReviews,
             NewUsersThisMonth = newUsers,
-            AverageRating     = Math.Round(avgRating, 2)
+            AverageRating     = Math.Round(avgRating, 2),
+            RecentCraftsmen   = recentCraftsmen,
+            RecentOrders      = recentOrders
         };
     }
 

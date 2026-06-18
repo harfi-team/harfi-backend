@@ -12,6 +12,27 @@ public class AdminOverviewDto
     public int TotalReviews { get; set; }
     public int NewUsersThisMonth { get; set; }
     public double AverageRating { get; set; }
+    public List<RecentCraftsmanDto> RecentCraftsmen { get; set; } = new();
+    public List<RecentOrderDto> RecentOrders { get; set; } = new();
+}
+
+public class RecentCraftsmanDto
+{
+    public int Id { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public string? ProfileImageUrl { get; set; }
+    public string ServiceType { get; set; } = string.Empty;
+    public string City { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+}
+
+public class RecentOrderDto
+{
+    public int Id { get; set; }
+    public string ServiceType { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
 }
 
 public class CraftsmanAnalyticsDto
