@@ -407,6 +407,63 @@ public class AuthService : IAuthService
         return await _craftsmanRepo.GetByUserIdAsync(userId);
     }
 
+    // ── FORGOT PASSWORD ────────────────────────────────────────
+    public async Task ForgotPasswordAsync(string email)
+    {
+        var user = await _userManager.FindByEmailAsync(email.ToLower().Trim());
+
+        // Silently return if email not found (don't reveal whether email exists)
+        if (user is null) return;
+
+        var code = GenerateSecureOtp();
+        user.PasswordResetCode = code;
+        user.PasswordResetCodeExpiry = DateTime.UtcNow.AddMinutes(15);
+        await _userManager.UpdateAsync(user);
+
+        try
+        {
+            await _emailService.SendPasswordResetEmailAsync(user.Email!, user.Name, code);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to send password reset email to {Email}", user.Email);
+        }
+    }
+
+    // ── RESET PASSWORD ─────────────────────────────────────────
+    public async Task ResetPasswordAsync(ResetPasswordDto dto)
+    {
+        var user = await _userManager.FindByEmailAsync(dto.Email.ToLower().Trim())
+            ?? throw new KeyNotFoundException("المستخدم غير موجود.");
+
+        if (user.PasswordResetCode is null || user.PasswordResetCodeExpiry is null)
+            throw new InvalidOperationException("لم يتم طلب إعادة تعيين كلمة المرور.");
+
+        if (user.PasswordResetCode != dto.Code)
+            throw new InvalidOperationException("الكود غير صحيح.");
+
+        if (user.PasswordResetCodeExpiry < DateTime.UtcNow)
+            throw new InvalidOperationException("الكود منتهي الصلاحية.");
+
+        var removeResult = await _userManager.RemovePasswordAsync(user);
+        if (!removeResult.Succeeded)
+        {
+            var errors = string.Join("; ", removeResult.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"فشل إعادة تعيين كلمة المرور: {errors}");
+        }
+
+        var addResult = await _userManager.AddPasswordAsync(user, dto.NewPassword);
+        if (!addResult.Succeeded)
+        {
+            var errors = string.Join("; ", addResult.Errors.Select(e => e.Description));
+            throw new InvalidOperationException($"فشل إعادة تعيين كلمة المرور: {errors}");
+        }
+
+        user.PasswordResetCode = null;
+        user.PasswordResetCodeExpiry = null;
+        await _userManager.UpdateAsync(user);
+    }
+
     // ══════════════════════════════════════════════════════════
     //  PRIVATE HELPERS
     // ══════════════════════════════════════════════════════════
