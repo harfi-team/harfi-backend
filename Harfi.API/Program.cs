@@ -42,8 +42,18 @@ builder.Services.AddScoped<ICraftsmanService, CraftsmanService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 
 // 3. Seeder
-builder.Services.AddScoped<DataSeeder>();
+builder.Services.AddScoped<DataSeeder>(sp =>
+{
+    var env = sp.GetRequiredService<IWebHostEnvironment>();
+    var webRootPath = env.WebRootPath ?? Path.Combine(env.ContentRootPath, "wwwroot");
 
+    return new DataSeeder(
+        sp.GetRequiredService<AppDbContext>(),
+        sp.GetRequiredService<UserManager<User>>(),
+        sp.GetRequiredService<ILogger<DataSeeder>>(),
+        webRootPath
+    );
+});
 
 
 var app = builder.Build();

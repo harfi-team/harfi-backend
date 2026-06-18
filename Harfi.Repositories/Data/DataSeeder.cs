@@ -4,6 +4,7 @@ using Harfi.Models.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Net.Http;
 
 namespace Harfi.Repositories.Data;
 
@@ -17,19 +18,63 @@ public class DataSeeder
     private readonly AppDbContext _context;
     private readonly UserManager<User> _userManager;
     private readonly ILogger<DataSeeder> _logger;
+    private readonly string _webRootPath;
+    private readonly HttpClient _httpClient = new HttpClient();
+    private int _maleAvatarIndex = 0;
+    private int _femaleAvatarIndex = 0;
     private static readonly DateTime BaseDate = DateTime.UtcNow.AddMonths(-6);
     private static readonly Random Rng = new(42);
 
-    public DataSeeder(AppDbContext context, UserManager<User> userManager, ILogger<DataSeeder> logger)
+    public DataSeeder(
+        AppDbContext context,
+        UserManager<User> userManager,
+        ILogger<DataSeeder> logger,
+        string webRootPath)
     {
         _context = context;
         _userManager = userManager;
         _logger = logger;
+        _webRootPath = webRootPath;
+    }
+
+    /// <summary>
+    /// ينزل صورة بورتريه عشوائية من randomuser.me، يحفظها في wwwroot/uploads/profiles،
+    /// ويرجع الـ relative path بنفس فورمات Imageservice.SaveFileAsync.
+    /// </summary>
+    private async Task<string?> DownloadAndSaveProfileImageAsync(bool isMale, string folder = "uploads/profiles")
+    {
+        try
+        {
+            int index = isMale
+                ? (_maleAvatarIndex++ % 100)
+                : (_femaleAvatarIndex++ % 100);
+
+            var gender = isMale ? "men" : "women";
+            var sourceUrl = $"https://randomuser.me/api/portraits/{gender}/{index}.jpg";
+
+            var bytes = await _httpClient.GetByteArrayAsync(sourceUrl);
+
+            var folderPath = Path.Combine(_webRootPath, folder);
+            Directory.CreateDirectory(folderPath);
+
+            var fileName = $"{Guid.NewGuid()}.jpg";
+            var fullPath = Path.Combine(folderPath, fileName);
+
+
+            await File.WriteAllBytesAsync(fullPath, bytes);
+
+            return $"/{folder}/{fileName}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to download/save seed profile image — skipping.");
+            return null;
+        }
     }
 
     public async Task SeedAsync()
     {
-       
+
 
         bool hasUsers = await _context.Users.IgnoreQueryFilters().AnyAsync();
 
@@ -40,7 +85,7 @@ public class DataSeeder
         if (hasUsers)
         {
             _logger.LogInformation("Seed skipped — data already exists.");
-            SeedStatus.IsCompleted = true;  
+            SeedStatus.IsCompleted = true;
 
             return;
         }
@@ -75,7 +120,7 @@ public class DataSeeder
 
 
 
-   
+
     // ═══════════════════════════════════════════════════════════
     //  1. SERVICE TYPES (15 diverse trades)
     // ═══════════════════════════════════════════════════════════
@@ -182,12 +227,25 @@ public class DataSeeder
                 EmailConfirmed = true,
                 CreatedAt = BaseDate.AddDays(-i * 2)
             };
+            user.ProfileImageUrl = await DownloadAndSaveProfileImageAsync(isMale: true);
             var result = await _userManager.CreateAsync(user, "Admin@Harfi2024!");
             if (!result.Succeeded)
                 _logger.LogWarning("Admin seed failed {E}: {Err}", d.Email,
                     string.Join("; ", result.Errors.Select(e => e.Description)));
         }
         _logger.LogInformation("Admin users seeded: {N}", admins.Length);
+    }
+
+    private static readonly HashSet<string> FemaleFirstNames = new()
+    {
+        "سارة", "نورهان", "مريم", "فاطمة", "منة", "دينا", "ليلى", "هبة",
+        "ريم", "شيماء", "إيمان", "أمنية", "مروة", "ناهد", "رنا"
+    };
+
+    private static bool IsMaleName(string fullName)
+    {
+        var firstWord = fullName.Split(' ').FirstOrDefault() ?? fullName;
+        return !FemaleFirstNames.Contains(firstWord);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -247,6 +305,7 @@ public class DataSeeder
                 user.DeletedByAdminId = 1;
                 user.DeletionReason = $"انتهاك شروط الاستخدام — بلاغ #{deletedCount}";
             }
+            user.ProfileImageUrl = await DownloadAndSaveProfileImageAsync(isMale: IsMaleName(d.Name));
             var result = await _userManager.CreateAsync(user, "Customer@2024");
             if (!result.Succeeded)
                 _logger.LogWarning("Customer seed failed {E}", d.Email);
@@ -324,6 +383,7 @@ public class DataSeeder
                 EmailConfirmed = true,
                 CreatedAt = BaseDate.AddDays(d.Days)
             };
+            user.ProfileImageUrl = await DownloadAndSaveProfileImageAsync(isMale: true);
             var result = await _userManager.CreateAsync(user, "Craftsman@2024");
             if (!result.Succeeded)
                 _logger.LogWarning("Craftsman seed failed {E}", d.Email);
