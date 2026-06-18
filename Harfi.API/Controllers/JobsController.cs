@@ -98,6 +98,32 @@ public class JobsController : ControllerBase
         return Ok(result);
     }
 
+    //[HttpGet("craftsman/{id}")]
+    //public async Task<IActionResult> GetCraftsmanJobs(int id)
+    //{
+    //    var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+    //    var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+
+    //    if (requestingRole == "admin")
+    //        return Ok(await _jobService.GetCraftsmanJobsAsync(id));
+
+    //    if (requestingRole == "craftsman")
+    //    {
+    //        var owns = await _jobService.CraftsmanBelongsToUserAsync(id, requestingUserId);
+    //        if (!owns) return Forbid();
+    //    }
+    //    else
+    //    {
+    //        return Forbid();
+    //    }
+
+    //    var result = await _jobService.GetCraftsmanJobsAsync(id);
+    //    return Ok(result);
+    //}
+    // ========================================
+    // الكود الجديد (يسمح للـ customer):
+    // ========================================
+
     [HttpGet("craftsman/{id}")]
     public async Task<IActionResult> GetCraftsmanJobs(int id)
     {
@@ -111,6 +137,12 @@ public class JobsController : ControllerBase
         {
             var owns = await _jobService.CraftsmanBelongsToUserAsync(id, requestingUserId);
             if (!owns) return Forbid();
+            // craftsman يشوف أعماله هو فقط
+        }
+        else if (requestingRole == "customer")
+        {
+            // customer يشوف أعمال أي حرفي (قراءة فقط) — لعرض الـ portfolio
+            // لا توجد قيود على الـ customer
         }
         else
         {
