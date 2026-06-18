@@ -9,4 +9,5 @@ namespace Harfi.Services.Interfaces;
 public interface IEmailService
 {
     Task SendVerificationCodeAsync(string toEmail, string userName, string code);
+    Task SendPasswordResetEmailAsync(string toEmail, string userName, string resetCode);
 }

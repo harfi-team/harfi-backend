@@ -40,4 +40,7 @@ public interface IAuthService
     Task<string> VerifyPhoneAsync(string email, string phoneNumber, string code);
     Task<string> ResendPhoneVerificationCodeAsync(string email, string phoneNumber);
     Task<Craftsman?> GetCraftsmanProfileByUserIdAsync(int userId);
+
+    Task ForgotPasswordAsync(string email);
+    Task ResetPasswordAsync(ResetPasswordDto dto);
 }
