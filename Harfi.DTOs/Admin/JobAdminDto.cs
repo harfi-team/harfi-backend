@@ -14,6 +14,8 @@ public class JobAdminDto
     public bool IsDisputed { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
+    public string? CustomerProfileImageUrl { get; set; }
+    public string? CraftsmanProfileImageUrl { get; set; }
 }
 
 public class JobDetailDto
@@ -38,6 +40,8 @@ public class JobDetailDto
     public DateTime CreatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
+    public string? CustomerProfileImageUrl { get; set; }
+    public string? CraftsmanProfileImageUrl { get; set; }
 }
 
 public class UpdateJobStatusRequest
