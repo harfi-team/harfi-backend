@@ -19,8 +19,6 @@ public class AdminService : IAdminService
     private readonly IGenericRepository<Notification> _notifRepo;
     private readonly IGenericRepository<AdminAuditLog> _auditLogRepo;
     private readonly IGenericRepository<Report> _reportRepo;
-    private readonly IGenericRepository<ServiceType> _serviceTypeRepo;
-    private readonly IGenericRepository<City> _cityRepo;
     private readonly IGenericRepository<FeatureFlag> _featureFlagRepo;
     private readonly IGenericRepository<AIChatMessage> _aiChatRepo;
     private readonly IGenericRepository<Message> _msgRepo;
@@ -37,8 +35,6 @@ public class AdminService : IAdminService
         IGenericRepository<Notification> notifRepo,
         IGenericRepository<AdminAuditLog> auditLogRepo,
         IGenericRepository<Report> reportRepo,
-        IGenericRepository<ServiceType> serviceTypeRepo,
-        IGenericRepository<City> cityRepo,
         IGenericRepository<FeatureFlag> featureFlagRepo,
         IGenericRepository<AIChatMessage> aiChatRepo,
         IGenericRepository<Message> msgRepo,
@@ -54,8 +50,6 @@ public class AdminService : IAdminService
         _notifRepo = notifRepo;
         _auditLogRepo = auditLogRepo;
         _reportRepo = reportRepo;
-        _serviceTypeRepo = serviceTypeRepo;
-        _cityRepo = cityRepo;
         _featureFlagRepo = featureFlagRepo;
         _aiChatRepo = aiChatRepo;
         _msgRepo = msgRepo;
@@ -97,6 +91,7 @@ public class AdminService : IAdminService
                 FullName = c.User?.Name ?? string.Empty,
                 Email = c.User?.Email ?? string.Empty,
                 Phone = c.User?.Phone,
+                ProfileImageUrl = c.User?.ProfileImageUrl,
                 ServiceType = c.ServiceType,
                 City = c.City,
                 Neighborhood = c.Neighborhood,
@@ -141,6 +136,7 @@ public class AdminService : IAdminService
                 FullName = c.User?.Name ?? string.Empty,
                 Email = c.User?.Email ?? string.Empty,
                 Phone = c.User?.Phone,
+                ProfileImageUrl = c.User?.ProfileImageUrl,
                 ServiceType = c.ServiceType,
                 City = c.City,
                 Neighborhood = c.Neighborhood,
@@ -178,6 +174,7 @@ public class AdminService : IAdminService
                 FullName = c.User?.Name ?? string.Empty,
                 Email = c.User?.Email ?? string.Empty,
                 Phone = c.User?.Phone,
+                ProfileImageUrl = c.User?.ProfileImageUrl,
                 ServiceType = c.ServiceType,
                 City = c.City,
                 RejectionReason = c.RejectionReason,
@@ -1044,126 +1041,19 @@ public class AdminService : IAdminService
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  PLATFORM CONFIG
+    //  PLATFORM CONFIG (read-only — values come from Craftsmen table)
     // ═══════════════════════════════════════════════════════════
 
     public async Task<IEnumerable<ServiceTypeDto>> GetServiceTypesAsync()
     {
-        var items = await _serviceTypeRepo.GetAllAsync();
-        return items.Select(s => new ServiceTypeDto
-        {
-            Id = s.Id,
-            NameAr = s.NameAr,
-            NameEn = s.NameEn,
-            Icon = s.Icon,
-            IsActive = s.IsActive
-        });
-    }
-
-    public async Task<ServiceTypeDto> CreateServiceTypeAsync(ServiceTypeDto dto)
-    {
-        var entity = new ServiceType
-        {
-            NameAr = dto.NameAr,
-            NameEn = dto.NameEn,
-            Icon = dto.Icon,
-            IsActive = true
-        };
-        await _serviceTypeRepo.AddAsync(entity);
-        await _serviceTypeRepo.SaveChangesAsync();
-
-        dto.Id = entity.Id;
-        return dto;
-    }
-
-    public async Task<ServiceTypeDto> UpdateServiceTypeAsync(int id, ServiceTypeDto dto)
-    {
-        var entity = await _serviceTypeRepo.GetByIdAsync(id)
-            ?? throw new KeyNotFoundException("نوع الخدمة غير موجود.");
-
-        entity.NameAr = dto.NameAr;
-        entity.NameEn = dto.NameEn;
-        entity.Icon = dto.Icon;
-        entity.IsActive = dto.IsActive;
-        _serviceTypeRepo.Update(entity);
-        await _serviceTypeRepo.SaveChangesAsync();
-
-        dto.Id = id;
-        return dto;
-    }
-
-    public async Task<AdminActionResponse> DeleteServiceTypeAsync(int id)
-    {
-        var entity = await _serviceTypeRepo.GetByIdAsync(id)
-            ?? throw new KeyNotFoundException("نوع الخدمة غير موجود.");
-
-        // Admin context: must consider all non-deleted craftsmen including those whose User is deleted
-        var activeCraftsmen = await _craftsmanRepo.GetQueryable().IgnoreQueryFilters()
-            .Where(c => c.ServiceType == entity.NameAr && !c.IsDeleted)
-            .ToListAsync();
-        if (activeCraftsmen.Any())
-            return AdminActionResponse.Fail("لا يمكن حذف نوع الخدمة لأنه مستخدم من قبل حرفيين نشطين.");
-
-        _serviceTypeRepo.Remove(entity);
-        await _serviceTypeRepo.SaveChangesAsync();
-
-        return AdminActionResponse.Ok("تم حذف نوع الخدمة.");
+        var services = await _craftsmanRepo.GetActiveServicesAsync();
+        return services.Select(s => new ServiceTypeDto { NameAr = s.Trim() });
     }
 
     public async Task<IEnumerable<CityDto>> GetCitiesAsync()
     {
-        var items = await _cityRepo.GetAllAsync();
-        return items.Select(c => new CityDto
-        {
-            Id = c.Id,
-            NameAr = c.NameAr,
-            NameEn = c.NameEn,
-            Governorate = c.Governorate,
-            IsActive = c.IsActive
-        });
-    }
-
-    public async Task<CityDto> CreateCityAsync(CityDto dto)
-    {
-        var entity = new City
-        {
-            NameAr = dto.NameAr,
-            NameEn = dto.NameEn,
-            Governorate = dto.Governorate,
-            IsActive = true
-        };
-        await _cityRepo.AddAsync(entity);
-        await _cityRepo.SaveChangesAsync();
-
-        dto.Id = entity.Id;
-        return dto;
-    }
-
-    public async Task<CityDto> UpdateCityAsync(int id, CityDto dto)
-    {
-        var entity = await _cityRepo.GetByIdAsync(id)
-            ?? throw new KeyNotFoundException("المدينة غير موجودة.");
-
-        entity.NameAr = dto.NameAr;
-        entity.NameEn = dto.NameEn;
-        entity.Governorate = dto.Governorate;
-        entity.IsActive = dto.IsActive;
-        _cityRepo.Update(entity);
-        await _cityRepo.SaveChangesAsync();
-
-        dto.Id = id;
-        return dto;
-    }
-
-    public async Task<AdminActionResponse> DeleteCityAsync(int id)
-    {
-        var entity = await _cityRepo.GetByIdAsync(id)
-            ?? throw new KeyNotFoundException("المدينة غير موجودة.");
-
-        _cityRepo.Remove(entity);
-        await _cityRepo.SaveChangesAsync();
-
-        return AdminActionResponse.Ok("تم حذف المدينة.");
+        var cities = await _craftsmanRepo.GetActiveCitiesAsync();
+        return cities.Select(c => new CityDto { NameAr = c.Trim() });
     }
 
     public async Task<IEnumerable<FeatureFlagDto>> GetFeatureFlagsAsync()

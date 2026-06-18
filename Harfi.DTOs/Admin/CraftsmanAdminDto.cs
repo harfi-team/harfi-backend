@@ -9,6 +9,7 @@ public class PendingCraftsmanDto
     public string FullName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
+    public string? ProfileImageUrl { get; set; }
     public string ServiceType { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
     public string? Neighborhood { get; set; }
@@ -25,6 +26,7 @@ public class ApprovedCraftsmanDto
     public string FullName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
+    public string? ProfileImageUrl { get; set; }
     public string ServiceType { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
     public string? Neighborhood { get; set; }
@@ -42,6 +44,7 @@ public class RejectedCraftsmanDto
     public string FullName { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
     public string? Phone { get; set; }
+    public string? ProfileImageUrl { get; set; }
     public string ServiceType { get; set; } = string.Empty;
     public string City { get; set; } = string.Empty;
     public string? RejectionReason { get; set; }
