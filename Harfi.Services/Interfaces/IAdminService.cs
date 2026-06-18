@@ -48,15 +48,9 @@ public interface IAdminService
     Task<ReviewAnalyticsDto> GetReviewAnalyticsAsync();
     Task<byte[]> ExportDataAsync(string type, DateTime? from, DateTime? to);
 
-    // Platform Config
+    // Platform Config (read-only — values come from Craftsmen table)
     Task<IEnumerable<ServiceTypeDto>> GetServiceTypesAsync();
-    Task<ServiceTypeDto> CreateServiceTypeAsync(ServiceTypeDto dto);
-    Task<ServiceTypeDto> UpdateServiceTypeAsync(int id, ServiceTypeDto dto);
-    Task<AdminActionResponse> DeleteServiceTypeAsync(int id);
     Task<IEnumerable<CityDto>> GetCitiesAsync();
-    Task<CityDto> CreateCityAsync(CityDto dto);
-    Task<CityDto> UpdateCityAsync(int id, CityDto dto);
-    Task<AdminActionResponse> DeleteCityAsync(int id);
     Task<IEnumerable<FeatureFlagDto>> GetFeatureFlagsAsync();
     Task<AdminActionResponse> UpdateFeatureFlagAsync(string key, bool isEnabled);
 

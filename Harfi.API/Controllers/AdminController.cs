@@ -396,86 +396,11 @@ public class AdminController : ControllerBase
         return Ok(result);
     }
 
-    [HttpPost("config/service-types")]
-    public async Task<IActionResult> CreateServiceType([FromBody] ServiceTypeDto dto)
-    {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
-        var result = await _adminService.CreateServiceTypeAsync(dto);
-        return CreatedAtAction(nameof(GetServiceTypes), new { id = result.Id }, result);
-    }
-
-    [HttpPut("config/service-types/{id}")]
-    public async Task<IActionResult> UpdateServiceType(int id, [FromBody] ServiceTypeDto dto)
-    {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
-        try
-        {
-            var result = await _adminService.UpdateServiceTypeAsync(id, dto);
-            return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-    }
-
-    [HttpDelete("config/service-types/{id}")]
-    public async Task<IActionResult> DeleteServiceType(int id)
-    {
-        try
-        {
-            var result = await _adminService.DeleteServiceTypeAsync(id);
-            if (!result.Success) return BadRequest(result);
-            return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-    }
-
     [HttpGet("config/cities")]
     public async Task<IActionResult> GetCities()
     {
         var result = await _adminService.GetCitiesAsync();
         return Ok(result);
-    }
-
-    [HttpPost("config/cities")]
-    public async Task<IActionResult> CreateCity([FromBody] CityDto dto)
-    {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
-        var result = await _adminService.CreateCityAsync(dto);
-        return CreatedAtAction(nameof(GetCities), new { id = result.Id }, result);
-    }
-
-    [HttpPut("config/cities/{id}")]
-    public async Task<IActionResult> UpdateCity(int id, [FromBody] CityDto dto)
-    {
-        if (!ModelState.IsValid) return BadRequest(ModelState);
-        try
-        {
-            var result = await _adminService.UpdateCityAsync(id, dto);
-            return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-    }
-
-    [HttpDelete("config/cities/{id}")]
-    public async Task<IActionResult> DeleteCity(int id)
-    {
-        try
-        {
-            var result = await _adminService.DeleteCityAsync(id);
-            return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
     }
 
     [HttpGet("config/feature-flags")]

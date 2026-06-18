@@ -19,8 +19,6 @@ public class AdminService : IAdminService
     private readonly IGenericRepository<Notification> _notifRepo;
     private readonly IGenericRepository<AdminAuditLog> _auditLogRepo;
     private readonly IGenericRepository<Report> _reportRepo;
-    private readonly IGenericRepository<ServiceType> _serviceTypeRepo;
-    private readonly IGenericRepository<City> _cityRepo;
     private readonly IGenericRepository<FeatureFlag> _featureFlagRepo;
     private readonly IGenericRepository<AIChatMessage> _aiChatRepo;
     private readonly IGenericRepository<Message> _msgRepo;
@@ -37,8 +35,6 @@ public class AdminService : IAdminService
         IGenericRepository<Notification> notifRepo,
         IGenericRepository<AdminAuditLog> auditLogRepo,
         IGenericRepository<Report> reportRepo,
-        IGenericRepository<ServiceType> serviceTypeRepo,
-        IGenericRepository<City> cityRepo,
         IGenericRepository<FeatureFlag> featureFlagRepo,
         IGenericRepository<AIChatMessage> aiChatRepo,
         IGenericRepository<Message> msgRepo,
@@ -54,8 +50,6 @@ public class AdminService : IAdminService
         _notifRepo = notifRepo;
         _auditLogRepo = auditLogRepo;
         _reportRepo = reportRepo;
-        _serviceTypeRepo = serviceTypeRepo;
-        _cityRepo = cityRepo;
         _featureFlagRepo = featureFlagRepo;
         _aiChatRepo = aiChatRepo;
         _msgRepo = msgRepo;
@@ -1047,160 +1041,19 @@ public class AdminService : IAdminService
     }
 
     // ═══════════════════════════════════════════════════════════
-    //  PLATFORM CONFIG
+    //  PLATFORM CONFIG (read-only — values come from Craftsmen table)
     // ═══════════════════════════════════════════════════════════
 
     public async Task<IEnumerable<ServiceTypeDto>> GetServiceTypesAsync()
     {
-        var activeServices = await _craftsmanRepo.GetActiveServicesAsync();
-        return activeServices.Select((s, i) => MapServiceToDto(s, i + 1));
-    }
-
-    private static ServiceTypeDto MapServiceToDto(string serviceAr, int id)
-    {
-        return serviceAr.Trim() switch
-        {
-            "سباكة" => new ServiceTypeDto { Id = id, NameAr = "سباكة", NameEn = "Plumbing", Icon = "plumbing", IsActive = true },
-            "كهرباء" => new ServiceTypeDto { Id = id, NameAr = "كهرباء", NameEn = "Electrical", Icon = "electric_bolt", IsActive = true },
-            "دهانات" => new ServiceTypeDto { Id = id, NameAr = "دهانات", NameEn = "Painting", Icon = "format_paint", IsActive = true },
-            "نجارة" => new ServiceTypeDto { Id = id, NameAr = "نجارة", NameEn = "Carpentry", Icon = "carpenter", IsActive = true },
-            "تكييف وتبريد" => new ServiceTypeDto { Id = id, NameAr = "تكييف وتبريد", NameEn = "HVAC & Cooling", Icon = "ac_unit", IsActive = true },
-            "تبريد وتكييف" => new ServiceTypeDto { Id = id, NameAr = "تبريد وتكييف", NameEn = "HVAC / AC", Icon = "ac_unit", IsActive = true },
-            "ألمنيوم" => new ServiceTypeDto { Id = id, NameAr = "ألمنيوم", NameEn = "Aluminum", Icon = "window", IsActive = true },
-            "أعمال ألمنيوم" => new ServiceTypeDto { Id = id, NameAr = "أعمال ألمنيوم", NameEn = "Aluminum Works", Icon = "window", IsActive = true },
-            "أمن وكاميرات" => new ServiceTypeDto { Id = id, NameAr = "أمن وكاميرات", NameEn = "Security & Cameras", Icon = "videocam", IsActive = true },
-            "تبليط وسيراميك" => new ServiceTypeDto { Id = id, NameAr = "تبليط وسيراميك", NameEn = "Tiling & Ceramics", Icon = "grid_on", IsActive = true },
-            "جبس وأسقف" => new ServiceTypeDto { Id = id, NameAr = "جبس وأسقف", NameEn = "Gypsum & Ceilings", Icon = "texture", IsActive = true },
-            "حدادة" => new ServiceTypeDto { Id = id, NameAr = "حدادة", NameEn = "Blacksmith", Icon = "shield_with_heart", IsActive = true },
-            "زجاج ومرايا" => new ServiceTypeDto { Id = id, NameAr = "زجاج ومرايا", NameEn = "Glass & Mirrors", Icon = "filter_frames", IsActive = true },
-            "مكافحة حشرات" => new ServiceTypeDto { Id = id, NameAr = "مكافحة حشرات", NameEn = "Pest Control", Icon = "pest_control", IsActive = true },
-            "نظافة" => new ServiceTypeDto { Id = id, NameAr = "نظافة", NameEn = "Cleaning", Icon = "cleaning_services", IsActive = true },
-            "بناء" => new ServiceTypeDto { Id = id, NameAr = "بناء", NameEn = "Construction", Icon = "construction", IsActive = true },
-            "صيانة عامة" => new ServiceTypeDto { Id = id, NameAr = "صيانة عامة", NameEn = "General Maintenance", Icon = "build", IsActive = true },
-            "نقل أثاث" => new ServiceTypeDto { Id = id, NameAr = "نقل أثاث", NameEn = "Furniture Moving", Icon = "local_shipping", IsActive = true },
-            "جبس" => new ServiceTypeDto { Id = id, NameAr = "جبس", NameEn = "Gypsum", Icon = "texture", IsActive = true },
-            _ => new ServiceTypeDto { Id = id, NameAr = serviceAr.Trim(), NameEn = serviceAr.Trim(), Icon = "build_circle", IsActive = true }
-        };
-    }
-
-    public async Task<ServiceTypeDto> CreateServiceTypeAsync(ServiceTypeDto dto)
-    {
-        var entity = new ServiceType
-        {
-            NameAr = dto.NameAr,
-            NameEn = dto.NameEn,
-            Icon = dto.Icon,
-            IsActive = true
-        };
-        await _serviceTypeRepo.AddAsync(entity);
-        await _serviceTypeRepo.SaveChangesAsync();
-
-        dto.Id = entity.Id;
-        return dto;
-    }
-
-    public async Task<ServiceTypeDto> UpdateServiceTypeAsync(int id, ServiceTypeDto dto)
-    {
-        var entity = await _serviceTypeRepo.GetByIdAsync(id)
-            ?? throw new KeyNotFoundException("نوع الخدمة غير موجود.");
-
-        entity.NameAr = dto.NameAr;
-        entity.NameEn = dto.NameEn;
-        entity.Icon = dto.Icon;
-        entity.IsActive = dto.IsActive;
-        _serviceTypeRepo.Update(entity);
-        await _serviceTypeRepo.SaveChangesAsync();
-
-        dto.Id = id;
-        return dto;
-    }
-
-    public async Task<AdminActionResponse> DeleteServiceTypeAsync(int id)
-    {
-        var entity = await _serviceTypeRepo.GetByIdAsync(id)
-            ?? throw new KeyNotFoundException("نوع الخدمة غير موجود.");
-
-        // Admin context: must consider all non-deleted craftsmen including those whose User is deleted
-        var activeCraftsmen = await _craftsmanRepo.GetQueryable().IgnoreQueryFilters()
-            .Where(c => c.ServiceType == entity.NameAr && !c.IsDeleted)
-            .ToListAsync();
-        if (activeCraftsmen.Any())
-            return AdminActionResponse.Fail("لا يمكن حذف نوع الخدمة لأنه مستخدم من قبل حرفيين نشطين.");
-
-        _serviceTypeRepo.Remove(entity);
-        await _serviceTypeRepo.SaveChangesAsync();
-
-        return AdminActionResponse.Ok("تم حذف نوع الخدمة.");
+        var services = await _craftsmanRepo.GetActiveServicesAsync();
+        return services.Select(s => new ServiceTypeDto { NameAr = s.Trim() });
     }
 
     public async Task<IEnumerable<CityDto>> GetCitiesAsync()
     {
-        var activeCities = await _craftsmanRepo.GetActiveCitiesAsync();
-        return activeCities.Select((c, i) => MapCityToDto(c, i + 1));
-    }
-
-    private static CityDto MapCityToDto(string cityAr, int id)
-    {
-        return cityAr.Trim() switch
-        {
-            "القاهرة" => new CityDto { Id = id, NameAr = "القاهرة", NameEn = "Cairo", IsActive = true },
-            "الإسكندرية" => new CityDto { Id = id, NameAr = "الإسكندرية", NameEn = "Alexandria", IsActive = true },
-            "الجيزة" => new CityDto { Id = id, NameAr = "الجيزة", NameEn = "Giza", IsActive = true },
-            "المنصورة" => new CityDto { Id = id, NameAr = "المنصورة", NameEn = "Mansoura", IsActive = true },
-            "أسيوط" => new CityDto { Id = id, NameAr = "أسيوط", NameEn = "Assiut", IsActive = true },
-            "الإسماعيلية" => new CityDto { Id = id, NameAr = "الإسماعيلية", NameEn = "Ismailia", IsActive = true },
-            "الأقصر" => new CityDto { Id = id, NameAr = "الأقصر", NameEn = "Luxor", IsActive = true },
-            "الفيوم" => new CityDto { Id = id, NameAr = "الفيوم", NameEn = "Fayoum", IsActive = true },
-            "المنيا" => new CityDto { Id = id, NameAr = "المنيا", NameEn = "Minya", IsActive = true },
-            "بني سويف" => new CityDto { Id = id, NameAr = "بني سويف", NameEn = "Beni Suef", IsActive = true },
-            "بورسعيد" => new CityDto { Id = id, NameAr = "بورسعيد", NameEn = "Port Said", IsActive = true },
-            "دمنهور" => new CityDto { Id = id, NameAr = "دمنهور", NameEn = "Damanhour", IsActive = true },
-            "سوهاج" => new CityDto { Id = id, NameAr = "سوهاج", NameEn = "Sohag", IsActive = true },
-            _ => new CityDto { Id = id, NameAr = cityAr.Trim(), NameEn = cityAr.Trim(), IsActive = true }
-        };
-    }
-
-    public async Task<CityDto> CreateCityAsync(CityDto dto)
-    {
-        var entity = new City
-        {
-            NameAr = dto.NameAr,
-            NameEn = dto.NameEn,
-            Governorate = dto.Governorate,
-            IsActive = true
-        };
-        await _cityRepo.AddAsync(entity);
-        await _cityRepo.SaveChangesAsync();
-
-        dto.Id = entity.Id;
-        return dto;
-    }
-
-    public async Task<CityDto> UpdateCityAsync(int id, CityDto dto)
-    {
-        var entity = await _cityRepo.GetByIdAsync(id)
-            ?? throw new KeyNotFoundException("المدينة غير موجودة.");
-
-        entity.NameAr = dto.NameAr;
-        entity.NameEn = dto.NameEn;
-        entity.Governorate = dto.Governorate;
-        entity.IsActive = dto.IsActive;
-        _cityRepo.Update(entity);
-        await _cityRepo.SaveChangesAsync();
-
-        dto.Id = id;
-        return dto;
-    }
-
-    public async Task<AdminActionResponse> DeleteCityAsync(int id)
-    {
-        var entity = await _cityRepo.GetByIdAsync(id)
-            ?? throw new KeyNotFoundException("المدينة غير موجودة.");
-
-        _cityRepo.Remove(entity);
-        await _cityRepo.SaveChangesAsync();
-
-        return AdminActionResponse.Ok("تم حذف المدينة.");
+        var cities = await _craftsmanRepo.GetActiveCitiesAsync();
+        return cities.Select(c => new CityDto { NameAr = c.Trim() });
     }
 
     public async Task<IEnumerable<FeatureFlagDto>> GetFeatureFlagsAsync()
