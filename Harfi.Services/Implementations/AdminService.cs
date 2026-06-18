@@ -1052,15 +1052,35 @@ public class AdminService : IAdminService
 
     public async Task<IEnumerable<ServiceTypeDto>> GetServiceTypesAsync()
     {
-        var items = await _serviceTypeRepo.GetAllAsync();
-        return items.Select(s => new ServiceTypeDto
+        var activeServices = await _craftsmanRepo.GetActiveServicesAsync();
+        return activeServices.Select((s, i) => MapServiceToDto(s, i + 1));
+    }
+
+    private static ServiceTypeDto MapServiceToDto(string serviceAr, int id)
+    {
+        return serviceAr.Trim() switch
         {
-            Id = s.Id,
-            NameAr = s.NameAr,
-            NameEn = s.NameEn,
-            Icon = s.Icon,
-            IsActive = s.IsActive
-        });
+            "سباكة" => new ServiceTypeDto { Id = id, NameAr = "سباكة", NameEn = "Plumbing", Icon = "plumbing", IsActive = true },
+            "كهرباء" => new ServiceTypeDto { Id = id, NameAr = "كهرباء", NameEn = "Electrical", Icon = "electric_bolt", IsActive = true },
+            "دهانات" => new ServiceTypeDto { Id = id, NameAr = "دهانات", NameEn = "Painting", Icon = "format_paint", IsActive = true },
+            "نجارة" => new ServiceTypeDto { Id = id, NameAr = "نجارة", NameEn = "Carpentry", Icon = "carpenter", IsActive = true },
+            "تكييف وتبريد" => new ServiceTypeDto { Id = id, NameAr = "تكييف وتبريد", NameEn = "HVAC & Cooling", Icon = "ac_unit", IsActive = true },
+            "تبريد وتكييف" => new ServiceTypeDto { Id = id, NameAr = "تبريد وتكييف", NameEn = "HVAC / AC", Icon = "ac_unit", IsActive = true },
+            "ألمنيوم" => new ServiceTypeDto { Id = id, NameAr = "ألمنيوم", NameEn = "Aluminum", Icon = "window", IsActive = true },
+            "أعمال ألمنيوم" => new ServiceTypeDto { Id = id, NameAr = "أعمال ألمنيوم", NameEn = "Aluminum Works", Icon = "window", IsActive = true },
+            "أمن وكاميرات" => new ServiceTypeDto { Id = id, NameAr = "أمن وكاميرات", NameEn = "Security & Cameras", Icon = "videocam", IsActive = true },
+            "تبليط وسيراميك" => new ServiceTypeDto { Id = id, NameAr = "تبليط وسيراميك", NameEn = "Tiling & Ceramics", Icon = "grid_on", IsActive = true },
+            "جبس وأسقف" => new ServiceTypeDto { Id = id, NameAr = "جبس وأسقف", NameEn = "Gypsum & Ceilings", Icon = "texture", IsActive = true },
+            "حدادة" => new ServiceTypeDto { Id = id, NameAr = "حدادة", NameEn = "Blacksmith", Icon = "shield_with_heart", IsActive = true },
+            "زجاج ومرايا" => new ServiceTypeDto { Id = id, NameAr = "زجاج ومرايا", NameEn = "Glass & Mirrors", Icon = "filter_frames", IsActive = true },
+            "مكافحة حشرات" => new ServiceTypeDto { Id = id, NameAr = "مكافحة حشرات", NameEn = "Pest Control", Icon = "pest_control", IsActive = true },
+            "نظافة" => new ServiceTypeDto { Id = id, NameAr = "نظافة", NameEn = "Cleaning", Icon = "cleaning_services", IsActive = true },
+            "بناء" => new ServiceTypeDto { Id = id, NameAr = "بناء", NameEn = "Construction", Icon = "construction", IsActive = true },
+            "صيانة عامة" => new ServiceTypeDto { Id = id, NameAr = "صيانة عامة", NameEn = "General Maintenance", Icon = "build", IsActive = true },
+            "نقل أثاث" => new ServiceTypeDto { Id = id, NameAr = "نقل أثاث", NameEn = "Furniture Moving", Icon = "local_shipping", IsActive = true },
+            "جبس" => new ServiceTypeDto { Id = id, NameAr = "جبس", NameEn = "Gypsum", Icon = "texture", IsActive = true },
+            _ => new ServiceTypeDto { Id = id, NameAr = serviceAr.Trim(), NameEn = serviceAr.Trim(), Icon = "build_circle", IsActive = true }
+        };
     }
 
     public async Task<ServiceTypeDto> CreateServiceTypeAsync(ServiceTypeDto dto)
@@ -1115,15 +1135,29 @@ public class AdminService : IAdminService
 
     public async Task<IEnumerable<CityDto>> GetCitiesAsync()
     {
-        var items = await _cityRepo.GetAllAsync();
-        return items.Select(c => new CityDto
+        var activeCities = await _craftsmanRepo.GetActiveCitiesAsync();
+        return activeCities.Select((c, i) => MapCityToDto(c, i + 1));
+    }
+
+    private static CityDto MapCityToDto(string cityAr, int id)
+    {
+        return cityAr.Trim() switch
         {
-            Id = c.Id,
-            NameAr = c.NameAr,
-            NameEn = c.NameEn,
-            Governorate = c.Governorate,
-            IsActive = c.IsActive
-        });
+            "القاهرة" => new CityDto { Id = id, NameAr = "القاهرة", NameEn = "Cairo", IsActive = true },
+            "الإسكندرية" => new CityDto { Id = id, NameAr = "الإسكندرية", NameEn = "Alexandria", IsActive = true },
+            "الجيزة" => new CityDto { Id = id, NameAr = "الجيزة", NameEn = "Giza", IsActive = true },
+            "المنصورة" => new CityDto { Id = id, NameAr = "المنصورة", NameEn = "Mansoura", IsActive = true },
+            "أسيوط" => new CityDto { Id = id, NameAr = "أسيوط", NameEn = "Assiut", IsActive = true },
+            "الإسماعيلية" => new CityDto { Id = id, NameAr = "الإسماعيلية", NameEn = "Ismailia", IsActive = true },
+            "الأقصر" => new CityDto { Id = id, NameAr = "الأقصر", NameEn = "Luxor", IsActive = true },
+            "الفيوم" => new CityDto { Id = id, NameAr = "الفيوم", NameEn = "Fayoum", IsActive = true },
+            "المنيا" => new CityDto { Id = id, NameAr = "المنيا", NameEn = "Minya", IsActive = true },
+            "بني سويف" => new CityDto { Id = id, NameAr = "بني سويف", NameEn = "Beni Suef", IsActive = true },
+            "بورسعيد" => new CityDto { Id = id, NameAr = "بورسعيد", NameEn = "Port Said", IsActive = true },
+            "دمنهور" => new CityDto { Id = id, NameAr = "دمنهور", NameEn = "Damanhour", IsActive = true },
+            "سوهاج" => new CityDto { Id = id, NameAr = "سوهاج", NameEn = "Sohag", IsActive = true },
+            _ => new CityDto { Id = id, NameAr = cityAr.Trim(), NameEn = cityAr.Trim(), IsActive = true }
+        };
     }
 
     public async Task<CityDto> CreateCityAsync(CityDto dto)
