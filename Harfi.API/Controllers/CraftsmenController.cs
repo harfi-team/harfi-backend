@@ -1,4 +1,5 @@
 using Harfi.DTOs.Craftsman;
+using Harfi.Services.Implementations;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -14,10 +15,12 @@ namespace Harfi.API.Controllers
     public class CraftsmenController : ControllerBase
     {
         private readonly ICraftsmanService _craftsmanService;
+        private readonly IImageservice _imageService;
 
-        public CraftsmenController(ICraftsmanService craftsmanService)
+        public CraftsmenController(ICraftsmanService craftsmanService, IImageservice imageService)
         {
             _craftsmanService = craftsmanService;
+            _imageService = imageService;
         }
 
         // 1. تقديم طلب تسجيل الحرفي
@@ -91,31 +94,77 @@ namespace Harfi.API.Controllers
             return Ok(new { message = "تم تحديث بيانات الملف الشخصي بنجاح." });
         }
 
-        // 5. رفع صورة البروفايل
-        [HttpPost("{id}/upload-image")]
-        public async Task<IActionResult> UploadProfileImage(int id, [FromForm] IFormFile file)
+        // 5. رفع صورة البروفايل بنسنخدمها من اليوزر مش من هنا 
+        //[HttpPost("{id}/upload-image")]
+        //public async Task<IActionResult> UploadProfileImage(int id, [FromForm] IFormFile file)
+        //{
+        //    var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        //    var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+        //    if (requestingRole != "admin")
+        //    {
+        //        var profile = await _craftsmanService.GetCraftsmanProfileAsync(id);
+        //        if (profile == null)
+        //            return NotFound(new { message = "عذراً، هذا الحرفي غير موجود حالياً." });
+        //        if (profile.UserId != requestingUserId)
+        //            return Forbid();
+        //    }
+
+        //    if (file == null || file.Length == 0)
+        //        return BadRequest(new { message = "الرجاء اختيار صورة للرفع." });
+
+        //    var url = await _craftsmanService.UploadProfileImageAsync(id, file);
+
+        //    if (url == null)
+        //        return NotFound(new { message = "عذراً، هذا الحرفي غير موجود حالياً." });
+
+        //    return Ok(new { url });
+        //}
+
+
+
+
+
+
+        [HttpPost("{id}/upload-national-id")]
+        public async Task<IActionResult> UploadNationalId([FromRoute] int id, [FromForm] UploadNationalIdDto dto)
         {
+            // باقي الكود بتاعك زي ما هو بالظبط بدون أي تغيير...
             var requestingUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
             var requestingRole = User.FindFirstValue(ClaimTypes.Role);
+
             if (requestingRole != "admin")
             {
                 var profile = await _craftsmanService.GetCraftsmanProfileAsync(id);
                 if (profile == null)
                     return NotFound(new { message = "عذراً، هذا الحرفي غير موجود حالياً." });
+
                 if (profile.UserId != requestingUserId)
                     return Forbid();
             }
 
-            if (file == null || file.Length == 0)
-                return BadRequest(new { message = "الرجاء اختيار صورة للرفع." });
+            if (dto.File == null || dto.File.Length == 0)
+                return BadRequest(new { message = "الرجاء اختيار ملف بطاقة الهوية للرفع." });
 
-            var url = await _craftsmanService.UploadProfileImageAsync(id, file);
+            try
+            {
+                var url = await _craftsmanService.UploadNationalIdAsync(id, dto.File);
 
-            if (url == null)
-                return NotFound(new { message = "عذراً، هذا الحرفي غير موجود حالياً." });
+                if (url == null)
+                    return NotFound(new { message = "عذراً، لم يتم العثور على بيانات الحرفي." });
 
-            return Ok(new { url });
+                return Ok(new { url });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new { message = "حدث خطأ غير متوقع أثناء رفع الملف." });
+            }
         }
+
+
 
         [HttpGet("active-services")]
         [AllowAnonymous]

@@ -12,5 +12,6 @@ namespace Harfi.Services.Interfaces
         Task<string?> UploadProfileImageAsync(int craftsmanId, IFormFile file);
         Task<IEnumerable<ServiceLookupDto>> GetActiveServicesAsync();
         Task<IEnumerable<CityLookupDto>> GetActiveCitiesAsync();
+        Task<string?> UploadNationalIdAsync(int craftsmanId, IFormFile file);
     }
 }

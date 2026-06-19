@@ -231,5 +231,37 @@ namespace Harfi.Services.Implementations
             };
         }
 
+        public async Task<string?> UploadNationalIdAsync(int craftsmanId, IFormFile file)
+        {
+            // 1. نجيب بيانات الحرفي من الداتابيز باستخدام الـ Repository
+            var craftsman = await _craftsmanRepository.GetByIdAsync(craftsmanId);
+            if (craftsman == null) return null;
+
+            // 2. (اختياري) نمسح صورة البطاقة القديمة من السيرفر لو هو بيرفع واحدة جديدة
+            if (!string.IsNullOrEmpty(craftsman.NationalIdUrl))
+                _imageService.DeleteImage(craftsman.NationalIdUrl, "national-ids");
+
+            // 3. نحدد الصيغ المسموحة للبطاقة
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".pdf", ".webp" };
+
+            // 4. نرفع الملف في فولدر "national-ids" جوه wwwroot
+            var imageUrl = await _imageService.SaveFileAsync(
+                file,
+                "national-ids",
+                allowedExtensions,
+                5 * 1024 * 1024,
+                "نوع الملف غير مدعوم. الأنواع المسموحة: JPG, PNG, PDF, WEBP.",
+                "حجم الملف يجب أن لا يتجاوز 5 ميغابايت.");
+
+            // 5. نحفظ مسار الصورة كـ String في الداتابيز (في جدول Craftsmen)
+            craftsman.NationalIdUrl = imageUrl;
+            craftsman.UpdatedAt = DateTime.UtcNow; // تحديث وقت التعديل
+
+            await _craftsmanRepository.UpdateAsync(craftsman);
+
+            // 6. نرجع المسار عشان نعرضه للمستخدم
+            return imageUrl;
+        }
+
     }
 }
