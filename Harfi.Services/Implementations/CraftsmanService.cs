@@ -24,6 +24,7 @@ namespace Harfi.Services.Implementations
         }
 
         // 1. تسجيل حرفي جديد (بيكون معلق IsApproved = false في البداية)
+        // 1. تسجيل حرفي جديد
         public async Task<bool> RegisterCraftsmanAsync(CreateCraftsmanDto createCraftsmanDto)
         {
             // 1. التحقق من وجود المستخدم
@@ -33,15 +34,28 @@ namespace Harfi.Services.Implementations
 
             // 2. التحقق من أن دور المستخدم هو "craftsman"
             if (user.Role != "craftsman")
-                throw new InvalidOperationException(
-                    "هذا المستخدم ليس لديه صلاحية التسجيل كحرفي.");
+                throw new InvalidOperationException("هذا المستخدم ليس لديه صلاحية التسجيل كحرفي.");
 
-            // 3. التأكد من عدم وجود سجل حرفي مسبق لنفس المستخدم (علاقة 1:1)
+            // 3. التأكد من عدم وجود سجل حرفي مسبق
             var exists = await _craftsmanRepository.ExistsAsync(c => c.UserId == createCraftsmanDto.UserId);
             if (exists)
-                throw new InvalidOperationException(
-                    "هذا المستخدم مسجل كحرفي مسبقاً.");
+                throw new InvalidOperationException("هذا المستخدم مسجل كحرفي مسبقاً.");
 
+            // 4. رفع صورة البطاقة (لو مبعوتة)
+            string? savedNationalIdUrl = null;
+            if (createCraftsmanDto.NationalIdFile != null && createCraftsmanDto.NationalIdFile.Length > 0)
+            {
+                var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".pdf", ".webp" };
+                savedNationalIdUrl = await _imageService.SaveFileAsync(
+                    createCraftsmanDto.NationalIdFile,
+                    "national-ids",
+                    allowedExtensions,
+                    5 * 1024 * 1024,
+                    "نوع الملف غير مدعوم.",
+                    "حجم الملف يجب أن لا يتجاوز 5 ميغابايت.");
+            }
+
+            // 5. إنشاء سجل الحرفي الجديد
             var craftsman = new Craftsman
             {
                 UserId = createCraftsmanDto.UserId,
@@ -52,7 +66,7 @@ namespace Harfi.Services.Implementations
                 PriceRangeMax = createCraftsmanDto.PriceRangeMax,
                 Experience = createCraftsmanDto.Experience ?? 0,
                 Bio = createCraftsmanDto.Bio,
-                NationalIdUrl = createCraftsmanDto.NationalIdUrl,
+                NationalIdUrl = savedNationalIdUrl ?? createCraftsmanDto.NationalIdUrl, // حفظ المسار الجديد
                 IsApproved = false,
                 IsAvailable = true,
                 Rating = 0,

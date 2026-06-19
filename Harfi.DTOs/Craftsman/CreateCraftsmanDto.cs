@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Microsoft.AspNetCore.Http;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
@@ -33,9 +34,9 @@ namespace Harfi.DTOs.Craftsman
         [StringLength(1000)]
         public string? Bio { get; set; } // نبذة مخصصة في الحرفي عن نفسه
 
+        public string? NationalIdUrl { get; set; }
         [Required]
-        [StringLength(500)]
-        public string NationalIdUrl { get; set; } = string.Empty; // رابط الصورة المرفوعة لبطاقة الرقم القومي من أجل موافقة الأدمن
+        public IFormFile? NationalIdFile { get; set; }
     }
 
 }

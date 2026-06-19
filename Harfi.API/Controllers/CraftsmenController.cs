@@ -24,19 +24,33 @@ namespace Harfi.API.Controllers
         }
 
         // 1. تقديم طلب تسجيل الحرفي
+        // 1. تقديم طلب تسجيل الحرفي
         [HttpPost("register")]
         [AllowAnonymous]
-        public async Task<IActionResult> Register([FromBody] CreateCraftsmanDto dto)
+        public async Task<IActionResult> Register([FromForm] CreateCraftsmanDto dto) // التعديل هنا: FromForm
         {
-            var result = await _craftsmanService.RegisterCraftsmanAsync(dto);
-
-            if (!result)
-                return BadRequest(new { message = "فشل في تقديم طلب التسجيل، يرجى المحاولة مرة أخرى." });
-
-            return StatusCode(StatusCodes.Status201Created, new
+            try
             {
-                message = "تم تقديم طلبك بنجاح وهو قيد المراجعة حالياً."
-            });
+                var result = await _craftsmanService.RegisterCraftsmanAsync(dto);
+
+                if (!result)
+                    return BadRequest(new { message = "فشل في تقديم طلب التسجيل، يرجى المحاولة مرة أخرى." });
+
+                return StatusCode(StatusCodes.Status201Created, new
+                {
+                    message = "تم تقديم طلبك بنجاح وهو قيد المراجعة حالياً."
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                // لمسك أخطاء رفع الصورة (زي الحجم أو الصيغة)
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                // لمسك أخطاء الداتابيز (زي المستخدم موجود مسبقاً)
+                return BadRequest(new { message = ex.Message });
+            }
         }
 
         // 2. جلب الملف الشخصي للحرفي بواسطة الـ ID
