@@ -8,6 +8,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="AspNetCoreRateLimit" Version="4.0.2" />
+    <Compile Remove="wwwroot\chat\**" />
+    <Content Remove="wwwroot\chat\**" />
+    <EmbeddedResource Remove="wwwroot\chat\**" />
+    <None Remove="wwwroot\chat\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.27" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.15">
@@ -21,6 +29,13 @@
     <ProjectReference Include="..\Harfi.Repositories\Harfi.Repositories.csproj" />
     <ProjectReference Include="..\Harfi.Services\Harfi.Services.csproj" />
     <ProjectReference Include="..\Harfi.DTOs\Harfi.DTOs.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="wwwroot\AiChat\images\" />
+    <Folder Include="wwwroot\AiChat\audio\" />
+    <Folder Include="wwwroot\chat-voices\" />
+    <Folder Include="wwwroot\profiles\" />
   </ItemGroup>
 
 </Project>

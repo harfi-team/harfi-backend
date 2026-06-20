@@ -19,10 +19,19 @@ public class User : IdentityUser<int>
 
     /// <summary>Soft delete flag — never hard-delete users</summary>
     public bool IsActive { get; set; } = true;
+    public bool IsDeleted { get; set; } = false;
+    public DateTime? DeletedAt { get; set; }
+    public int? DeletedByAdminId { get; set; }
     public bool IsVerified { get; set; } = false;
 
     [MaxLength(500)]
     public string? ProfileImageUrl { get; set; }
+
+    [MaxLength(500)]
+    public string? DeletionReason { get; set; }
+
+    public string? PasswordResetCode { get; set; }
+    public DateTime? PasswordResetCodeExpiry { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

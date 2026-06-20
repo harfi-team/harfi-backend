@@ -46,6 +46,14 @@ public class Job
     [MaxLength(2000)]
     public string? SolutionDescription { get; set; }
 
+    /// <summary>Dispute management fields</summary>
+    public bool IsDisputed { get; set; } = false;
+    public DateTime? DisputeRaisedAt { get; set; }
+    public DateTime? DisputeResolvedAt { get; set; }
+
+    [MaxLength(500)]
+    public string? DisputeResolution { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? CompletedAt { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

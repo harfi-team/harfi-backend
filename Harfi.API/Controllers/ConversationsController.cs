@@ -17,15 +17,18 @@ namespace Harfi.API.Controllers
         private readonly IConversationService _convService;
         private readonly IMessageService _msgService;
         private readonly IJobRepository _jobRepo;
+        private readonly IImageservice _imageService;
 
         public ConversationsController(
             IConversationService convService,
             IMessageService msgService,
-            IJobRepository jobRepo)
+            IJobRepository jobRepo,
+            IImageservice imageService)
         {
             _convService = convService;
             _msgService = msgService;
             _jobRepo = jobRepo;
+            _imageService = imageService;
         }
 
         // POST /api/conversations
@@ -108,6 +111,88 @@ namespace Harfi.API.Controllers
 
             await _msgService.MarkConversationAsReadAsync(id, userId);
             return NoContent();
+        }
+
+                // DELETE /api/conversations/{id} – per-user hide
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            if (id <= 0) return BadRequest("معرف المحادثة غير صالح.");
+
+            var userId = GetUserId();
+
+            if (!await _convService.IsParticipantAsync(id, userId))
+                return Forbid();
+
+            var hidden = await _convService.HideConversationAsync(id, userId);
+            if (!hidden) return NotFound();
+
+            return NoContent();
+        }
+
+        // DELETE /api/conversations/{id}/messages/{messageId}
+        [HttpDelete("{id}/messages/{messageId}")]
+        public async Task<IActionResult> DeleteMessage(int id, int messageId)
+        {
+            if (id <= 0 || messageId <= 0)
+                return BadRequest("معرف الرسالة أو المحادثة غير صالح.");
+
+            var userId = GetUserId();
+
+            if (!await _convService.IsParticipantAsync(id, userId))
+                return Forbid();
+
+            var deleted = await _msgService.DeleteMessageAsync(id, messageId, userId);
+            if (!deleted)
+                return BadRequest("لا يمكن حذف هذه الرسالة.");
+
+            return NoContent();
+        }
+
+        // POST /api/conversations/upload-image
+        [HttpPost("upload-image")]
+
+        public async Task<IActionResult> UploadImage(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest(new { message = "يرجى اختيار صورة للرفع." });
+
+            var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp" };
+            if (!allowedTypes.Contains(file.ContentType))
+                return BadRequest(new { message = "نوع الملف غير مدعوم. الأنواع المسموحة: JPG, PNG, WEBP." });
+
+            if (file.Length > 5 * 1024 * 1024)
+                return BadRequest(new { message = "حجم الصورة يجب أن لا يتجاوز 5 ميجابايت." });
+
+            var url = await _imageService.SaveImageAsync(file, "chat");
+            return Ok(new { url });
+        }
+
+        // POST /api/conversations/upload-voice
+                [HttpPost("upload-voice")]
+        public async Task<IActionResult> UploadVoice([FromForm] IFormFile voice)
+        {
+            if (voice == null || voice.Length == 0)
+                return BadRequest("يرجى اختيار ملف صوتي للرفع.");
+
+            var allowed = new[] { ".mp3", ".wav", ".ogg", ".webm" };
+
+            try
+            {
+                var url = await _imageService.SaveFileAsync(
+                    voice,
+                    "chat-voices",
+                    allowed,
+                    10 * 1024 * 1024,
+                    "نوع الملف الصوتي غير مدعوم. الأنواع المسموحة: MP3, WAV, OGG, WEBM.",
+                    "حجم الملف الصوتي يجب أن لا يتجاوز 10 ميجابايت.");
+
+                return Ok(new { url });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
         }
 
         private int GetUserId() =>

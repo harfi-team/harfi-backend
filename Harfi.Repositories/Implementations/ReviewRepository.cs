@@ -27,6 +27,7 @@ namespace Harfi.Repositories.Implementations
         {
             return await _db.Jobs
                  .Include(j => j.Craftsman)
+                 .Include(j => j.Customer)
              .FirstOrDefaultAsync(j => j.Id == jobId);
         }
 
@@ -55,6 +56,20 @@ namespace Harfi.Repositories.Implementations
             return await _db.Reviews.AnyAsync(r =>
                 r.JobId == jobId &&
                 r.CustomerId == customerId);
+        }
+
+        public async Task UpdateCraftsmanRatingAsync(int craftsmanId)
+        {
+            var avgStars = await _db.Reviews
+                .Where(r => r.CraftsmanId == craftsmanId && !r.IsDeleted)
+                .AverageAsync(r => (double?)r.Stars) ?? 0.0;
+
+            var craftsman = await _db.Craftsmen.FindAsync(craftsmanId);
+            if (craftsman is not null)
+            {
+                craftsman.Rating = Math.Round((decimal)avgStars, 2);
+                await _db.SaveChangesAsync();
+            }
         }
     }
 }

@@ -26,6 +26,14 @@ namespace Harfi.Repositories.Implementations
                 .ToListAsync();
         }
 
+        public IQueryable<Craftsman> GetAllWithUserQuery()
+        {
+            return _context.Craftsmen
+                .Include(c => c.User)
+                .AsNoTracking()
+                .AsQueryable();
+        }
+
         public async Task DeleteAsync(int craftsmanId)
         {
             var craftsman = await _context.Craftsmen.FindAsync(craftsmanId);
@@ -42,7 +50,7 @@ namespace Harfi.Repositories.Implementations
 
             var query = _context.Craftsmen
                                 .Include(c => c.User)
-                                .Where(c => c.IsApproved)
+                                .Where(c => c.IsApproved && c.IsAvailable)
                                 .AsQueryable();
 
             // 2. الفلترة بنوع الخدمة (تعديل الـ == إلى .Contains لدعم البحث العربي الجزئي)
@@ -76,11 +84,35 @@ namespace Harfi.Repositories.Implementations
             return await query.ToListAsync();
         }
 
+        public async Task<Craftsman?> GetByUserIdAsync(int userId)
+        {
+            return await _context.Craftsmen
+                .FirstOrDefaultAsync(c => c.UserId == userId);
+        }
+
         public async Task<bool> UpdateAsync(Craftsman craftsman)
         {
             _context.Craftsmen.Update(craftsman);
             await _context.SaveChangesAsync();
             return true;
+        }
+
+        public async Task<IEnumerable<string>> GetActiveServicesAsync()
+        {
+            return await _context.Craftsmen
+                .Where(c => !c.IsDeleted && c.IsApproved && c.IsAvailable && !string.IsNullOrWhiteSpace(c.ServiceType))
+                .Select(c => c.ServiceType)
+                .Distinct()
+                .ToListAsync();
+        }
+
+        public async Task<IEnumerable<string>> GetActiveCitiesAsync()
+        {
+            return await _context.Craftsmen
+                .Where(c => !c.IsDeleted && c.IsApproved && c.IsAvailable && !string.IsNullOrWhiteSpace(c.City))
+                .Select(c => c.City)
+                .Distinct()
+                .ToListAsync();
         }
     }
 }

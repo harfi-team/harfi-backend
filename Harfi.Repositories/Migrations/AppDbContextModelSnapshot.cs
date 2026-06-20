@@ -17,7 +17,7 @@ namespace Harfi.Repositories.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.11")
+                .HasAnnotation("ProductVersion", "8.0.15")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -69,6 +69,94 @@ namespace Harfi.Repositories.Migrations
                     b.ToTable("AIChatMessages", (string)null);
                 });
 
+            modelBuilder.Entity("Harfi.Models.Entities.AdminAuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("AdminId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("TargetId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Action");
+
+                    b.HasIndex("AdminId");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("TargetType");
+
+                    b.ToTable("AdminAuditLogs", (string)null);
+                });
+
+            modelBuilder.Entity("Harfi.Models.Entities.City", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Governorate")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NameAr")
+                        .IsUnique();
+
+                    b.HasIndex("NameEn")
+                        .IsUnique();
+
+                    b.ToTable("Cities", (string)null);
+                });
+
             modelBuilder.Entity("Harfi.Models.Entities.Conversation", b =>
                 {
                     b.Property<int>("Id")
@@ -77,6 +165,9 @@ namespace Harfi.Repositories.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("CraftsmanHiddenAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("CraftsmanId")
                         .HasColumnType("int");
 
@@ -84,6 +175,9 @@ namespace Harfi.Repositories.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<DateTime?>("CustomerHiddenAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("CustomerId")
                         .HasColumnType("int");
@@ -133,6 +227,16 @@ namespace Harfi.Repositories.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DeletionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<int>("Experience")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("int")
@@ -147,6 +251,9 @@ namespace Harfi.Repositories.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<string>("NationalIdUrl")
                         .HasMaxLength(500)
@@ -166,6 +273,10 @@ namespace Harfi.Repositories.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("decimal(3,2)")
                         .HasDefaultValue(0m);
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ServiceType")
                         .IsRequired()
@@ -222,6 +333,25 @@ namespace Harfi.Repositories.Migrations
                     b.ToTable("EmailVerifications");
                 });
 
+            modelBuilder.Entity("Harfi.Models.Entities.FeatureFlag", b =>
+                {
+                    b.Property<string>("Key")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.HasKey("Key");
+
+                    b.ToTable("FeatureFlags", (string)null);
+                });
+
             modelBuilder.Entity("Harfi.Models.Entities.Job", b =>
                 {
                     b.Property<int>("Id")
@@ -253,6 +383,19 @@ namespace Harfi.Repositories.Migrations
                         .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("DisputeRaisedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DisputeResolution")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("DisputeResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDisputed")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("PreferredDate")
                         .HasColumnType("datetime2");
@@ -439,6 +582,9 @@ namespace Harfi.Repositories.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
+                    b.Property<int?>("ConversationId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
@@ -465,6 +611,8 @@ namespace Harfi.Repositories.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
 
                     b.HasIndex("RelatedJobId");
 
@@ -590,6 +738,61 @@ namespace Harfi.Repositories.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("Harfi.Models.Entities.Report", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("ReportedByUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ResolutionNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ResolvedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("pending");
+
+                    b.Property<int>("TargetId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TargetType");
+
+                    b.ToTable("Reports", (string)null);
+                });
+
             modelBuilder.Entity("Harfi.Models.Entities.Review", b =>
                 {
                     b.Property<int>("Id")
@@ -613,6 +816,19 @@ namespace Harfi.Repositories.Migrations
                     b.Property<int>("CustomerId")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DeletionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
                     b.Property<int>("JobId")
                         .HasColumnType("int");
 
@@ -629,6 +845,44 @@ namespace Harfi.Repositories.Migrations
                         .IsUnique();
 
                     b.ToTable("Reviews");
+                });
+
+            modelBuilder.Entity("Harfi.Models.Entities.ServiceType", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Icon")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("NameAr")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NameAr")
+                        .IsUnique();
+
+                    b.HasIndex("NameEn")
+                        .IsUnique();
+
+                    b.ToTable("ServiceTypes", (string)null);
                 });
 
             modelBuilder.Entity("Harfi.Models.Entities.User", b =>
@@ -651,6 +905,16 @@ namespace Harfi.Repositories.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("DeletedByAdminId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("DeletionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
@@ -662,6 +926,9 @@ namespace Harfi.Repositories.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsVerified")
                         .HasColumnType("bit");
@@ -687,6 +954,12 @@ namespace Harfi.Repositories.Migrations
 
                     b.Property<string>("PasswordHash")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PasswordResetCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("PasswordResetCodeExpiry")
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
@@ -847,10 +1120,19 @@ namespace Harfi.Repositories.Migrations
                     b.HasOne("Harfi.Models.Entities.User", "User")
                         .WithMany("AIChatMessages")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Harfi.Models.Entities.AdminAuditLog", b =>
+                {
+                    b.HasOne("Harfi.Models.Entities.User", "Admin")
+                        .WithMany()
+                        .HasForeignKey("AdminId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Admin");
                 });
 
             modelBuilder.Entity("Harfi.Models.Entities.Conversation", b =>
@@ -858,8 +1140,7 @@ namespace Harfi.Repositories.Migrations
                     b.HasOne("Harfi.Models.Entities.Craftsman", "Craftsman")
                         .WithMany("Conversations")
                         .HasForeignKey("CraftsmanId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Harfi.Models.Entities.User", "Customer")
                         .WithMany()
@@ -895,9 +1176,7 @@ namespace Harfi.Repositories.Migrations
                 {
                     b.HasOne("Harfi.Models.Entities.User", "User")
                         .WithMany("EmailVerifications")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("UserId");
 
                     b.Navigation("User");
                 });
@@ -912,8 +1191,7 @@ namespace Harfi.Repositories.Migrations
                     b.HasOne("Harfi.Models.Entities.User", "Customer")
                         .WithMany("JobsAsCustomer")
                         .HasForeignKey("CustomerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Craftsman");
 
@@ -934,8 +1212,7 @@ namespace Harfi.Repositories.Migrations
                     b.HasOne("Harfi.Models.Entities.User", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("RAGDocument");
 
@@ -947,8 +1224,7 @@ namespace Harfi.Repositories.Migrations
                     b.HasOne("Harfi.Models.Entities.User", "Uploader")
                         .WithMany("UploadedFiles")
                         .HasForeignKey("UploadedBy")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Uploader");
                 });
@@ -964,8 +1240,7 @@ namespace Harfi.Repositories.Migrations
                     b.HasOne("Harfi.Models.Entities.User", "Sender")
                         .WithMany("SentMessages")
                         .HasForeignKey("SenderId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Conversation");
 
@@ -974,6 +1249,11 @@ namespace Harfi.Repositories.Migrations
 
             modelBuilder.Entity("Harfi.Models.Entities.Notification", b =>
                 {
+                    b.HasOne("Harfi.Models.Entities.Conversation", "Conversation")
+                        .WithMany()
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Harfi.Models.Entities.Job", "RelatedJob")
                         .WithMany("Notifications")
                         .HasForeignKey("RelatedJobId")
@@ -982,8 +1262,9 @@ namespace Harfi.Repositories.Migrations
                     b.HasOne("Harfi.Models.Entities.User", "User")
                         .WithMany("Notifications")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Conversation");
 
                     b.Navigation("RelatedJob");
 
@@ -994,9 +1275,7 @@ namespace Harfi.Repositories.Migrations
                 {
                     b.HasOne("Harfi.Models.Entities.User", "User")
                         .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("UserId");
 
                     b.Navigation("User");
                 });
@@ -1017,8 +1296,7 @@ namespace Harfi.Repositories.Migrations
                     b.HasOne("Harfi.Models.Entities.User", "User")
                         .WithMany("RefreshTokens")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("User");
                 });
@@ -1055,8 +1333,7 @@ namespace Harfi.Repositories.Migrations
                     b.HasOne("Harfi.Models.Entities.User", "User")
                         .WithMany("UserConnections")
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("User");
                 });

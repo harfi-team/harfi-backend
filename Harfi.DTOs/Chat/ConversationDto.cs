@@ -14,7 +14,9 @@ namespace Harfi.DTOs.Chat
         public string OtherUserName { get; set; } = string.Empty;
         public string? OtherUserAvatar { get; set; }
         public string? LastMessage { get; set; }
+        public string? LastMessageType { get; set; }
         public DateTime? LastMessageAt { get; set; }
         public int UnreadCount { get; set; }
+        public bool IsOnline { get; set; }
     }
 }

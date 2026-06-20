@@ -24,6 +24,11 @@ public class AppDbContext : IdentityUserContext<User, int>
     public DbSet<UserConnection> UserConnections { get; set; }
     public DbSet<EmailVerification> EmailVerifications => Set<EmailVerification>();
     public DbSet<PhoneVerification> PhoneVerifications => Set<PhoneVerification>();
+    public DbSet<AdminAuditLog> AdminAuditLogs { get; set; }
+    public DbSet<Report> Reports { get; set; }
+    public DbSet<ServiceType> ServiceTypes { get; set; }
+    public DbSet<City> Cities { get; set; }
+    public DbSet<FeatureFlag> FeatureFlags { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -62,6 +67,7 @@ public class AppDbContext : IdentityUserContext<User, int>
             e.HasOne(j => j.Customer)
              .WithMany(u => u.JobsAsCustomer)
              .HasForeignKey(j => j.CustomerId)
+             .IsRequired(false)
              .OnDelete(DeleteBehavior.Restrict);
 
             e.HasOne(j => j.Craftsman)
@@ -96,6 +102,7 @@ public class AppDbContext : IdentityUserContext<User, int>
             e.HasOne(c => c.Craftsman)
              .WithMany(cr => cr.Conversations)
              .HasForeignKey(c => c.CraftsmanId)
+             .IsRequired(false)
              .OnDelete(DeleteBehavior.Restrict);
 
             e.Property(c => c.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
@@ -113,6 +120,7 @@ public class AppDbContext : IdentityUserContext<User, int>
             e.HasOne(m => m.Sender)
              .WithMany(u => u.SentMessages)
              .HasForeignKey(m => m.SenderId)
+             .IsRequired(false)
              .OnDelete(DeleteBehavior.Restrict);
 
             e.Property(m => m.MessageType).HasDefaultValue("text");
@@ -149,11 +157,17 @@ public class AppDbContext : IdentityUserContext<User, int>
             e.HasOne(n => n.User)
              .WithMany(u => u.Notifications)
              .HasForeignKey(n => n.UserId)
+             .IsRequired(false)
              .OnDelete(DeleteBehavior.Cascade);
 
             e.HasOne(n => n.RelatedJob)
              .WithMany(j => j.Notifications)
              .HasForeignKey(n => n.RelatedJobId)
+             .OnDelete(DeleteBehavior.SetNull);
+
+            e.HasOne(n => n.Conversation)
+             .WithMany()
+             .HasForeignKey(n => n.ConversationId)
              .OnDelete(DeleteBehavior.SetNull);
 
             e.Property(n => n.IsRead).HasDefaultValue(false);
@@ -168,6 +182,7 @@ public class AppDbContext : IdentityUserContext<User, int>
             e.HasOne(rt => rt.User)
              .WithMany(u => u.RefreshTokens)
              .HasForeignKey(rt => rt.UserId)
+             .IsRequired(false)
              .OnDelete(DeleteBehavior.Cascade);
 
             e.Property(rt => rt.IsRevoked).HasDefaultValue(false);
@@ -182,6 +197,7 @@ public class AppDbContext : IdentityUserContext<User, int>
             e.HasOne(a => a.User)
              .WithMany(u => u.AIChatMessages)
              .HasForeignKey(a => a.UserId)
+             .IsRequired(false)
              .OnDelete(DeleteBehavior.Cascade);
 
             e.HasIndex(a => a.SessionId); // frequently queried to load session history
@@ -207,6 +223,7 @@ public class AppDbContext : IdentityUserContext<User, int>
             e.HasOne(mf => mf.Uploader)
              .WithMany(u => u.UploadedFiles)
              .HasForeignKey(mf => mf.UploadedBy)
+             .IsRequired(false)
              .OnDelete(DeleteBehavior.Restrict);
 
             e.Property(mf => mf.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
@@ -218,6 +235,7 @@ public class AppDbContext : IdentityUserContext<User, int>
             e.HasOne(jf => jf.User)
              .WithMany()
              .HasForeignKey(jf => jf.UserId)
+             .IsRequired(false)
              .OnDelete(DeleteBehavior.Restrict);
 
             e.HasOne(jf => jf.RAGDocument)
@@ -236,11 +254,88 @@ public class AppDbContext : IdentityUserContext<User, int>
             e.HasOne(uc => uc.User)
              .WithMany(u => u.UserConnections)
              .HasForeignKey(uc => uc.UserId)
+             .IsRequired(false)
              .OnDelete(DeleteBehavior.Cascade);
 
             e.Property(uc => uc.IsConnected).HasDefaultValue(true);
             e.Property(uc => uc.ConnectedAt).HasDefaultValueSql("GETUTCDATE()");
             e.Property(uc => uc.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+        });
+
+        // ── EMAIL VERIFICATION ─────────────────────────────────
+        modelBuilder.Entity<EmailVerification>(e =>
+        {
+            e.HasOne(ev => ev.User)
+             .WithMany(u => u.EmailVerifications)
+             .HasForeignKey(ev => ev.UserId)
+             .IsRequired(false);
+        });
+
+        // ── PHONE VERIFICATION ─────────────────────────────────
+        modelBuilder.Entity<PhoneVerification>(e =>
+        {
+            e.HasOne(pv => pv.User)
+             .WithMany()
+             .HasForeignKey(pv => pv.UserId)
+             .IsRequired(false);
+        });
+
+        // ── GLOBAL QUERY FILTERS (soft-delete + required nav guards) ─
+        modelBuilder.Entity<User>().HasQueryFilter(u => !u.IsDeleted);
+        modelBuilder.Entity<Craftsman>().HasQueryFilter(c => !c.IsDeleted && !c.User.IsDeleted);
+        modelBuilder.Entity<Review>().HasQueryFilter(r => !r.IsDeleted && !r.Customer.IsDeleted && !r.Craftsman.IsDeleted);
+        modelBuilder.Entity<Conversation>().HasQueryFilter(c => !c.Customer.IsDeleted);
+        modelBuilder.Entity<Message>().HasQueryFilter(m => !m.Conversation.Customer.IsDeleted);
+
+        // ── ADMIN AUDIT LOGS ──────────────────────────────────
+        modelBuilder.Entity<AdminAuditLog>(e =>
+        {
+            e.ToTable("AdminAuditLogs");
+            e.HasOne(a => a.Admin)
+             .WithMany()
+             .HasForeignKey(a => a.AdminId)
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.Restrict);
+            e.Property(a => a.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            e.HasIndex(a => a.AdminId);
+            e.HasIndex(a => a.Action);
+            e.HasIndex(a => a.TargetType);
+            e.HasIndex(a => a.CreatedAt);
+        });
+
+        // ── REPORTS ──────────────────────────────────────────
+        modelBuilder.Entity<Report>(e =>
+        {
+            e.ToTable("Reports");
+            e.Property(r => r.Status).HasDefaultValue("pending");
+            e.Property(r => r.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+            e.HasIndex(r => r.Status);
+            e.HasIndex(r => r.TargetType);
+        });
+
+        // ── SERVICE TYPES ─────────────────────────────────────
+        modelBuilder.Entity<ServiceType>(e =>
+        {
+            e.ToTable("ServiceTypes");
+            e.Property(s => s.IsActive).HasDefaultValue(true);
+            e.HasIndex(s => s.NameAr).IsUnique();
+            e.HasIndex(s => s.NameEn).IsUnique();
+        });
+
+        // ── CITIES ───────────────────────────────────────────
+        modelBuilder.Entity<City>(e =>
+        {
+            e.ToTable("Cities");
+            e.Property(c => c.IsActive).HasDefaultValue(true);
+            e.HasIndex(c => c.NameAr).IsUnique();
+            e.HasIndex(c => c.NameEn).IsUnique();
+        });
+
+        // ── FEATURE FLAGS ────────────────────────────────────
+        modelBuilder.Entity<FeatureFlag>(e =>
+        {
+            e.ToTable("FeatureFlags");
+            e.Property(f => f.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
         });
     }
 }

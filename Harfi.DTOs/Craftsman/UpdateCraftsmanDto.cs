@@ -9,8 +9,8 @@ namespace Harfi.DTOs.Craftsman
     public class UpdateCraftsmanDto
     {
 
-        public string Fullname { get; set; }
-        public string ProfileImageUrl { get; set; }
+        public string Fullname { get; set; } = string.Empty;
+        public string ProfileImageUrl { get; set; } = string.Empty;
 
         public string City { get; set; } = string.Empty;
         public string? Neighborhood { get; set; }

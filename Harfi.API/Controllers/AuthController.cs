@@ -1,7 +1,12 @@
+using Harfi.API.Hubs;
 using Harfi.DTOs.Auth;
+using Harfi.Repositories.Data;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Harfi.API.Controllers;
 
@@ -11,10 +16,17 @@ namespace Harfi.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly AppDbContext _db;
+    private readonly IHubContext<ChatHub> _chatHubContext;
 
-    public AuthController(IAuthService authService)
+    public AuthController(
+        IAuthService authService,
+        AppDbContext db,
+        IHubContext<ChatHub> chatHubContext)
     {
         _authService = authService;
+        _db = db;
+        _chatHubContext = chatHubContext;
     }
 
     // ── POST /api/auth/register ───────────────────────────────
@@ -27,6 +39,9 @@ public class AuthController : ControllerBase
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
+
+        if (dto.Role == "admin")
+            return BadRequest(new { message = "لا يمكن تسجيل حساب أدمن من خلال API التسجيل." });
 
         var result = await _authService.RegisterAsync(dto);
         return StatusCode(StatusCodes.Status201Created, result);
@@ -69,6 +84,22 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> Logout([FromBody] RefreshTokenRequestDto dto)
     {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!string.IsNullOrEmpty(userIdClaim) && int.TryParse(userIdClaim, out var userId))
+        {
+            var hadConnections = await _db.UserConnections
+                .AnyAsync(c => c.UserId == userId);
+
+            await _db.UserConnections
+                .Where(c => c.UserId == userId)
+                .ExecuteDeleteAsync();
+
+            if (hadConnections)
+            {
+                await _chatHubContext.Clients.All.SendAsync("UserOffline", userId);
+            }
+        }
+
         await _authService.LogoutAsync(dto.RefreshToken);
         return Ok(new { message = "تم تسجيل الخروج بنجاح" });
     }
@@ -87,6 +118,24 @@ public class AuthController : ControllerBase
     public IActionResult CraftsmanOnly()
         => Ok(new { message = "أهلاً بالحرفي 🔧" });
 
+    // ── GET /api/auth/me ──────────────────────────────────────
+    /// <summary>إرجاع بيانات المستخدم الحالي من الـ JWT</summary>
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> Me()
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var profile = await _authService.GetCraftsmanProfileByUserIdAsync(userId);
+        return Ok(new
+        {
+            id    = User.FindFirstValue(ClaimTypes.NameIdentifier),
+            name  = User.FindFirstValue(ClaimTypes.Name),
+            email = User.FindFirstValue(ClaimTypes.Email),
+            role  = User.FindFirstValue(ClaimTypes.Role),
+            craftsmanId = profile?.Id
+        });
+    }
+
 
     [HttpPost("verify-email")]
     [AllowAnonymous]
@@ -104,12 +153,54 @@ public class AuthController : ControllerBase
         return Ok(new { success = true, message });
     }
 
+    // ── POST /api/auth/forgot-password ────────────────────────
+    /// <summary>إرسال رابط إعادة تعيين كلمة المرور إلى البريد الإلكتروني</summary>
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        await _authService.ForgotPasswordAsync(dto.Email);
+        return Ok(new { message = "إذا كان البريد الإلكتروني مسجلاً لدينا، ستصلك رسالة لإعادة تعيين كلمة المرور." });
+    }
+
+    // ── POST /api/auth/reset-password ─────────────────────────
+    /// <summary>إعادة تعيين كلمة المرور باستخدام الرابط المرسل</summary>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDto dto)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        try
+        {
+            await _authService.ResetPasswordAsync(dto);
+            return Ok(new { message = "تم إعادة تعيين كلمة المرور بنجاح. يمكنك تسجيل الدخول الآن." });
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     // ── POST /api/auth/send-phone-code ─────────────────────────
     [HttpPost("send-phone-code")]
     [Authorize]
     public async Task<IActionResult> SendPhoneCode([FromBody] SendPhoneVerificationDto dto)
     {
-        var message = await _authService.SendPhoneVerificationCodeAsync(dto);
+        var email = User.FindFirstValue(ClaimTypes.Email)!;
+        var message = await _authService.SendPhoneVerificationCodeAsync(email, dto.PhoneNumber);
         return Ok(new { success = true, message });
     }
 
@@ -118,7 +209,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> VerifyPhone([FromBody] VerifyPhoneDto dto)
     {
-        var message = await _authService.VerifyPhoneAsync(dto);
+        var email = User.FindFirstValue(ClaimTypes.Email)!;
+        var message = await _authService.VerifyPhoneAsync(email, dto.PhoneNumber, dto.Code);
         return Ok(new { success = true, message });
     }
 
@@ -127,7 +219,8 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<IActionResult> ResendPhoneCode([FromBody] ResendPhoneCodeDto dto)
     {
-        var message = await _authService.ResendPhoneVerificationCodeAsync(dto);
+        var email = User.FindFirstValue(ClaimTypes.Email)!;
+        var message = await _authService.ResendPhoneVerificationCodeAsync(email, dto.PhoneNumber);
         return Ok(new { success = true, message });
     }
 }

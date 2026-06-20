@@ -1,8 +1,10 @@
 ﻿using Harfi.DTOs.Job;
 using Harfi.Models.Constants;
 using Harfi.Models.Entities;
+using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace Harfi.Services.Implementations;
 
@@ -10,14 +12,22 @@ public class JobService : IJobService
 {
     private readonly IJobRepository _jobRepository;
     private readonly INotificationService _notificationService;
-
+    private readonly ICraftsmanRepository _craftsmanRepo;
+    private readonly IRealtimeNotificationPusher _notifPusher;
+    private readonly AppDbContext _db;
 
     public JobService(
     IJobRepository jobRepository,
-    INotificationService notificationService)
+    INotificationService notificationService,
+    ICraftsmanRepository craftsmanRepo,
+    IRealtimeNotificationPusher notifPusher,
+    AppDbContext db)
     {
         _jobRepository = jobRepository;
         _notificationService = notificationService;
+        _craftsmanRepo = craftsmanRepo;
+        _notifPusher = notifPusher;
+        _db = db;
     }
 
     public async Task<JobResponseDto> CreateJobAsync(int customerId, CreateJobDto dto)
@@ -38,6 +48,17 @@ public class JobService : IJobService
         };
 
         var created = await _jobRepository.CreateAsync(job);
+
+        var craftsman = await _craftsmanRepo.GetByIdAsync(dto.CraftsmanId ?? 0);
+        if (craftsman != null)
+        {
+            var notifDto = await _notificationService.CreateJobNotificationAsync(
+                craftsman.UserId, "طلب خدمة جديد",
+                $"قام أحد العملاء بطلب خدمة {dto.ServiceType} جديدة",
+                "new_order", created.Id);
+            await _notifPusher.PushAsync(craftsman.UserId, notifDto);
+        }
+
         return MapToDto(created);
     }
 
@@ -48,13 +69,32 @@ public class JobService : IJobService
 
         var updated = await _jobRepository.UpdateAsync(job);
 
+        // auto-create conversation if none exists
+        var existingConv = await _db.Conversations
+            .FirstOrDefaultAsync(c => c.JobId == job.Id);
+        if (existingConv == null)
+        {
+            var newConv = new Conversation
+            {
+                JobId = job.Id,
+                CustomerId = job.CustomerId,
+                CraftsmanId = job.CraftsmanId!.Value,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.Conversations.Add(newConv);
+            await _db.SaveChangesAsync();
+            job.Conversation = newConv;
+        }
+
         // notify customer
-        await _notificationService.CreateJobNotificationAsync(
+        var notifAccepted = await _notificationService.CreateJobNotificationAsync(
         job.CustomerId, "تم قبول طلبك",
         "قام الحرفي بقبول طلب الخدمة الخاص بك",
         "job_accepted", job.Id);
+        await _notifPusher.PushAsync(job.CustomerId, notifAccepted);
 
-        return MapToDto(updated);
+        return MapToDto(job);
+
     }
 
     public async Task<JobResponseDto> RejectJobAsync(int jobId, int craftsmanId)
@@ -65,10 +105,11 @@ public class JobService : IJobService
         var updated = await _jobRepository.UpdateAsync(job);
 
         // notify customer
-        await _notificationService.CreateJobNotificationAsync(
+        var notifRejected = await _notificationService.CreateJobNotificationAsync(
         job.CustomerId, "تم رفض طلبك",
         "قام الحرفي برفض طلب الخدمة الخاص بك",
         "job_rejected", job.Id);
+        await _notifPusher.PushAsync(job.CustomerId, notifRejected);
 
         return MapToDto(updated);
     }
@@ -83,10 +124,11 @@ public class JobService : IJobService
         var updated = await _jobRepository.UpdateAsync(job);
 
         // notify customer
-        await _notificationService.CreateJobNotificationAsync(
+        var notifCompleted = await _notificationService.CreateJobNotificationAsync(
         job.CustomerId, "تم إنجاز طلبك",
         "قام الحرفي بإنهاء العمل. يمكنك الآن تقييم الخدمة",
         "job_completed", job.Id);
+        await _notifPusher.PushAsync(job.CustomerId, notifCompleted);
 
         return MapToDto(updated);
     }
@@ -101,6 +143,35 @@ public class JobService : IJobService
     {
         var jobs = await _jobRepository.GetByCraftsmanIdAsync(craftsmanId);
         return jobs.Select(MapToDto);
+    }
+
+    public async Task<bool> CraftsmanBelongsToUserAsync(int craftsmanId, int userId)
+        => await _jobRepository.CraftsmanBelongsToUserAsync(craftsmanId, userId);
+
+    public async Task<JobResponseDto?> GetJobByIdAsync(int jobId, int userId, string role)
+    {
+        var job = await _jobRepository.GetByIdAsync(jobId);
+        if (job == null) return null;
+
+        if (role == "admin")
+            return MapToDto(job);
+
+        if (role == "customer")
+        {
+            if (job.CustomerId != userId)
+                return null;
+            return MapToDto(job);
+        }
+
+        if (role == "craftsman")
+        {
+            var craftsman = await _jobRepository.GetCraftsmanByUserIdAsync(userId);
+            if (craftsman == null || job.CraftsmanId != craftsman.Id)
+                return null;
+            return MapToDto(job);
+        }
+
+        return null;
     }
 
     // ─── Private Helpers ────────────────────────────────────────────────────
@@ -127,7 +198,9 @@ public class JobService : IJobService
     {
         Id = job.Id,
         CustomerId = job.CustomerId,
+        CustomerName = job.Customer?.Name,
         CraftsmanId = job.CraftsmanId,
+        CraftsmanName = job.Craftsman?.User?.Name,
         Status = job.Status,
         ServiceType = job.ServiceType,
         Description = job.Description,
@@ -138,6 +211,7 @@ public class JobService : IJobService
         SolutionDescription = job.SolutionDescription,
         CreatedAt = job.CreatedAt,
         CompletedAt = job.CompletedAt,
-        UpdatedAt = job.UpdatedAt
+        UpdatedAt = job.UpdatedAt,
+        ConversationId = job.Conversation?.Id
     };
 }

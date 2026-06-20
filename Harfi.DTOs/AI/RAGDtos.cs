@@ -1,6 +1,20 @@
-﻿namespace Harfi.DTOs.RAG;
+﻿using Microsoft.AspNetCore.Http;
+namespace Harfi.DTOs.RAG;
+
 
 // ── RAG DTOs ──────────────────────────────────────────────────────────────────
+
+
+
+
+public class CraftsmenResultDto
+{
+    public List<RetrievedCraftsmanDto> Craftsmen { get; set; } = new();
+    public string? Service { get; set; }
+    public string? City { get; set; }
+}
+
+
 
 public class QueryRequest
 {
@@ -8,6 +22,8 @@ public class QueryRequest
     public int TopK { get; set; } = 5;
     public string? ExtractedService { get; set; }
     public string? ExtractedCity { get; set; }
+    public string? ExtractedDistrict { get; set; }  // ← جديد (مدينة + شارع المستخدم)
+
 }
 
 public class QueryResponse
@@ -63,9 +79,10 @@ public enum SolutionFollowUpState
 {
     None = 0,
     WaitingAnswer = 1,
-    WaitingDetail = 2
-}
+    WaitingDetail = 2,
+      WaitingFeedback = 3   // ← جديد
 
+}
 public class Chat3Request
 {
     public List<ChatMsg> Messages { get; set; } = new();
@@ -79,8 +96,16 @@ public class Chat3Request
     public int ProblemClarificationAttempts { get; set; } = 0;
     public SolutionFollowUpState FollowUpState { get; set; } = SolutionFollowUpState.None;
     public string? LastProblemDescription { get; set; }
-}
+    public string? ExtractedDistrict { get; set; }  // ← جديد
 
+
+    public int? UserId { get; set; }   // ← ضيف ده
+    public string? SessionId { get; set; }   // ← ضيف ده
+
+
+
+    public List<string> SolutionSteps { get; set; } = new();  // ← جديد
+}
 public class ChatMsg
 {
     public string Role { get; set; } = string.Empty;
@@ -98,6 +123,7 @@ public class Chat3Response
     public bool ShowIntentChoice { get; set; }
     public List<string> SolutionSteps { get; set; } = new();
     public bool ShowSolvedQuestion { get; set; }
+    public bool ShowFeedbackQuestion { get; set; }  // ← جديد
     public string? ExtractedService { get; set; }
     public string? ExtractedCity { get; set; }
     public int? ExtractedCount { get; set; }
@@ -106,8 +132,9 @@ public class Chat3Response
     public string? LastProblemDescription { get; set; }
     public QueryResponse? Result { get; set; }
     public double LatencyMs { get; set; }
-}
+    public string? ExtractedDistrict { get; set; }  // ← جديد
 
+}
 public class LlmExtractionResult
 {
     public string? ServiceType { get; set; }
@@ -116,6 +143,8 @@ public class LlmExtractionResult
     public string Missing { get; set; } = "all";
     public string? QuestionToAsk { get; set; }
     public bool ShowServicesList { get; set; }
+    public string? District { get; set; }  // ← أضف
+
     public bool ShowCitiesList { get; set; }
 }
 
@@ -185,3 +214,88 @@ public class QdrantScrollResult
 {
     public List<QdrantScoredPoint>? points { get; set; }
 }
+public class AnalyzeMediaDto
+{
+    public List<IFormFile>? Images { get; set; }
+    public IFormFile? Audio { get; set; }
+    public string? UserText { get; set; }
+    public string? ExtractedService { get; set; }
+    public string? ExtractedCity { get; set; }
+    public int? ExtractedCount { get; set; }
+    public string? ExtractedDistrict { get; set; }  // ← جديد
+
+    public int? UserId { get; set; }   // ← ضيف ده
+    public string? SessionId { get; set; }   // ← ضيف ده
+}
+
+
+
+
+// ════════════════════════════════════════════════════════════════
+//  AI Session DTOs
+// ════════════════════════════════════════════════════════════════
+
+public class AiSessionSummaryDto
+{
+    public string SessionId { get; set; } = "";
+    public string Title { get; set; } = "";
+    public string LastMessage { get; set; } = "";
+    public DateTime LastActivity { get; set; }
+    public int MessageCount { get; set; }
+}
+
+public class AiSessionMessageDto
+{
+    public int Id { get; set; }
+    public string Role { get; set; } = "";
+    public string Content { get; set; } = "";
+    public DateTime CreatedAt { get; set; }
+    public List<string> Images { get; set; } = new();
+    public string? Audio { get; set; }
+    public CraftsmenResultDto? CraftsmenResult { get; set; }  // ← جديد
+
+}
+
+public class AiSessionDetailDto
+{
+    public string SessionId { get; set; } = "";
+    public string Title { get; set; } = "";
+    public List<AiSessionMessageDto> Messages { get; set; } = new();
+}
+
+public class SaveMessageFormDto
+{
+    public int UserId { get; set; }
+    public string SessionId { get; set; } = "";
+    public string Role { get; set; } = "";       // "user" | "assistant"
+    public string? Content { get; set; }
+    public string? ToolUsed { get; set; }
+    public List<IFormFile>? Images { get; set; }
+    public IFormFile? Audio { get; set; }
+    public string? CraftsmenJson { get; set; }  // ← جديد
+
+}
+public class CraftsmanSolutionDto
+{
+    public int UserId { get; set; }          // ← أضف ده
+    public int JobId { get; set; }                          // ← أضف السطر ده
+
+    public string ServiceType { get; set; } = "";           // "سباك" / "كهربائي"
+    public string? ProblemDescription { get; set; }         // وصف المشكلة
+    public List<string> Steps { get; set; } = [];           // الخطوات الخام
+    public int CraftsmanId { get; set; }                    // اختياري
+}
+
+public class CheckAndSubmitResultDto
+{
+    public bool Accepted { get; set; }
+    public string Message { get; set; } = "";
+    public int? JobId { get; set; }
+    public int? Upserted { get; set; }
+    public List<string>? FixedSteps { get; set; }
+}
+public static class SeedStatus
+{
+    public static bool IsCompleted { get; set; } = false;
+}
+

@@ -11,8 +11,11 @@ namespace Harfi.Repositories.Interfaces
     {
         Task<IEnumerable<Notification>> GetUserNotificationsAsync(int userId);
         Task<bool> MarkAsReadAsync(int notificationId, int userId);
-        Task MarkAllAsReadAsync(int userId);
+                Task MarkAllAsReadAsync(int userId);
         Task<int> GetUnreadCountAsync(int userId);
+        Task<bool> DeleteAsync(int notificationId, int userId);
+        Task<int> DeleteAllAsync(int userId);
         Task CreateAsync(Notification notification);
+
     }
 }

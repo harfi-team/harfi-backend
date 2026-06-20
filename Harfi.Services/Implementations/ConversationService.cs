@@ -1,7 +1,9 @@
 ﻿using Harfi.DTOs.Chat;
 using Harfi.Models.Entities;
+using Harfi.Repositories.Data;
 using Harfi.Repositories.Interfaces;
 using Harfi.Services.Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 namespace Harfi.Services.Implementations
 {
@@ -9,59 +11,132 @@ namespace Harfi.Services.Implementations
     {
         private readonly IConversationRepository _convRepo;
         private readonly IMessageRepository _msgRepo;
+        private readonly AppDbContext _db;
 
         public ConversationService(
             IConversationRepository convRepo,
-            IMessageRepository msgRepo)
+            IMessageRepository msgRepo,
+            AppDbContext db)
         {
             _convRepo = convRepo;
             _msgRepo = msgRepo;
+            _db = db;
         }
 
+       public async Task<ConversationDto> GetOrCreateAsync(int jobId, int customerId, int craftsmanId)
+{
+    var existing = await _db.Conversations
+        .Include(c => c.Messages)
+        .Include(c => c.Customer)
+        .Include(c => c.Craftsman).ThenInclude(cr => cr.User)
+        .FirstOrDefaultAsync(c =>
+            c.JobId == jobId &&
+            c.CustomerId == customerId &&
+            c.CraftsmanId == craftsmanId); // ✅ مباشرة بدون lookup
 
-        public async Task<ConversationDto> GetOrCreateAsync(
-            int jobId, int customerId, int craftsmanId)
-        {
-            var existing = await _convRepo
-                .GetByParticipantsAsync(jobId, customerId, craftsmanId);
+    if (existing != null)
+        return await MapToDtoAsync(existing, customerId);
 
-            if (existing != null)
-                return await MapToDtoAsync(existing, customerId);
+    var conversation = new Conversation
+    {
+        JobId = jobId,
+        CustomerId = customerId,
+        CraftsmanId = craftsmanId, // ✅ Craftsman.Id مباشرة
+        CreatedAt = DateTime.UtcNow
+    };
 
-            var created = await _convRepo.AddAsync(new Conversation
-            {
-                JobId = jobId,
-                CustomerId = customerId,
-                CraftsmanId = craftsmanId
-            });
-            await _convRepo.SaveChangesAsync();
+    _db.Conversations.Add(conversation);
+    await _db.SaveChangesAsync();
 
-            var full = await _convRepo.GetByIdWithDetailsAsync(created.Id);
-            return await MapToDtoAsync(full!, customerId);
-        }
+    var created = await _db.Conversations
+        .Include(c => c.Messages)
+        .Include(c => c.Customer)
+        .Include(c => c.Craftsman).ThenInclude(cr => cr.User)
+        .FirstAsync(c => c.Id == conversation.Id);
+
+    return await MapToDtoAsync(created, customerId);
+}
 
         public Task<bool> IsParticipantAsync(int conversationId, int userId)
             => _convRepo.IsParticipantAsync(conversationId, userId);
 
         public async Task<IEnumerable<ConversationDto>> GetUserConversationsAsync(int userId)
         {
-            var conversations = await _convRepo.GetUserConversationsAsync(userId);
-            var result = new List<ConversationDto>();
-            foreach (var c in conversations)
-                result.Add(await MapToDtoAsync(c, userId));
-            return result;
+            var conversations = (await _convRepo.GetUserConversationsAsync(userId)).ToList();
+            if (conversations.Count == 0) return [];
+
+            var conversationIds = conversations.Select(c => c.Id).ToList();
+            var unreadCounts = await _db.Messages
+                .Where(m =>
+                    conversationIds.Contains(m.ConversationId) &&
+                    m.SenderId != userId &&
+                    !m.IsRead)
+                .GroupBy(m => m.ConversationId)
+                .Select(g => new { ConversationId = g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.ConversationId, x => x.Count);
+
+            var otherUserIds = conversations
+                .Select(c => c.CustomerId == userId ? c.Craftsman.UserId : c.CustomerId)
+                .Distinct()
+                .ToList();
+
+            var onlineUserIds = await _db.UserConnections
+                .Where(uc => otherUserIds.Contains(uc.UserId) && uc.IsConnected)
+                .Select(uc => uc.UserId)
+                .Distinct()
+                .ToListAsync();
+            var onlineSet = onlineUserIds.ToHashSet();
+
+            return conversations.Select(c =>
+            {
+                var otherUserId = c.CustomerId == userId ? c.Craftsman.UserId : c.CustomerId;
+                unreadCounts.TryGetValue(c.Id, out var unreadCount);
+                return BuildConversationDto(c, userId, unreadCount, onlineSet.Contains(otherUserId));
+            });
         }
 
         public async Task<ConversationDto?> GetByIdAsync(int conversationId, int userId)
         {
-            var c = await _convRepo.GetByIdWithDetailsAsync(conversationId);
+            var c = await _convRepo.GetByIdIfVisibleAsync(conversationId, userId);
             if (c == null) return null;
-            if (c.CustomerId != userId && c.Craftsman?.UserId != userId) return null;
             return await MapToDtoAsync(c, userId);
         }
 
-        // ── Mapper ────────────────────────────────────────────────
+        public async Task<bool> HideConversationAsync(int conversationId, int userId)
+        {
+            var c = await _convRepo.GetByIdWithDetailsAsync(conversationId);
+            if (c == null) return false;
+
+            if (c.CustomerId == userId)
+                c.CustomerHiddenAt = DateTime.UtcNow;
+            else if (c.Craftsman.UserId == userId)
+                c.CraftsmanHiddenAt = DateTime.UtcNow;
+            else
+                return false;
+
+            c.UpdatedAt = DateTime.UtcNow;
+            _convRepo.Update(c);
+            await _convRepo.SaveChangesAsync();
+            return true;
+        }
+
+        // ── Mappers ───────────────────────────────────────────────
         private async Task<ConversationDto> MapToDtoAsync(Conversation c, int userId)
+        {
+            var isCustomer = c.CustomerId == userId;
+            var otherUserId = isCustomer ? c.Craftsman.UserId : c.CustomerId;
+            var unreadCount = await _msgRepo.GetUnreadCountAsync(c.Id, userId);
+            var isOnline = await _db.UserConnections
+                .AnyAsync(uc => uc.UserId == otherUserId && uc.IsConnected);
+
+            return BuildConversationDto(c, userId, unreadCount, isOnline);
+        }
+
+        private static ConversationDto BuildConversationDto(
+            Conversation c,
+            int userId,
+            int unreadCount,
+            bool isOnline)
         {
             var isCustomer = c.CustomerId == userId;
             var otherUserId = isCustomer ? c.Craftsman.UserId : c.CustomerId;
@@ -73,7 +148,6 @@ namespace Harfi.Services.Implementations
                 : c.Customer?.ProfileImageUrl;
 
             var lastMsg = c.Messages.OrderByDescending(m => m.SentAt).FirstOrDefault();
-            var unreadCount = await _msgRepo.GetUnreadCountAsync(c.Id, userId);
 
             return new ConversationDto
             {
@@ -83,8 +157,12 @@ namespace Harfi.Services.Implementations
                 OtherUserName = otherUserName,
                 OtherUserAvatar = otherUserAvatar,
                 LastMessage = lastMsg?.Content,
-                LastMessageAt = lastMsg?.SentAt,
-                UnreadCount = unreadCount
+                LastMessageType = lastMsg?.MessageType,
+                LastMessageAt = lastMsg?.SentAt is DateTime dt
+                    ? DateTime.SpecifyKind(dt, DateTimeKind.Utc)
+                    : (DateTime?)null,
+                UnreadCount = unreadCount,
+                IsOnline = isOnline
             };
         }
     }

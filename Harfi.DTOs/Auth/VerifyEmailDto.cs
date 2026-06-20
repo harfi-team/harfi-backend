@@ -9,6 +9,6 @@ public class VerifyEmailDto
     public string Email { get; set; } = null!;
 
     [Required]
-    [StringLength(6, MinimumLength = 6, ErrorMessage = "Code must be 6 digits")]
+    [StringLength(6, MinimumLength = 6, ErrorMessage = "الكود يجب أن يكون 6 أرقام")]
     public string Code { get; set; } = null!;
 }

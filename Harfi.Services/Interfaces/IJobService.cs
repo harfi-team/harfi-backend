@@ -10,4 +10,6 @@ public interface IJobService
     Task<JobResponseDto> CompleteJobAsync(int jobId, int craftsmanId, UpdateJobStatusDto dto);
     Task<IEnumerable<JobResponseDto>> GetCustomerJobsAsync(int customerId);
     Task<IEnumerable<JobResponseDto>> GetCraftsmanJobsAsync(int craftsmanId);
+    Task<JobResponseDto?> GetJobByIdAsync(int jobId, int userId, string role);
+    Task<bool> CraftsmanBelongsToUserAsync(int craftsmanId, int userId);
 }

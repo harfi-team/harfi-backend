@@ -45,7 +45,7 @@ public class GlobalExceptionMiddleware
         var (statusCode, message) = exception switch
         {
             InvalidOperationException e => (HttpStatusCode.BadRequest, e.Message),
-            UnauthorizedAccessException e => (HttpStatusCode.Unauthorized, e.Message),
+            UnauthorizedAccessException e => (HttpStatusCode.Forbidden, e.Message),
             KeyNotFoundException e => (HttpStatusCode.NotFound, e.Message),
             ArgumentNullException e => (HttpStatusCode.BadRequest, e.Message),
             ArgumentException e => (HttpStatusCode.BadRequest, e.Message),
@@ -56,11 +56,13 @@ public class GlobalExceptionMiddleware
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
 
-        var body = new ErrorResponse
+        var body = new
         {
-            Status = (int)statusCode,
-            Message = message,
-            Timestamp = DateTime.UtcNow
+            success = false,
+            message = message,
+            data = (object?)null,
+            errors = new[] { message },
+            timestamp = DateTime.UtcNow
         };
 
         var json = JsonSerializer.Serialize(body, new JsonSerializerOptions
@@ -72,10 +74,3 @@ public class GlobalExceptionMiddleware
     }
 }
 
-// ── Error Response Shape ──────────────────────────────────────
-internal sealed class ErrorResponse
-{
-    public int Status { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; }
-}

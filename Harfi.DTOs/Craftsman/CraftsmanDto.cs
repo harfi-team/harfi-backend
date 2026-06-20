@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 
 namespace Harfi.DTOs.Craftsman
 {
@@ -30,5 +31,23 @@ namespace Harfi.DTOs.Craftsman
         public string? NationalIdUrl { get; set; }
         public DateTime CreatedAt { get; set; }
 
+    }
+
+    public class ServiceLookupDto
+    {
+        public string NameAr { get; set; } = string.Empty;
+        public string NameEn { get; set; } = string.Empty;
+        public string Icon { get; set; } = string.Empty;
+    }
+
+    public class CityLookupDto
+    {
+        public string NameAr { get; set; } = string.Empty;
+        public string NameEn { get; set; } = string.Empty;
+    }
+
+    public class UploadNationalIdDto
+    {
+        public IFormFile File { get; set; } = null!;
     }
 }
