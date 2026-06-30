@@ -66,4 +66,5 @@ public class Job
     public ICollection<Notification> Notifications { get; set; } = new List<Notification>();
     public ICollection<RAGDocument> RAGDocuments { get; set; } = new List<RAGDocument>();
     public ICollection<JobFeedback> Feedbacks { get; set; } = new List<JobFeedback>();
+    public ICollection<Dispute> Disputes { get; set; } = new List<Dispute>();
 }

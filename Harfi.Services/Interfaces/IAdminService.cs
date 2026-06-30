@@ -1,5 +1,6 @@
 ﻿using Harfi.DTOs.Admin;
 using Harfi.DTOs.Chat;
+using Harfi.DTOs.Dispute;
 
 namespace Harfi.Services.Interfaces;
 
@@ -31,6 +32,7 @@ public interface IAdminService
     Task<AdminActionResponse> ResolveDisputeAsync(int id, string resolution, string favoredParty, int adminId, string? ipAddress);
     Task<ChatMetadataDto> GetJobChatMetadataAsync(int id);
     Task<IEnumerable<MessageDto>> GetJobMessagesForAdminAsync(int jobId, int adminId, string? ipAddress);
+    Task<DisputeDetailDto> GetDisputeDetailAsync(int disputeId);
 
     // Content Moderation
     Task<PagedResult<ReviewAdminDto>> GetReviewsAsync(int? craftsmanId, int? minStars, int? maxStars, int page, int pageSize);

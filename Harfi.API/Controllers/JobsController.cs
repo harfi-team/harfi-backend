@@ -1,4 +1,5 @@
-﻿using Harfi.DTOs.Job;
+﻿using Harfi.DTOs.Dispute;
+using Harfi.DTOs.Job;
 using Harfi.Services.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -14,11 +15,13 @@ public class JobsController : ControllerBase
 {
     private readonly IJobService _jobService;
     private readonly IImageservice _imageService;
+    private readonly IDisputeService _disputeService;
 
-    public JobsController(IJobService jobService, IImageservice imageService)
+    public JobsController(IJobService jobService, IImageservice imageService, IDisputeService disputeService)
     {
         _jobService = jobService;
         _imageService = imageService;
+        _disputeService = disputeService;
     }
 
     [HttpPost]
@@ -150,6 +153,53 @@ public class JobsController : ControllerBase
         }
 
         var result = await _jobService.GetCraftsmanJobsAsync(id);
+        return Ok(result);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  DISPUTES (Customer & Craftsman)
+    // ═══════════════════════════════════════════════════════════
+
+    [HttpPost("{id}/dispute")]
+    public async Task<IActionResult> OpenDispute(int id, [FromBody] CreateDisputeRequest dto)
+    {
+        if (!ModelState.IsValid) return BadRequest(ModelState);
+
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var role = User.FindFirstValue(ClaimTypes.Role)!;
+
+        if (role != "customer" && role != "craftsman")
+            return Forbid();
+
+        try
+        {
+            var result = await _disputeService.OpenDisputeAsync(id, userId, role, dto);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("{id}/dispute")]
+    public async Task<IActionResult> GetDisputeForJob(int id)
+    {
+        var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+        var role = User.FindFirstValue(ClaimTypes.Role)!;
+
+        var result = await _disputeService.GetDisputeForJobAsync(id, userId, role);
+        if (result == null)
+            return NotFound(new { message = "لا يوجد نزاع نشط على هذه الوظيفة." });
+
         return Ok(result);
     }
 }

@@ -77,6 +77,10 @@ public static class ServiceExtensions
 
         services.AddScoped<IRealtimeNotificationPusher, SignalRNotificationPusher>();
 
+        // Dispute system
+        services.AddScoped<IDisputeRepository, DisputeRepository>();
+        services.AddScoped<IDisputeService, DisputeService>();
+
         return services;
     }
 

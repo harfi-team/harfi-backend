@@ -194,24 +194,34 @@ public class JobService : IJobService
         return job;
     }
 
-    private static JobResponseDto MapToDto(Job job) => new()
+    private static JobResponseDto MapToDto(Job job)
     {
-        Id = job.Id,
-        CustomerId = job.CustomerId,
-        CustomerName = job.Customer?.Name,
-        CraftsmanId = job.CraftsmanId,
-        CraftsmanName = job.Craftsman?.User?.Name,
-        Status = job.Status,
-        ServiceType = job.ServiceType,
-        Description = job.Description,
-        Address = job.Address,
-        PreferredDate = job.PreferredDate,
-        ProblemImageUrl = job.ProblemImageUrl,
-        ProblemDescription = job.ProblemDescription,
-        SolutionDescription = job.SolutionDescription,
-        CreatedAt = job.CreatedAt,
-        CompletedAt = job.CompletedAt,
-        UpdatedAt = job.UpdatedAt,
-        ConversationId = job.Conversation?.Id
-    };
+        var activeDispute = job.Disputes?
+            .FirstOrDefault(d => DisputeStatusConstants.Active.Contains(d.Status));
+        var resolvedDispute = job.Disputes?
+            .FirstOrDefault(d => d.Status == DisputeStatusConstants.Resolved);
+
+        return new JobResponseDto
+        {
+            Id = job.Id,
+            CustomerId = job.CustomerId,
+            CustomerName = job.Customer?.Name,
+            CraftsmanId = job.CraftsmanId,
+            CraftsmanName = job.Craftsman?.User?.Name,
+            Status = job.Status,
+            ServiceType = job.ServiceType,
+            Description = job.Description,
+            Address = job.Address,
+            PreferredDate = job.PreferredDate,
+            ProblemImageUrl = job.ProblemImageUrl,
+            ProblemDescription = job.ProblemDescription,
+            SolutionDescription = job.SolutionDescription,
+            CreatedAt = job.CreatedAt,
+            CompletedAt = job.CompletedAt,
+            UpdatedAt = job.UpdatedAt,
+            ConversationId = job.Conversation?.Id,
+            HasOpenDispute = activeDispute != null,
+            DisputeStatus = activeDispute?.Status ?? resolvedDispute?.Status
+        };
+    }
 }

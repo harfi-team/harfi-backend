@@ -1,3 +1,4 @@
+using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -29,6 +30,7 @@ public class AppDbContext : IdentityUserContext<User, int>
     public DbSet<ServiceType> ServiceTypes { get; set; }
     public DbSet<City> Cities { get; set; }
     public DbSet<FeatureFlag> FeatureFlags { get; set; }
+    public DbSet<Dispute> Disputes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -336,6 +338,36 @@ public class AppDbContext : IdentityUserContext<User, int>
         {
             e.ToTable("FeatureFlags");
             e.Property(f => f.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+        });
+
+        // ── DISPUTES ─────────────────────────────────────────
+        modelBuilder.Entity<Dispute>(e =>
+        {
+            e.ToTable("Disputes");
+
+            e.HasOne(d => d.Job)
+             .WithMany(j => j.Disputes)
+             .HasForeignKey(d => d.JobId)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(d => d.RaisedByUser)
+             .WithMany()
+             .HasForeignKey(d => d.RaisedByUserId)
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            e.HasOne(d => d.ResolvedByAdmin)
+             .WithMany()
+             .HasForeignKey(d => d.ResolvedByAdminId)
+             .IsRequired(false)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            e.Property(d => d.Status).HasDefaultValue(DisputeStatusConstants.Pending);
+            e.Property(d => d.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+            e.HasIndex(d => d.JobId);
+            e.HasIndex(d => d.RaisedByUserId);
+            e.HasIndex(d => d.Status);
         });
     }
 }

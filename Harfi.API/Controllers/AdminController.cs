@@ -269,6 +269,20 @@ public class AdminController : ControllerBase
         }
     }
 
+    [HttpGet("disputes/{id}")]
+    public async Task<IActionResult> GetDisputeDetail(int id)
+    {
+        try
+        {
+            var result = await _adminService.GetDisputeDetailAsync(id);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
     //  CONTENT MODERATION
     // ═══════════════════════════════════════════════════════════

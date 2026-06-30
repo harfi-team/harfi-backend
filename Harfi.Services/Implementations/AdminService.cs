@@ -1,5 +1,6 @@
 ﻿using Harfi.DTOs.Admin;
 using Harfi.DTOs.Chat;
+using Harfi.DTOs.Dispute;
 using Harfi.Models.Constants;
 using Harfi.Models.Entities;
 using Harfi.Repositories.Data;
@@ -26,6 +27,9 @@ public class AdminService : IAdminService
     private readonly IAuditLogService _auditLogService;
     private readonly UserManager<User> _userManager;
     private readonly AppDbContext _db;
+    private readonly IDisputeRepository _disputeRepo;
+    private readonly INotificationService _notificationService;
+    private readonly IRealtimeNotificationPusher _notifPusher;
 
     public AdminService(
         ICraftsmanRepository craftsmanRepo,
@@ -41,7 +45,10 @@ public class AdminService : IAdminService
         IConversationRepository convRepo,
         IAuditLogService auditLogService,
         UserManager<User> userManager,
-        AppDbContext db)
+        AppDbContext db,
+        IDisputeRepository disputeRepo,
+        INotificationService notificationService,
+        IRealtimeNotificationPusher notifPusher)
     {
         _craftsmanRepo = craftsmanRepo;
         _userRepo = userRepo;
@@ -57,6 +64,9 @@ public class AdminService : IAdminService
         _auditLogService = auditLogService;
         _userManager = userManager;
         _db = db;
+        _disputeRepo = disputeRepo;
+        _notificationService = notificationService;
+        _notifPusher = notifPusher;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -510,6 +520,12 @@ public class AdminService : IAdminService
         if (to.HasValue)
             query = query.Where(j => j.CreatedAt <= to.Value);
 
+        // Fetch active dispute ids per job for display
+        var activeDisputeJobIds = await _disputeRepo.GetQueryable()
+            .Where(d => DisputeStatusConstants.Active.Contains(d.Status))
+            .Select(d => d.JobId)
+            .ToListAsync();
+
         var total = await query.CountAsync();
         var items = await query
             .OrderByDescending(j => j.CreatedAt)
@@ -532,7 +548,7 @@ public class AdminService : IAdminService
                 ServiceType = j.ServiceType,
                 Description = j.Description,
                 Address = j.Address,
-                IsDisputed = j.IsDisputed,
+                IsDisputed = activeDisputeJobIds.Contains(j.Id),
                 CreatedAt = j.CreatedAt,
                 CompletedAt = j.CompletedAt
             }),
@@ -551,6 +567,8 @@ public class AdminService : IAdminService
             .FirstOrDefaultAsync(j => j.Id == id)
             ?? throw new KeyNotFoundException("الوظيفة غير موجودة.");
 
+        var activeDispute = await _disputeRepo.GetActiveDisputeForJobAsync(id);
+
         return new JobDetailDto
         {
             Id = job.Id,
@@ -568,10 +586,10 @@ public class AdminService : IAdminService
             ProblemImageUrl = job.ProblemImageUrl,
             ProblemDescription = job.ProblemDescription,
             SolutionDescription = job.SolutionDescription,
-            IsDisputed = job.IsDisputed,
-            DisputeRaisedAt = job.DisputeRaisedAt,
-            DisputeResolvedAt = job.DisputeResolvedAt,
-            DisputeResolution = job.DisputeResolution,
+            IsDisputed = activeDispute != null,
+            DisputeRaisedAt = activeDispute?.CreatedAt,
+            DisputeResolvedAt = activeDispute?.ResolvedAt,
+            DisputeResolution = activeDispute?.Resolution,
             CreatedAt = job.CreatedAt,
             CompletedAt = job.CompletedAt,
             UpdatedAt = job.UpdatedAt
@@ -601,11 +619,22 @@ public class AdminService : IAdminService
         var job = await _jobRepo.GetByIdAsync(id)
             ?? throw new KeyNotFoundException("الوظيفة غير موجودة.");
 
-        job.IsDisputed = true;
-        job.DisputeRaisedAt = DateTime.UtcNow;
-        job.UpdatedAt = DateTime.UtcNow;
-        _jobRepo.Update(job);
-        await _jobRepo.SaveChangesAsync();
+        // Check if there's already an active dispute
+        var existing = await _disputeRepo.GetActiveDisputeForJobAsync(id);
+        if (existing != null)
+            return AdminActionResponse.Fail("يوجد بالفعل نزاع نشط على هذه الوظيفة.");
+
+        var dispute = new Dispute
+        {
+            JobId = id,
+            RaisedByUserId = adminId,
+            RaisedByRole = "admin",
+            Reason = reason,
+            Status = DisputeStatusConstants.UnderReview,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _disputeRepo.CreateAsync(dispute);
 
         await _auditLogService.LogAsync(adminId, "flag_dispute", "Job", id,
             $"Flagged dispute. Reason: {reason}", ipAddress);
@@ -619,20 +648,54 @@ public class AdminService : IAdminService
         var job = await _jobRepo.GetByIdAsync(id)
             ?? throw new KeyNotFoundException("الوظيفة غير موجودة.");
 
-        if (!job.IsDisputed)
-            return AdminActionResponse.Fail("الوظيفة ليس بها نزاع.");
+        var dispute = await _disputeRepo.GetActiveDisputeForJobAsync(id);
+        if (dispute == null)
+            return AdminActionResponse.Fail("لا يوجد نزاع نشط على هذه الوظيفة.");
 
-        job.IsDisputed = false;
-        job.DisputeResolvedAt = DateTime.UtcNow;
-        job.DisputeResolution = $"Resolution: {resolution}. Favored: {favoredParty}";
-        job.UpdatedAt = DateTime.UtcNow;
-        _jobRepo.Update(job);
-        await _jobRepo.SaveChangesAsync();
+        dispute.Status = DisputeStatusConstants.Resolved;
+        dispute.Resolution = resolution;
+        dispute.FavoredParty = favoredParty;
+        dispute.ResolvedByAdminId = adminId;
+        dispute.ResolvedAt = DateTime.UtcNow;
+        await _disputeRepo.UpdateAsync(dispute);
 
         await _auditLogService.LogAsync(adminId, "resolve_dispute", "Job", id,
             $"Resolved dispute. Resolution: {resolution}. Favored: {favoredParty}", ipAddress);
 
+        // Notify both parties
+        await NotifyDisputeResolvedAsync(job, dispute);
+
         return AdminActionResponse.Ok("تم حل النزاع.");
+    }
+
+    private async Task NotifyDisputeResolvedAsync(Job job, Dispute dispute)
+    {
+        var favoredName = dispute.FavoredParty == "customer" ? "العميل" :
+                          dispute.FavoredParty == "craftsman" ? "الحرفي" : "الطرفين";
+
+        // Notify the customer
+        if (job.CustomerId > 0)
+        {
+            var notifCustomer = await _notificationService.CreateJobNotificationAsync(
+                job.CustomerId,
+                "تم حل النزاع",
+                $"تم حل النزاع لصالح {favoredName}.",
+                "dispute_resolved",
+                job.Id);
+            await _notifPusher.PushAsync(job.CustomerId, notifCustomer);
+        }
+
+        // Notify the craftsman
+        if (job.Craftsman?.UserId != null)
+        {
+            var notifCraftsman = await _notificationService.CreateJobNotificationAsync(
+                job.Craftsman.UserId,
+                "تم حل النزاع",
+                $"تم حل النزاع لصالح {favoredName}.",
+                "dispute_resolved",
+                job.Id);
+            await _notifPusher.PushAsync(job.Craftsman.UserId, notifCraftsman);
+        }
     }
 
     public async Task<ChatMetadataDto> GetJobChatMetadataAsync(int id)
@@ -669,7 +732,8 @@ public class AdminService : IAdminService
             .FirstOrDefaultAsync(j => j.Id == jobId)
             ?? throw new KeyNotFoundException("الوظيفة غير موجودة.");
 
-        if (!job.IsDisputed)
+        var activeDispute = await _disputeRepo.GetActiveDisputeForJobAsync(jobId);
+        if (activeDispute == null)
             throw new UnauthorizedAccessException("لا يمكن الوصول إلى رسائل المحادثة إلا في حالة وجود نزاع.");
 
         if (job.Conversation == null)
@@ -697,6 +761,50 @@ public class AdminService : IAdminService
             IsRead = m.IsRead,
             SentAt = m.SentAt
         });
+    }
+
+    public async Task<DisputeDetailDto> GetDisputeDetailAsync(int disputeId)
+    {
+        var dispute = await _disputeRepo.GetByIdAsync(disputeId)
+            ?? throw new KeyNotFoundException("النزاع غير موجود.");
+
+        var job = dispute.Job;
+        var conv = job.Conversation;
+
+        return new DisputeDetailDto
+        {
+            Id = dispute.Id,
+            JobId = dispute.JobId,
+            JobServiceType = job.ServiceType,
+            JobStatus = job.Status,
+            JobDescription = job.Description,
+
+            RaisedByUserId = dispute.RaisedByUserId,
+            RaisedByRole = dispute.RaisedByRole,
+
+            Status = dispute.Status,
+            Reason = dispute.Reason,
+            Description = dispute.Description,
+            Attachments = dispute.Attachments,
+            CreatedAt = dispute.CreatedAt,
+            ResolvedAt = dispute.ResolvedAt,
+
+            ResponseMessage = dispute.ResponseMessage,
+            ResponseAttachments = dispute.ResponseAttachments,
+
+            Resolution = dispute.Resolution,
+            FavoredParty = dispute.FavoredParty,
+            ResolvedByAdminId = dispute.ResolvedByAdminId,
+            ResolvedByAdminName = dispute.ResolvedByAdmin?.Name,
+
+            CustomerId = job.CustomerId,
+            CustomerName = job.Customer?.Name ?? string.Empty,
+            CraftsmanId = job.CraftsmanId,
+            CraftsmanName = job.Craftsman?.User?.Name,
+
+            ConversationId = conv?.Id,
+            HasActiveDispute = DisputeStatusConstants.Active.Contains(dispute.Status)
+        };
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -906,8 +1014,7 @@ public class AdminService : IAdminService
             .CountAsync(j => j.Status == JobStatusConstants.Open || j.Status == JobStatusConstants.InProgress);
         var completedJobs    = await _jobRepo.GetQueryable()
             .CountAsync(j => j.Status == JobStatusConstants.Done);
-        var disputedJobs     = await _jobRepo.GetQueryable()
-            .CountAsync(j => j.IsDisputed);
+        var disputedJobs     = await _disputeRepo.CountActiveAsync();
         var pendingReports   = await _reportRepo.GetQueryable()
             .CountAsync(r => r.Status == "pending");
         var totalReviews     = await _reviewRepo.GetQueryable().IgnoreQueryFilters().CountAsync();
@@ -994,6 +1101,8 @@ public class AdminService : IAdminService
             .Select(j => (j.CompletedAt.GetValueOrDefault() - j.CreatedAt).TotalDays)
             .ToList();
 
+        var activeDisputeCount = await _disputeRepo.CountActiveAsync();
+
         return new JobAnalyticsDto
         {
             TotalJobs = jobs.Count,
@@ -1001,7 +1110,7 @@ public class AdminService : IAdminService
             InProgress = jobs.Count(j => j.Status == JobStatusConstants.InProgress),
             Completed = jobs.Count(j => j.Status == JobStatusConstants.Done),
             Rejected = jobs.Count(j => j.Status == JobStatusConstants.Rejected),
-            Disputed = jobs.Count(j => j.IsDisputed),
+            Disputed = activeDisputeCount,
             ByServiceType = jobs.GroupBy(j => j.ServiceType)
                 .ToDictionary(g => g.Key, g => g.Count()),
             AverageCompletionDays = completionDays.Any() ? completionDays.Average() : 0

@@ -25,11 +25,13 @@ public class JobRepository : IJobRepository
             .Include(j => j.Customer)
             .Include(j => j.Craftsman).ThenInclude(c => c!.User)
             .Include(j => j.Conversation)
+            .Include(j => j.Disputes)
             .FirstOrDefaultAsync(j => j.Id == id);
 
     public async Task<IEnumerable<Job>> GetByCustomerIdAsync(int customerId)
         => await _context.Jobs
             .Include(j => j.Conversation)
+            .Include(j => j.Disputes)
             .Where(j => j.CustomerId == customerId)
             .OrderByDescending(j => j.CreatedAt)
             .ToListAsync();
@@ -37,6 +39,7 @@ public class JobRepository : IJobRepository
     public async Task<IEnumerable<Job>> GetByCraftsmanIdAsync(int craftsmanId)
         => await _context.Jobs
             .Include(j => j.Conversation)
+            .Include(j => j.Disputes)
             .Where(j => j.CraftsmanId == craftsmanId)
             .OrderByDescending(j => j.CreatedAt)
             .ToListAsync();

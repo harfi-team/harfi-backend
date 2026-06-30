@@ -19,4 +19,8 @@ public class JobResponseDto
     public DateTime? CompletedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public int? ConversationId { get; set; }
+
+    // ── Dispute info ──────────────────────────────────────────
+    public bool HasOpenDispute { get; set; }
+    public string? DisputeStatus { get; set; }
 }
